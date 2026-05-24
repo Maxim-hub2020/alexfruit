@@ -1,0 +1,106 @@
+import Link from "next/link";
+import { format } from "date-fns";
+import { FileText, MapPin } from "lucide-react";
+import { Role } from "@/generated/prisma";
+import { AdminDatePdfActions } from "@/components/admin/admin-date-pdf-actions";
+import { YandexRoutePanel } from "@/components/admin/yandex-route-panel";
+import { MainShell } from "@/components/layout/main-shell";
+import { PhoneCallLink } from "@/components/ui/phone-call-link";
+import { StatusPill } from "@/components/ui/status-pill";
+import { requirePageUser } from "@/lib/auth";
+import { getDeliveryBoard } from "@/lib/orders";
+
+export const dynamic = "force-dynamic";
+
+export default async function AdminDeliveryPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const user = await requirePageUser([Role.ADMIN]);
+  const params = await searchParams;
+  const selectedDate =
+    typeof params.date === "string" ? params.date : format(new Date(), "yyyy-MM-dd");
+  const orders = await getDeliveryBoard({
+    date: selectedDate,
+  });
+  const labelsUrl = `/api/admin/orders/labels?date=${encodeURIComponent(selectedDate)}`;
+  const assemblyUrl = `/api/admin/orders/assembly-pdf?date=${encodeURIComponent(selectedDate)}`;
+  const deliveryPdfUrl = `/api/admin/orders/delivery-pdf?date=${encodeURIComponent(selectedDate)}`;
+
+  return (
+    <MainShell active="admin-delivery" user={user}>
+      <section className="section-shell space-y-6 py-8">
+        <div className="glass-panel rounded-[2.2rem] p-6">
+          <h1 className="font-serif text-5xl font-semibold">Доставка и маршруты</h1>
+          <p className="mt-3 max-w-2xl text-lg text-[var(--muted)]">
+            Карта заказов, быстрый переход в Яндекс.Карты и первичный анализ нагрузки
+            по курьерам, слотам и координатам адресов.
+          </p>
+        </div>
+
+        <AdminDatePdfActions
+          basePath="/admin/delivery"
+          selectedDate={selectedDate}
+          ordersCount={orders.length}
+          eyebrow="Дата доставки"
+          title="Фильтр заказов и PDF-документы"
+          description="Список и документы перестраиваются автоматически по выбранной дате, чтобы не смешивать сегодняшние и будущие доставки."
+          labelsUrl={labelsUrl}
+          assemblyUrl={assemblyUrl}
+          deliveryUrl={deliveryPdfUrl}
+          emptyText="Нет заказов для документов на выбранную дату."
+        />
+
+        <YandexRoutePanel orders={orders} />
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          {orders.map((order) => (
+            <article key={order.id} className="glass-panel rounded-[2rem] p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 className="text-xl font-semibold">{order.orderNumber}</h2>
+                    <StatusPill status={order.status} />
+                  </div>
+                  <p className="mt-2 text-sm text-[var(--muted)]">
+                    Клиент: {order.user.name}
+                  </p>
+                  <PhoneCallLink phone={order.user.phone} className="mt-2" />
+                  <p className="mt-2 text-sm text-[var(--muted)]">
+                    {order.address.city}, {order.address.street}, {order.address.house}
+                  </p>
+                  <p className="text-sm text-[var(--muted)]">
+                    Слот {order.deliveryTimeSlot.title} · Курьер {order.courier?.name ?? "—"}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Link
+                    href={`https://yandex.ru/maps/?text=${encodeURIComponent(
+                      `${order.address.city} ${order.address.street} ${order.address.house}`,
+                    )}`}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--line)]"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <MapPin size={16} />
+                    Открыть адрес
+                  </Link>
+                  <Link
+                    href={`/api/admin/orders/${order.id}/label`}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <FileText size={16} />
+                    Этикетка 40×50
+                  </Link>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </MainShell>
+  );
+}

@@ -1,0 +1,244 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  COURIER
+}
+
+enum ProductUnit {
+  KG
+  PIECE
+  PACK
+}
+
+enum StockStatus {
+  IN_STOCK
+  LOW
+  OUT_OF_STOCK
+}
+
+enum OrderStatus {
+  NEW
+  PENDING_CONFIRMATION
+  CONFIRMED
+  ASSEMBLING
+  ASSEMBLED
+  HANDED_TO_COURIER
+  COURIER_ON_THE_WAY
+  DELIVERED
+  CANCELLED
+  DELIVERY_ISSUE
+}
+
+enum DeliveryTaskStatus {
+  ASSIGNED
+  IN_PROGRESS
+  DELIVERED
+  ISSUE
+  CANCELLED
+}
+
+enum ProblemType {
+  CUSTOMER_UNREACHABLE
+  CUSTOMER_ABSENT
+  RESCHEDULE
+  FAILED_DELIVERY
+  OTHER
+}
+
+enum NotificationType {
+  ORDER_CREATED
+  ORDER_CONFIRMED
+  ORDER_UPDATED
+  ORDER_ASSEMBLED
+  ORDER_HANDED_TO_COURIER
+  COURIER_ON_THE_WAY
+  ORDER_DELIVERED
+  ORDER_CANCELLED
+  REPLACEMENT_REQUIRED
+}
+
+model User {
+  id              String            @id @default(cuid())
+  name            String
+  phone           String?           @unique
+  email           String?           @unique
+  passwordHash    String
+  role            Role              @default(CUSTOMER)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  customerProfile CustomerProfile?
+  courierProfile  Courier?
+  addresses       Address[]
+  orders          Order[]           @relation("CustomerOrders")
+  assignedOrders  Order[]           @relation("CourierOrders")
+  deliveryTasks   DeliveryTask[]    @relation("CourierTasks")
+  notifications   Notification[]
+}
+
+model CustomerProfile {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  defaultAddressId String?
+  notes            String?
+  bonusBalance     Decimal   @default(0) @db.Decimal(10, 2)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultAddress   Address?  @relation("DefaultAddress", fields: [defaultAddressId], references: [id], onDelete: SetNull)
+}
+
+model Address {
+  id                String             @id @default(cuid())
+  userId            String
+  title             String
+  city              String
+  street            String
+  house             String
+  apartment         String?
+  entrance          String?
+  floor             String?
+  comment           String?
+  latitude          Decimal?           @db.Decimal(9, 6)
+  longitude         Decimal?           @db.Decimal(9, 6)
+  isDefault         Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultForProfile CustomerProfile[]  @relation("DefaultAddress")
+  orders            Order[]
+
+  @@index([userId])
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
+  products  Product[]
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  categoryId  String
+  name        String
+  description String?
+  price       Decimal     @db.Decimal(10, 2)
+  unit        ProductUnit
+  imageUrl    String?
+  isActive    Boolean     @default(true)
+  isHit       Boolean     @default(false)
+  isNew       Boolean     @default(false)
+  isPromo     Boolean     @default(false)
+  stockStatus StockStatus @default(IN_STOCK)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  category    Category    @relation(fields: [categoryId], references: [id])
+  orderItems  OrderItem[]
+
+  @@index([categoryId])
+}
+
+model Order {
+  id                 String           @id @default(cuid())
+  orderNumber        String           @unique
+  userId             String
+  addressId          String
+  deliveryDate       DateTime         @db.Date
+  deliveryTimeSlotId String
+  status             OrderStatus      @default(NEW)
+  preliminaryTotal   Decimal          @db.Decimal(10, 2)
+  finalTotal         Decimal?         @db.Decimal(10, 2)
+  customerComment    String?
+  adminComment       String?
+  courierId          String?
+  editableUntil      DateTime
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  user               User             @relation("CustomerOrders", fields: [userId], references: [id], onDelete: Cascade)
+  address            Address          @relation(fields: [addressId], references: [id])
+  deliveryTimeSlot   DeliveryTimeSlot @relation(fields: [deliveryTimeSlotId], references: [id])
+  courier            User?            @relation("CourierOrders", fields: [courierId], references: [id], onDelete: SetNull)
+  items              OrderItem[]
+  deliveryTask       DeliveryTask?
+  notifications      Notification[]
+
+  @@index([userId, deliveryDate])
+  @@index([courierId])
+}
+
+model OrderItem {
+  id              String      @id @default(cuid())
+  orderId         String
+  productId       String?
+  productName     String
+  price           Decimal     @db.Decimal(10, 2)
+  unit            ProductUnit
+  orderedQuantity Decimal     @db.Decimal(10, 2)
+  actualQuantity  Decimal?    @db.Decimal(10, 2)
+  preliminarySum  Decimal     @db.Decimal(10, 2)
+  finalSum        Decimal?    @db.Decimal(10, 2)
+  order           Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product         Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+}
+
+model DeliveryTimeSlot {
+  id        String   @id @default(cuid())
+  title     String   @unique
+  startTime String
+  endTime   String
+  maxOrders Int
+  isActive  Boolean  @default(true)
+  orders    Order[]
+}
+
+model Courier {
+  id       String   @id @default(cuid())
+  userId   String   @unique
+  name     String
+  phone    String?
+  isActive Boolean  @default(true)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DeliveryTask {
+  id             String             @id @default(cuid())
+  orderId        String             @unique
+  courierId      String
+  status         DeliveryTaskStatus @default(ASSIGNED)
+  routeOrder     Int?
+  deliveredAt    DateTime?
+  problemType    ProblemType?
+  problemComment String?
+  order          Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courier        User               @relation("CourierTasks", fields: [courierId], references: [id], onDelete: Cascade)
+
+  @@index([courierId, status])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  orderId   String?
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order     Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}
