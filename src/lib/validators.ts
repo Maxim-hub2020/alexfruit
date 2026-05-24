@@ -97,6 +97,10 @@ export const orderRescheduleSchema = z.object({
   deliveryTimeSlotId: z.string().trim().min(1),
 });
 
+export const replacementDecisionSchema = z.object({
+  notificationId: z.string().trim().min(1),
+});
+
 export const assignCourierSchema = z.object({
   courierId: z.string().trim().nullable().optional(),
 });

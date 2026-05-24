@@ -20,6 +20,7 @@ import {
   orderItemsSchema,
   orderRescheduleSchema,
   orderStatusSchema,
+  replacementDecisionSchema,
 } from "@/lib/validators";
 
 const orderStatusTitles: Partial<Record<OrderStatus, string>> = {
@@ -43,6 +44,10 @@ type AddressWithCoordinates = {
 };
 
 const MAX_SLOT_DISTANCE_KM = 2;
+const unavailableProductTitlePrefixes = [
+  "Сейчас нет: ",
+  "Нужно выбрать новую дату: ",
+];
 
 function createOrderNumber() {
   return `RD-${format(new Date(), "yyMMdd-HHmm")}-${Math.floor(
@@ -133,6 +138,37 @@ function checkSlotDistance(
   return {
     available: true,
     reason: null,
+  };
+}
+
+function getUnavailableProductName(notification: {
+  title: string;
+  message: string;
+}) {
+  for (const prefix of unavailableProductTitlePrefixes) {
+    if (notification.title.startsWith(prefix)) {
+      return notification.title.slice(prefix.length).trim();
+    }
+  }
+
+  return notification.message.match(/«(.+?)»/)?.[1]?.trim() ?? null;
+}
+
+function getTotalsFromExistingItems(
+  items: Array<{
+    preliminarySum: number | string | { toString(): string };
+    finalSum?: number | string | { toString(): string } | null;
+  }>,
+) {
+  return {
+    preliminaryTotal:
+      items.reduce((sum, item) => sum + Number(item.preliminarySum), 0) +
+      DELIVERY_FEE,
+    finalTotal:
+      items.reduce(
+        (sum, item) => sum + Number(item.finalSum ?? item.preliminarySum),
+        0,
+      ) + DELIVERY_FEE,
   };
 }
 
@@ -619,6 +655,139 @@ export async function rescheduleOrderByCustomer(
   return order;
 }
 
+export async function removeUnavailableOrderItemByCustomer(
+  userId: string,
+  orderId: string,
+  input: unknown,
+) {
+  const data = replacementDecisionSchema.parse(input);
+  const notification = await prisma.notification.findFirst({
+    where: {
+      id: data.notificationId,
+      userId,
+      orderId,
+      type: NotificationType.REPLACEMENT_REQUIRED,
+      isRead: false,
+    },
+  });
+
+  if (!notification) {
+    throw new ApiError("Уведомление уже обработано или не найдено", 404);
+  }
+
+  const unavailableProductName = getUnavailableProductName(notification);
+
+  if (!unavailableProductName) {
+    throw new ApiError("Не удалось определить отсутствующий товар", 400);
+  }
+
+  const order = await prisma.order.findFirst({
+    where: {
+      id: orderId,
+      userId,
+      status: {
+        notIn: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+      },
+    },
+    include: {
+      items: true,
+    },
+  });
+
+  if (!order) {
+    throw new ApiError("Заказ не найден или уже завершён", 404);
+  }
+
+  const unavailableItem = order.items.find(
+    (item) => item.productName === unavailableProductName,
+  );
+
+  if (!unavailableItem) {
+    throw new ApiError("Эта позиция уже отсутствует в заказе", 409);
+  }
+
+  const remainingItems = order.items.filter((item) => item.id !== unavailableItem.id);
+
+  return prisma.$transaction(async (tx) => {
+    if (remainingItems.length === 0) {
+      const cancelled = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: OrderStatus.CANCELLED,
+          preliminaryTotal: 0,
+          finalTotal: 0,
+        },
+      });
+
+      await tx.orderItem.delete({
+        where: { id: unavailableItem.id },
+      });
+
+      await tx.notification.update({
+        where: { id: notification.id },
+        data: { isRead: true },
+      });
+
+      await tx.notification.create({
+        data: {
+          userId,
+          orderId,
+          type: NotificationType.ORDER_CANCELLED,
+          title: "Заказ отменён",
+          message: `Позиция «${unavailableProductName}» была единственной в заказе, поэтому заказ ${cancelled.orderNumber} отменён.`,
+        },
+      });
+
+      return {
+        order: cancelled,
+        productName: unavailableProductName,
+        orderCancelled: true,
+      };
+    }
+
+    const totals = getTotalsFromExistingItems(remainingItems);
+
+    await tx.orderItem.delete({
+      where: { id: unavailableItem.id },
+    });
+
+    const updated = await tx.order.update({
+      where: { id: orderId },
+      data: {
+        preliminaryTotal: totals.preliminaryTotal,
+        finalTotal: totals.finalTotal,
+        status: OrderStatus.PENDING_CONFIRMATION,
+      },
+      include: {
+        items: true,
+        address: true,
+        deliveryTimeSlot: true,
+      },
+    });
+
+    await tx.notification.update({
+      where: { id: notification.id },
+      data: { isRead: true },
+    });
+
+    await tx.notification.create({
+      data: {
+        userId,
+        orderId,
+        type: NotificationType.ORDER_UPDATED,
+        title: "Позиция удалена из заказа",
+        message: `Позиция «${unavailableProductName}» удалена из заказа ${updated.orderNumber}. Сумма заказа пересчитана.`,
+      },
+    });
+
+    return {
+      order: updated,
+      productName: unavailableProductName,
+      orderCancelled: false,
+    };
+  });
+}
+
 export async function markOrderItemUnavailable(orderItemId: string) {
   const sourceItem = await prisma.orderItem.findUnique({
     where: { id: orderItemId },
@@ -665,28 +834,28 @@ export async function markOrderItemUnavailable(orderItemId: string) {
     };
   }
 
-  const title = `Нужно выбрать новую дату: ${productName}`;
+  const title = `Сейчас нет: ${productName}`;
   const existingNotifications = await prisma.notification.findMany({
     where: {
       type: NotificationType.REPLACEMENT_REQUIRED,
-      title,
       orderId: {
         in: affectedOrders.map((order) => order.id),
       },
     },
-    select: {
-      orderId: true,
-    },
+    select: { orderId: true, title: true, message: true },
   });
   const alreadyNotifiedOrderIds = new Set(
     existingNotifications
+      .filter(
+        (notification) => getUnavailableProductName(notification) === productName,
+      )
       .map((notification) => notification.orderId)
       .filter(Boolean) as string[],
   );
   const ordersToNotify = affectedOrders.filter(
     (order) => !alreadyNotifiedOrderIds.has(order.id),
   );
-  const message = `К сожалению, позиции «${productName}» сегодня нет в хорошем качестве. Пожалуйста, пройдите в личный кабинет и выберите другую дату доставки.`;
+  const message = `К сожалению, позиции «${productName}» сегодня нет в хорошем качестве. Пожалуйста, пройдите в личный кабинет: вы можете убрать эту позицию из заказа или выбрать другую дату доставки.`;
 
   await prisma.$transaction(async (tx) => {
     await tx.order.updateMany({

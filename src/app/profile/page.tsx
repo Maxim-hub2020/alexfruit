@@ -42,7 +42,9 @@ export default async function ProfilePage() {
               {user.notifications.map((notification) => (
                 <article key={notification.id} className="rounded-[1.5rem] bg-white/90 p-4">
                   <p className="font-semibold">
-                    {notificationTypeLabels[notification.type] ?? notification.title}
+                    {notification.type === "REPLACEMENT_REQUIRED"
+                      ? notification.title
+                      : notificationTypeLabels[notification.type] ?? notification.title}
                   </p>
                   <p className="mt-1 text-sm text-[var(--muted)]">{notification.message}</p>
                   <p className="mt-2 text-xs text-[var(--muted)]">

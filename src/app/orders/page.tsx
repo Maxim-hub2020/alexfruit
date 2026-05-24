@@ -9,6 +9,24 @@ import { requirePageUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+const unavailableProductTitlePrefixes = [
+  "Сейчас нет: ",
+  "Нужно выбрать новую дату: ",
+];
+
+function getUnavailableProductName(notification: {
+  title: string;
+  message: string;
+}) {
+  for (const prefix of unavailableProductTitlePrefixes) {
+    if (notification.title.startsWith(prefix)) {
+      return notification.title.slice(prefix.length).trim();
+    }
+  }
+
+  return notification.message.match(/«(.+?)»/)?.[1]?.trim() ?? "позиция заказа";
+}
+
 export default async function OrdersPage() {
   const user = await requirePageUser([Role.CUSTOMER]);
   const orders = await getCustomerOrders(user.id);
@@ -27,12 +45,17 @@ export default async function OrdersPage() {
         <div className="space-y-4">
           {orders.map((order) => (
             <article key={order.id} className="glass-panel rounded-[2rem] p-5">
-              {order.notifications.length > 0 && (
-                <div className="mb-4 rounded-[1.5rem] bg-amber-50 p-4 text-sm text-amber-950 ring-1 ring-amber-100">
-                  <p className="font-semibold">{order.notifications[0].title}</p>
-                  <p className="mt-1">{order.notifications[0].message}</p>
+              {order.notifications.map((notification) => (
+                <div
+                  key={notification.id}
+                  className="mb-4 rounded-[1.5rem] bg-amber-50 p-4 text-sm text-amber-950 ring-1 ring-amber-100"
+                >
+                  <p className="font-semibold">
+                    Сейчас нет: {getUnavailableProductName(notification)}
+                  </p>
+                  <p className="mt-1">{notification.message}</p>
                 </div>
-              )}
+              ))}
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-3">
@@ -77,14 +100,17 @@ export default async function OrdersPage() {
                   )}
                 </div>
               </div>
-              {order.notifications.length > 0 && (
+              {order.notifications.map((notification) => (
                 <RescheduleOrderDelivery
+                  key={notification.id}
                   orderId={order.id}
+                  notificationId={notification.id}
+                  unavailableProductName={getUnavailableProductName(notification)}
                   addressId={order.address.id}
                   currentDate={formatDateInputValue(order.deliveryDate)}
                   currentSlotTitle={order.deliveryTimeSlot.title}
                 />
-              )}
+              ))}
             </article>
           ))}
         </div>

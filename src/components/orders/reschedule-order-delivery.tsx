@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type TimeSlot = {
@@ -21,11 +21,15 @@ function getTomorrowDate(value: string) {
 
 export function RescheduleOrderDelivery({
   orderId,
+  notificationId,
+  unavailableProductName,
   addressId,
   currentDate,
   currentSlotTitle,
 }: {
   orderId: string;
+  notificationId: string;
+  unavailableProductName: string;
   addressId: string;
   currentDate: string;
   currentSlotTitle: string;
@@ -35,6 +39,7 @@ export function RescheduleOrderDelivery({
   const [date, setDate] = useState(() => getTomorrowDate(currentDate));
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [slotId, setSlotId] = useState("");
+  const [busyAction, setBusyAction] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -63,9 +68,11 @@ export function RescheduleOrderDelivery({
   async function submit() {
     setError("");
     setMessage("");
+    setBusyAction("reschedule");
 
     if (!slotId) {
       setError("Выберите доступный временной интервал.");
+      setBusyAction("");
       return;
     }
 
@@ -78,6 +85,7 @@ export function RescheduleOrderDelivery({
       }),
     });
     const result = await response.json();
+    setBusyAction("");
 
     if (!response.ok) {
       setError(result.error ?? "Не удалось перенести заказ");
@@ -88,24 +96,62 @@ export function RescheduleOrderDelivery({
     startTransition(() => router.refresh());
   }
 
+  async function removeUnavailableItem() {
+    setError("");
+    setMessage("");
+    setBusyAction("remove");
+
+    const response = await fetch(`/api/orders/${orderId}/replacement/remove-item`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notificationId }),
+    });
+    const result = await response.json();
+    setBusyAction("");
+
+    if (!response.ok) {
+      setError(result.error ?? "Не удалось убрать позицию из заказа");
+      return;
+    }
+
+    setMessage(
+      result.orderCancelled
+        ? `Позиция «${result.productName}» была единственной, заказ отменён.`
+        : `Позиция «${result.productName}» удалена из заказа, сумма пересчитана.`,
+    );
+    startTransition(() => router.refresh());
+  }
+
   return (
     <div className="mt-4 rounded-[1.5rem] bg-amber-50 p-4 text-sm text-amber-950 ring-1 ring-amber-100">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="font-semibold">Нужно выбрать новую дату доставки</p>
+          <p className="font-semibold">Сейчас нет: {unavailableProductName}</p>
           <p className="mt-1 text-amber-900">
-            Сейчас стоит {currentDate} · {currentSlotTitle}. Выберите удобный день и
-            свободный интервал.
+            Можно убрать эту позицию из заказа или перенести доставку на другую дату.
+            Сейчас стоит {currentDate} · {currentSlotTitle}.
           </p>
         </div>
-        <Button
-          variant="secondary"
-          className="gap-2 bg-white text-amber-950 hover:bg-white/85"
-          onClick={() => setIsOpen((current) => !current)}
-        >
-          <CalendarClock size={16} />
-          {isOpen ? "Свернуть" : "Перенести дату"}
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            variant="ghost"
+            className="gap-2 bg-white text-rose-700 ring-1 ring-rose-100 hover:bg-rose-50"
+            onClick={removeUnavailableItem}
+            disabled={Boolean(busyAction) || isPending}
+          >
+            <Trash2 size={16} />
+            {busyAction === "remove" ? "Убираем..." : "Убрать позицию"}
+          </Button>
+          <Button
+            variant="secondary"
+            className="gap-2 bg-white text-amber-950 hover:bg-white/85"
+            onClick={() => setIsOpen((current) => !current)}
+            disabled={busyAction === "remove"}
+          >
+            <CalendarClock size={16} />
+            {isOpen ? "Свернуть" : "Перенести дату"}
+          </Button>
+        </div>
       </div>
 
       {isOpen && (
@@ -142,8 +188,8 @@ export function RescheduleOrderDelivery({
             </select>
           </label>
 
-          <Button onClick={submit} disabled={isPending || !slotId}>
-            Сохранить
+          <Button onClick={submit} disabled={isPending || !slotId || Boolean(busyAction)}>
+            {busyAction === "reschedule" ? "Сохраняем..." : "Сохранить"}
           </Button>
         </div>
       )}
