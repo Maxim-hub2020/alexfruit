@@ -27,14 +27,21 @@ jobs:
 
       - name: Upload project to Timeweb
         run: |
-          rsync -az --delete \
-            -e "ssh -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }}" \
-            --exclude ".git" \
-            --exclude ".github" \
-            --exclude "node_modules" \
-            --exclude ".next" \
-            --exclude ".env" \
-            ./ ${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/opt/alexfruit/
+          tar \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude="node_modules" \
+            --exclude=".next" \
+            --exclude=".env" \
+            -czf /tmp/alexfruit.tar.gz .
+
+          scp -i ~/.ssh/timeweb_key -P ${{ secrets.TIMEWEB_PORT }} /tmp/alexfruit.tar.gz ${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit.tar.gz
+
+          ssh -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} ${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }} '
+            rm -rf /opt/alexfruit/*
+            tar -xzf /tmp/alexfruit.tar.gz -C /opt/alexfruit
+            rm /tmp/alexfruit.tar.gz
+          '
 
       - name: Deploy with Docker Compose
         run: |
