@@ -14,24 +14,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Build Docker image on GitHub
+        run: |
+          docker build -t alexfruit-prod-app:latest .
+
+      - name: Save Docker image
+        run: |
+          docker save alexfruit-prod-app:latest | gzip > /tmp/alexfruit-prod-app.tar.gz
+
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.TIMEWEB_SSH_KEY }}" > ~/.ssh/timeweb_key
           chmod 600 ~/.ssh/timeweb_key
           ssh-keyscan -T 10 -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Test SSH connection
-        run: |
-          timeout 20 ssh \
-            -i ~/.ssh/timeweb_key \
-            -p "${{ secrets.TIMEWEB_PORT }}" \
-            -o BatchMode=yes \
-            -o PreferredAuthentications=publickey \
-            -o StrictHostKeyChecking=yes \
-            -o ConnectTimeout=10 \
-            "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" \
-            "echo SSH_OK"
 
       - name: Prepare server directory
         run: |
@@ -45,7 +41,7 @@ jobs:
             "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" \
             "mkdir -p /opt/alexfruit && echo DIR_OK"
 
-      - name: Pack project
+      - name: Upload project files to Timeweb
         run: |
           tar \
             --exclude=".git" \
@@ -53,40 +49,30 @@ jobs:
             --exclude="node_modules" \
             --exclude=".next" \
             --exclude=".env" \
-            -czf /tmp/alexfruit.tar.gz .
+            -czf /tmp/alexfruit-files.tar.gz .
 
-      - name: Upload archive to Timeweb
-        run: |
-          timeout 120 scp \
-            -i ~/.ssh/timeweb_key \
-            -P "${{ secrets.TIMEWEB_PORT }}" \
-            -o BatchMode=yes \
-            -o PreferredAuthentications=publickey \
-            -o StrictHostKeyChecking=yes \
-            -o ConnectTimeout=10 \
-            /tmp/alexfruit.tar.gz \
-            "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit.tar.gz"
+          scp -i ~/.ssh/timeweb_key -P "${{ secrets.TIMEWEB_PORT }}" /tmp/alexfruit-files.tar.gz "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit-files.tar.gz"
 
-      - name: Unpack project on Timeweb
+          ssh -i ~/.ssh/timeweb_key -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
+            find /opt/alexfruit -mindepth 1 ! -name ".env" -exec rm -rf {} +
+            tar -xzf /tmp/alexfruit-files.tar.gz -C /opt/alexfruit
+            rm /tmp/alexfruit-files.tar.gz
+          '
+
+      - name: Upload Docker image to Timeweb
         run: |
-          timeout 60 ssh \
-            -i ~/.ssh/timeweb_key \
-            -p "${{ secrets.TIMEWEB_PORT }}" \
-            -o BatchMode=yes \
-            -o PreferredAuthentications=publickey \
-            -o StrictHostKeyChecking=yes \
-            -o ConnectTimeout=10 \
-            "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" \
-            "rm -rf /opt/alexfruit/* && tar -xzf /tmp/alexfruit.tar.gz -C /opt/alexfruit && rm /tmp/alexfruit.tar.gz && ls -la /opt/alexfruit"
+          scp -i ~/.ssh/timeweb_key -P "${{ secrets.TIMEWEB_PORT }}" /tmp/alexfruit-prod-app.tar.gz "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit-prod-app.tar.gz"
+
+      - name: Load Docker image on Timeweb
+        run: |
+          ssh -i ~/.ssh/timeweb_key -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
+            docker load < /tmp/alexfruit-prod-app.tar.gz
+            rm /tmp/alexfruit-prod-app.tar.gz
+          '
 
       - name: Deploy with Docker Compose
         run: |
-          timeout 300 ssh \
-            -i ~/.ssh/timeweb_key \
-            -p "${{ secrets.TIMEWEB_PORT }}" \
-            -o BatchMode=yes \
-            -o PreferredAuthentications=publickey \
-            -o StrictHostKeyChecking=yes \
-            -o ConnectTimeout=10 \
-            "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" \
-            "cd /opt/alexfruit && docker compose -f docker-compose.prod.yml up -d --build"
+          ssh -i ~/.ssh/timeweb_key -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
+            cd /opt/alexfruit &&
+            docker compose -f docker-compose.prod.yml up -d
+          '
