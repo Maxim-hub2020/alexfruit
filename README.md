@@ -240,3 +240,15 @@ docker compose up --build
 - Маршрутизация и балансировка заказов по курьерам
 - Telegram / WhatsApp / SMS уведомления
 - Онлайн-оплата, бонусы, промокоды, регулярные заказы
+
+## Timeweb Cloud
+
+Инструкция для временного VPS-размещения через Docker и HTTPS лежит в [`docs/timeweb-deploy.md`](docs/timeweb-deploy.md).
+
+Production compose-файл: `docker-compose.prod.yml`.
+
+Обновление на сервере после push в GitHub:
+
+```bash
+sh scripts/deploy-update.sh
+```

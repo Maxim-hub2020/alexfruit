@@ -1,0 +1,66 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: alexfrut-prod-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-alexfrut}
+      POSTGRES_USER: ${POSTGRES_USER:-alexfrut}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-alexfrut} -d ${POSTGRES_DB:-alexfrut}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - alexfrut
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: alexfrut-prod-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "3000"
+    command: >
+      sh -c "npm run db:generate &&
+             npx prisma migrate deploy &&
+             npm run start"
+    networks:
+      - alexfrut
+
+  proxy:
+    image: caddy:2-alpine
+    container_name: alexfrut-prod-proxy
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - alexfrut
+
+networks:
+  alexfrut:
+    driver: bridge
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
