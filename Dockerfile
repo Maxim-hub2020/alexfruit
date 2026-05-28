@@ -8,7 +8,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run db:generate && \
-    printf 'export * from "./client";\nexport * from "./enums";\n' > src/generated/prisma/index.ts
+    printf 'export * from "./client";\nexport * from "./enums";\nexport * from "./models";\n' > src/generated/prisma/index.ts
 
 RUN npm run build
 
