@@ -17,11 +17,9 @@ services:
     networks:
       - alexfrut
 
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: alexfrut-prod-app
+ app:
+      image: alexfruit-prod-app:latest
+      container_name: alexfrut-prod-app
     restart: unless-stopped
     env_file:
       - .env
