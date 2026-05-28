@@ -20,6 +20,22 @@ export const unitLabels: Record<string, string> = {
   PACK: "упак.",
 };
 
+export const labelPrintableOrderStatuses = [
+  "CONFIRMED",
+  "ASSEMBLING",
+  "ASSEMBLED",
+  "HANDED_TO_COURIER",
+  "COURIER_ON_THE_WAY",
+  "DELIVERED",
+  "DELIVERY_ISSUE",
+] as const;
+
+export function canPrintOrderLabelStatus(status: string) {
+  return labelPrintableOrderStatuses.includes(
+    status as (typeof labelPrintableOrderStatuses)[number],
+  );
+}
+
 export const orderStatusMeta: Record<
   string,
   { label: string; tone: string; description: string }

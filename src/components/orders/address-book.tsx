@@ -1,8 +1,8 @@
 "use client";
 
-import { useDeferredValue, useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, MapPin, Search } from "lucide-react";
+import { Loader2, MapPin, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type AddressSuggestion = {
@@ -13,9 +13,10 @@ type AddressSuggestion = {
   city: string;
   street: string;
   house: string;
+  apartment: string;
   latitude: number | null;
   longitude: number | null;
-  source: "yandex" | "demo";
+  source: "dadata" | "demo";
 };
 
 type AddressForm = {
@@ -48,6 +49,8 @@ const EMPTY_FORM: AddressForm = {
   isDefault: false,
 };
 
+const ADDRESS_SUGGEST_MIN_LENGTH = 3;
+
 export function AddressBook({
   addresses,
 }: {
@@ -65,28 +68,38 @@ export function AddressBook({
   const [form, setForm] = useState<AddressForm>(EMPTY_FORM);
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [error, setError] = useState("");
-  const [source, setSource] = useState<"yandex" | "demo" | null>(null);
+  const [source, setSource] = useState<"dadata" | "demo" | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionToken] = useState(() => `alexfrut-${Math.random().toString(36).slice(2)}`);
   const deferredAddressText = useDeferredValue(form.addressText);
+  const selectedAddressTextRef = useRef("");
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     const query = deferredAddressText.trim();
 
-    if (query.length < 2) {
+    if (query.length < ADDRESS_SUGGEST_MIN_LENGTH || query === selectedAddressTextRef.current) {
+      requestIdRef.current += 1;
+      setSuggestions([]);
+      setIsLoading(false);
       return;
     }
 
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
       setIsLoading(true);
 
       try {
         const response = await fetch(
-          `/api/geo/suggest?text=${encodeURIComponent(query)}&sessiontoken=${sessionToken}`,
+          `/api/geo/suggest?text=${encodeURIComponent(query)}`,
           { signal: controller.signal },
         );
         const result = await response.json();
+
+        if (requestId !== requestIdRef.current || query === selectedAddressTextRef.current) {
+          return;
+        }
 
         if (!response.ok) {
           setError(result.error ?? "Не удалось получить подсказки адреса");
@@ -97,11 +110,16 @@ export function AddressBook({
         setSuggestions(result.suggestions ?? []);
         setSource(result.source ?? null);
       } catch (fetchError) {
-        if (!(fetchError instanceof DOMException && fetchError.name === "AbortError")) {
+        if (
+          requestId === requestIdRef.current &&
+          !(fetchError instanceof DOMException && fetchError.name === "AbortError")
+        ) {
           setSuggestions([]);
         }
       } finally {
-        setIsLoading(false);
+        if (requestId === requestIdRef.current) {
+          setIsLoading(false);
+        }
       }
     }, 280);
 
@@ -109,19 +127,23 @@ export function AddressBook({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [deferredAddressText, sessionToken]);
+  }, [deferredAddressText]);
 
   function selectSuggestion(suggestion: AddressSuggestion) {
+    selectedAddressTextRef.current = suggestion.formattedAddress.trim();
+    requestIdRef.current += 1;
     setForm((current) => ({
       ...current,
       addressText: suggestion.formattedAddress,
       city: suggestion.city || "Ростов-на-Дону",
       street: suggestion.street,
       house: suggestion.house,
+      apartment: suggestion.apartment || current.apartment,
       latitude: suggestion.latitude,
       longitude: suggestion.longitude,
     }));
     setSuggestions([]);
+    setIsLoading(false);
     setError("");
   }
 
@@ -129,7 +151,7 @@ export function AddressBook({
     setError("");
 
     if (!form.street || !form.house) {
-      setError("Выберите адрес из подсказок Яндекса с улицей и номером дома.");
+      setError("Выберите адрес из подсказок DaData с улицей и номером дома.");
       return;
     }
 
@@ -158,6 +180,8 @@ export function AddressBook({
     }
 
     setForm(EMPTY_FORM);
+    selectedAddressTextRef.current = "";
+    requestIdRef.current += 1;
     setSuggestions([]);
     router.refresh();
   }
@@ -201,20 +225,7 @@ export function AddressBook({
       </div>
 
       <div className="rounded-[2rem] bg-white/85 p-5 ring-1 ring-[var(--line)]">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">
-              Яндекс.Адрес
-            </p>
-            <h3 className="mt-1 text-xl font-semibold">Новый адрес</h3>
-          </div>
-          {form.latitude && form.longitude && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">
-              <Check size={13} />
-              координаты есть
-            </span>
-          )}
-        </div>
+        <h3 className="text-xl font-semibold">Новый адрес</h3>
 
         <div className="mt-4 grid gap-3">
           <label className="space-y-2 text-sm font-medium">
@@ -240,16 +251,21 @@ export function AddressBook({
                 onChange={(event) =>
                   {
                     const nextValue = event.target.value;
+                    if (nextValue.trim() !== selectedAddressTextRef.current) {
+                      selectedAddressTextRef.current = "";
+                    }
                     setForm((current) => ({
                       ...current,
                       addressText: nextValue,
                       street: "",
                       house: "",
+                      city: "Ростов-на-Дону",
                       latitude: null,
                       longitude: null,
                     }));
 
-                    if (nextValue.trim().length < 2) {
+                    if (nextValue.trim().length < ADDRESS_SUGGEST_MIN_LENGTH) {
+                      requestIdRef.current += 1;
                       setSuggestions([]);
                       setSource(null);
                       setIsLoading(false);
@@ -257,6 +273,7 @@ export function AddressBook({
                   }
                 }
                 placeholder="Например: Пушкинская 104"
+                autoComplete="street-address"
                 className="h-12 w-full rounded-2xl bg-[var(--surface-muted)] px-4 outline-none ring-1 ring-transparent focus:ring-[var(--accent-soft)]"
               />
             </label>
@@ -266,7 +283,7 @@ export function AddressBook({
                 {isLoading ? (
                   <div className="flex items-center gap-2 p-4 text-sm text-[var(--muted)]">
                     <Loader2 size={16} className="animate-spin" />
-                    Ищем адрес в Яндексе...
+                    Сейчас вас найдём
                   </div>
                 ) : (
                   suggestions.map((suggestion) => (
@@ -293,7 +310,7 @@ export function AddressBook({
           {source === "demo" && (
             <p className="rounded-[1.25rem] bg-amber-50 p-3 text-xs text-amber-900">
               Сейчас используется локальный демо-поиск. Для настоящих подсказок
-              добавьте ключ в `YANDEX_MAPS_API_KEY`.
+              добавьте ключ DaData в `DADATA_API_KEY`.
             </p>
           )}
 

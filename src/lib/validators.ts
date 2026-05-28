@@ -16,8 +16,11 @@ const emailOrPhone = z
     message: "Укажите email или телефон",
   });
 
-export const registerSchema = emailOrPhone.extend({
-  name: z.string().trim().min(2, "Укажите имя"),
+export const registerSchema = z.object({
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+7\d{10}$/, "Укажите телефон в формате +7XXXXXXXXXX"),
   password: z.string().min(6, "Минимум 6 символов"),
 });
 
@@ -71,12 +74,18 @@ export const orderLineSchema = z.object({
   actualQuantity: z.coerce.number().positive().optional(),
 });
 
-export const createOrderSchema = z.object({
+const orderBaseObjectSchema = z.object({
   addressId: z.string().trim().min(1),
   deliveryDate: z.string().trim().min(10),
   deliveryTimeSlotId: z.string().trim().min(1),
   customerComment: z.string().trim().optional().or(z.literal("")),
-  items: z.array(orderLineSchema).min(1, "Корзина не может быть пустой"),
+  items: z.array(orderLineSchema).optional().default([]),
+  sharedCartToken: z.string().trim().min(1).optional(),
+});
+
+export const createOrderSchema = orderBaseObjectSchema.refine((data) => Boolean(data.sharedCartToken) || data.items.length > 0, {
+  message: "Корзина не может быть пустой",
+  path: ["items"],
 });
 
 export const orderStatusSchema = z.object({
@@ -84,7 +93,8 @@ export const orderStatusSchema = z.object({
   adminComment: z.string().trim().optional().or(z.literal("")),
 });
 
-export const orderEditSchema = createOrderSchema.extend({
+export const orderEditSchema = orderBaseObjectSchema.omit({ sharedCartToken: true }).extend({
+  items: z.array(orderLineSchema).min(1),
   status: z.nativeEnum(OrderStatus).optional(),
 });
 
@@ -125,4 +135,24 @@ export const timeSlotSchema = z.object({
   endTime: z.string().trim().min(4),
   maxOrders: z.coerce.number().int().positive(),
   isActive: z.coerce.boolean().optional().default(true),
+});
+
+export const sharedCartLineSchema = z.object({
+  productId: z.string().trim().min(1),
+  quantity: z.coerce.number().positive().max(999),
+});
+
+export const createSharedCartSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .max(80, "Название общей корзины слишком длинное")
+    .optional()
+    .or(z.literal("")),
+});
+
+export const addSharedCartItemSchema = sharedCartLineSchema;
+
+export const updateSharedCartItemSchema = z.object({
+  quantity: z.coerce.number().min(0).max(999),
 });

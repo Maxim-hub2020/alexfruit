@@ -94,11 +94,32 @@ function subscribeToCartChanges(onStoreChange: () => void) {
   };
 }
 
+function subscribeToHydration(onStoreChange: () => void) {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
+
+  const timeoutId = globalThis.setTimeout(onStoreChange, 0);
+
+  return () => {
+    globalThis.clearTimeout(timeoutId);
+  };
+}
+
+function readHydrationSnapshot() {
+  return typeof window !== "undefined";
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const items = useSyncExternalStore(
     subscribeToCartChanges,
     readCartSnapshot,
     () => EMPTY_CART,
+  );
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    readHydrationSnapshot,
+    () => false,
   );
 
   const value = useMemo<CartContextValue>(() => {
@@ -108,7 +129,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       items,
       count: items.reduce((sum, item) => sum + item.quantity, 0),
       subtotal,
-      hydrated: typeof window !== "undefined",
+      hydrated,
       addItem(item) {
         startTransition(() => {
           const current = readCartSnapshot();
@@ -159,7 +180,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         });
       },
     };
-  }, [items]);
+  }, [hydrated, items]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

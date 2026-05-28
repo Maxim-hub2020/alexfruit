@@ -15,8 +15,8 @@ export default async function LoginPage() {
           <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">Вход</p>
           <h1 className="mt-3 font-serif text-5xl font-semibold">Вернуться в систему</h1>
           <p className="mt-3 text-[var(--muted)]">
-            Используйте email или телефон. Для демонстрации можно войти под seeded
-            аккаунтами из README.
+            Клиенты входят по номеру телефона и паролю. Для сотрудников также работает
+            email из тестовых аккаунтов.
           </p>
           <div className="mt-6">
             <LoginForm />

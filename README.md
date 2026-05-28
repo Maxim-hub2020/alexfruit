@@ -39,6 +39,10 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/alexfrut
 JWT_SECRET=replace-with-a-long-secret
 APP_URL=http://localhost:3000
 YANDEX_MAPS_API_KEY=
+DADATA_API_KEY=
+NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY=
+WEB_PUSH_PRIVATE_KEY=
+WEB_PUSH_SUBJECT=https://your-domain.example
 STORAGE_ACCESS_KEY=
 STORAGE_SECRET_KEY=
 STORAGE_BUCKET=
@@ -61,6 +65,10 @@ RATE_LIMIT_PAGE_MAX=240
 RATE_LIMIT_PAGE_WINDOW_MS=60000
 RATE_LIMIT_MAX_BUCKETS=5000
 ```
+
+`DADATA_API_KEY` нужен для автоподсказок адреса DaData в профиле клиента. Ключ используется только на сервере через `/api/geo/suggest`, в браузер он не передаётся.
+
+`NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY` и `WEB_PUSH_SUBJECT` нужны для фоновых push-уведомлений через service worker. Публичный ключ можно отдавать в браузер, приватный ключ должен оставаться только на сервере. Для iPhone `WEB_PUSH_SUBJECT` лучше задавать HTTPS-адресом сайта, а не локальным `mailto`, иначе Apple может отклонять отправку с `BadJwtToken`.
 
 ## Защита от частых запросов
 
@@ -213,6 +221,11 @@ docker compose up --build
 - `PATCH /api/addresses/:id`
 - `DELETE /api/addresses/:id`
 - `PATCH /api/addresses/:id/set-default`
+- `GET /api/geo/suggest?text=Пушкинская%20104`
+- `GET /api/notifications`
+- `GET /api/push/config`
+- `POST /api/push/subscriptions`
+- `DELETE /api/push/subscriptions`
 - `GET /api/courier/tasks`
 - `PATCH /api/courier/tasks/:id/status`
 - `PATCH /api/courier/tasks/:id/problem`
@@ -223,7 +236,7 @@ docker compose up --build
 
 ## Что заложено на следующий этап
 
-- Интеграция Яндекс.Карт и геокодирования
+- Расширенная интеграция Яндекс.Карт и маршрутизации
 - Маршрутизация и балансировка заказов по курьерам
 - Telegram / WhatsApp / SMS уведомления
 - Онлайн-оплата, бонусы, промокоды, регулярные заказы

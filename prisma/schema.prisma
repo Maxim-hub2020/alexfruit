@@ -82,6 +82,9 @@ model User {
   assignedOrders  Order[]           @relation("CourierOrders")
   deliveryTasks   DeliveryTask[]    @relation("CourierTasks")
   notifications   Notification[]
+  pushSubscriptions PushSubscription[]
+  ownedSharedCarts SharedCart[]      @relation("SharedCartOwner")
+  sharedCartItems  SharedCartItem[]  @relation("SharedCartItemContributor")
 }
 
 model CustomerProfile {
@@ -145,8 +148,45 @@ model Product {
   updatedAt   DateTime    @updatedAt
   category    Category    @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]
+  sharedCartItems SharedCartItem[]
 
   @@index([categoryId])
+}
+
+model SharedCart {
+  id        String           @id @default(cuid())
+  token     String           @unique
+  ownerId   String
+  title     String
+  isActive  Boolean          @default(true)
+  orderedAt DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  owner     User             @relation("SharedCartOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  items     SharedCartItem[]
+  orders    Order[]
+
+  @@index([ownerId, createdAt])
+}
+
+model SharedCartItem {
+  id           String     @id @default(cuid())
+  sharedCartId String
+  productId    String
+  addedById    String
+  productName  String
+  price        Decimal    @db.Decimal(10, 2)
+  unit         ProductUnit
+  quantity     Decimal    @db.Decimal(10, 2)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  sharedCart   SharedCart @relation(fields: [sharedCartId], references: [id], onDelete: Cascade)
+  product      Product    @relation(fields: [productId], references: [id])
+  addedBy      User       @relation("SharedCartItemContributor", fields: [addedById], references: [id], onDelete: Cascade)
+
+  @@unique([sharedCartId, productId, addedById])
+  @@index([sharedCartId, createdAt])
+  @@index([addedById])
 }
 
 model Order {
@@ -154,6 +194,8 @@ model Order {
   orderNumber        String           @unique
   userId             String
   addressId          String
+  sharedCartId       String?
+  sharedCartTitle    String?
   deliveryDate       DateTime         @db.Date
   deliveryTimeSlotId String
   status             OrderStatus      @default(NEW)
@@ -167,6 +209,7 @@ model Order {
   updatedAt          DateTime         @updatedAt
   user               User             @relation("CustomerOrders", fields: [userId], references: [id], onDelete: Cascade)
   address            Address          @relation(fields: [addressId], references: [id])
+  sharedCart         SharedCart?      @relation(fields: [sharedCartId], references: [id], onDelete: SetNull)
   deliveryTimeSlot   DeliveryTimeSlot @relation(fields: [deliveryTimeSlotId], references: [id])
   courier            User?            @relation("CourierOrders", fields: [courierId], references: [id], onDelete: SetNull)
   items              OrderItem[]
@@ -175,6 +218,7 @@ model Order {
 
   @@index([userId, deliveryDate])
   @@index([courierId])
+  @@index([sharedCartId])
 }
 
 model OrderItem {
@@ -241,4 +285,18 @@ model Notification {
   order     Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

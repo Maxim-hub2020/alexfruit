@@ -8,6 +8,7 @@ import { MainShell } from "@/components/layout/main-shell";
 import { PhoneCallLink } from "@/components/ui/phone-call-link";
 import { StatusPill } from "@/components/ui/status-pill";
 import { requirePageUser } from "@/lib/auth";
+import { canPrintOrderLabelStatus } from "@/lib/constants";
 import { getDeliveryBoard } from "@/lib/orders";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,9 @@ export default async function AdminDeliveryPage({
     date: selectedDate,
   });
   const labelsUrl = `/api/admin/orders/labels?date=${encodeURIComponent(selectedDate)}`;
+  const labelsCount = orders.filter((order) =>
+    canPrintOrderLabelStatus(order.status),
+  ).length;
   const assemblyUrl = `/api/admin/orders/assembly-pdf?date=${encodeURIComponent(selectedDate)}`;
   const deliveryPdfUrl = `/api/admin/orders/delivery-pdf?date=${encodeURIComponent(selectedDate)}`;
 
@@ -43,6 +47,7 @@ export default async function AdminDeliveryPage({
           basePath="/admin/delivery"
           selectedDate={selectedDate}
           ordersCount={orders.length}
+          labelsCount={labelsCount}
           eyebrow="Дата доставки"
           title="Фильтр заказов и PDF-документы"
           description="Список и документы перестраиваются автоматически по выбранной дате, чтобы не смешивать сегодняшние и будущие доставки."
@@ -50,6 +55,7 @@ export default async function AdminDeliveryPage({
           assemblyUrl={assemblyUrl}
           deliveryUrl={deliveryPdfUrl}
           emptyText="Нет заказов для документов на выбранную дату."
+          labelsEmptyText="Этикетки появятся после подтверждения заказа администратором."
         />
 
         <YandexRoutePanel orders={orders} />
@@ -86,15 +92,22 @@ export default async function AdminDeliveryPage({
                     <MapPin size={16} />
                     Открыть адрес
                   </Link>
-                  <Link
-                    href={`/api/admin/orders/${order.id}/label`}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <FileText size={16} />
-                    Этикетка 40×50
-                  </Link>
+                  {canPrintOrderLabelStatus(order.status) ? (
+                    <Link
+                      href={`/api/admin/orders/${order.id}/label`}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <FileText size={16} />
+                      Этикетка 40×50
+                    </Link>
+                  ) : (
+                    <span className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/70 px-4 py-3 text-sm font-semibold text-[var(--muted)] ring-1 ring-[var(--line)]">
+                      <FileText size={16} />
+                      Ждёт подтверждения
+                    </span>
+                  )}
                 </div>
               </div>
             </article>

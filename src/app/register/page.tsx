@@ -17,8 +17,8 @@ export default async function RegisterPage() {
           </p>
           <h1 className="mt-3 font-serif text-5xl font-semibold">Создать аккаунт клиента</h1>
           <p className="mt-3 text-[var(--muted)]">
-            Сразу после регистрации можно сохранить адреса, собрать корзину и оформить
-            первый заказ.
+            Для старта нужен только номер телефона и пароль. Имя и адрес можно
+            добавить позже в профиле.
           </p>
           <div className="mt-6">
             <RegisterForm />

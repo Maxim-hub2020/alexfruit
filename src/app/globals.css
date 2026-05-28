@@ -59,17 +59,14 @@ textarea {
 
 button,
 [role="button"],
-a[href].inline-flex,
-a[href].flex,
-a[href].grid {
+a[href] {
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 button:not(:disabled),
 [role="button"]:not([aria-disabled="true"]),
-a[href].inline-flex,
-a[href].flex,
-a[href].grid {
+a[href] {
   cursor: pointer;
   transition:
     transform 150ms ease,
@@ -84,9 +81,8 @@ a[href].grid {
 
 button:not(:disabled):active,
 [role="button"]:not([aria-disabled="true"]):active,
-a[href].inline-flex:active,
-a[href].flex:active,
-a[href].grid:active {
+a[href]:active,
+.press-feedback-active {
   transform: translateY(1px) scale(0.98);
   filter: saturate(0.95) brightness(0.98);
 }
@@ -126,6 +122,269 @@ button:disabled,
 .section-shell {
   width: min(1180px, calc(100% - 2rem));
   margin-inline: auto;
+}
+
+.mobile-liquid-nav {
+  --nav-padding: 0.45rem;
+  position: relative;
+  isolation: isolate;
+  grid-template-columns: repeat(var(--nav-count), minmax(0, 1fr));
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 2rem;
+  padding: var(--nav-padding);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(228, 242, 224, 0.42)),
+    radial-gradient(circle at 16% 8%, rgba(255, 255, 255, 0.96), transparent 34%),
+    radial-gradient(circle at 86% 90%, rgba(47, 143, 79, 0.2), transparent 38%);
+  box-shadow:
+    0 20px 55px rgba(28, 64, 43, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -18px 34px rgba(255, 255, 255, 0.28);
+  -webkit-backdrop-filter: blur(26px) saturate(1.55);
+  backdrop-filter: blur(26px) saturate(1.55);
+}
+
+.mobile-liquid-nav::before {
+  position: absolute;
+  inset: 0.35rem 0.65rem auto;
+  z-index: 0;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.8), transparent);
+  content: "";
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.mobile-liquid-lens {
+  position: absolute;
+  inset-block: var(--nav-padding);
+  left: var(--nav-padding);
+  z-index: 0;
+  width: calc((100% - (var(--nav-padding) * 2)) / var(--nav-count));
+  border-radius: 1.55rem;
+  background:
+    radial-gradient(circle at 74% 18%, rgba(255, 255, 255, 0.95), transparent 22%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(213, 238, 209, 0.62));
+  box-shadow:
+    0 14px 30px rgba(35, 105, 58, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -10px 24px rgba(47, 143, 79, 0.16);
+  transform: translateX(calc(var(--active-index) * 100%)) scaleX(var(--lens-stretch, 1));
+  transition:
+    transform 560ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 420ms ease,
+    filter 420ms ease,
+    width 220ms ease;
+  will-change: transform;
+}
+
+.mobile-liquid-nav[data-direction="right"] .mobile-liquid-lens {
+  transform-origin: left center;
+}
+
+.mobile-liquid-nav[data-direction="left"] .mobile-liquid-lens {
+  transform-origin: right center;
+}
+
+.mobile-liquid-nav.is-rolling .mobile-liquid-lens {
+  border-radius: 999px;
+  filter: saturate(1.18) brightness(1.04);
+  animation: mobile-liquid-roll 560ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mobile-liquid-lens::after {
+  position: absolute;
+  right: 0.72rem;
+  top: 0.62rem;
+  width: 0.58rem;
+  height: 0.58rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.85);
+  content: "";
+}
+
+.mobile-liquid-item {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  color: rgba(23, 50, 38, 0.58);
+  transition:
+    color 260ms ease,
+    transform 260ms ease,
+    text-shadow 260ms ease;
+}
+
+.mobile-liquid-item.is-active {
+  color: var(--accent-strong);
+  text-shadow: 0 8px 22px rgba(47, 143, 79, 0.18);
+  transform: translateY(-1px);
+}
+
+.mobile-liquid-icon {
+  display: inline-flex;
+  width: 1.85rem;
+  height: 1.85rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  transition:
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 260ms ease,
+    box-shadow 260ms ease;
+}
+
+.mobile-liquid-item.is-active .mobile-liquid-icon {
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.64);
+  transform: scale(1.08) translateY(-1px);
+}
+
+.mobile-liquid-item.press-feedback-active,
+.mobile-liquid-item.is-active.press-feedback-active {
+  transform: translateY(1px) scale(0.96);
+}
+
+.mobile-liquid-item.press-feedback-active .mobile-liquid-icon {
+  transform: scale(0.92);
+}
+
+.category-choice-button {
+  position: relative;
+  display: flex;
+  min-height: 5.8rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 1.7rem;
+  padding: 1rem;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(238, 247, 235, 0.78)),
+    radial-gradient(circle at 88% 12%, rgba(47, 143, 79, 0.13), transparent 34%);
+  box-shadow:
+    0 16px 34px rgba(33, 78, 49, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease;
+}
+
+.category-choice-button::before {
+  position: absolute;
+  inset: 0.45rem auto auto 0.55rem;
+  width: 2.2rem;
+  height: 0.62rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  content: "";
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.category-choice-button:hover {
+  border-color: rgba(47, 143, 79, 0.18);
+  box-shadow:
+    0 20px 40px rgba(33, 78, 49, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  transform: translateY(-2px);
+}
+
+.category-choice-arrow {
+  display: inline-flex;
+  width: 2.35rem;
+  height: 2.35rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(47, 143, 79, 0.1);
+  color: var(--accent-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease;
+}
+
+.category-choice-button:hover .category-choice-arrow {
+  background: var(--accent);
+  color: white;
+  transform: translateX(2px);
+}
+
+.hero-word-rotator {
+  height: 0.92em;
+  margin-block: 0.08em 0.12em;
+  overflow: hidden;
+  font-family: var(--font-manrope), sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.075em;
+  line-height: 0.92;
+}
+
+.hero-word-track {
+  animation: hero-word-slide 5s cubic-bezier(0.76, 0, 0.24, 1) infinite;
+}
+
+.hero-word-track span {
+  display: block;
+  height: 0.92em;
+  background: linear-gradient(90deg, #1f6f37 0%, #2f8f4f 44%, #f08b2f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  line-height: 0.92;
+  text-shadow: 0 22px 48px rgba(47, 143, 79, 0.12);
+}
+
+@keyframes hero-word-slide {
+  0%,
+  25% {
+    transform: translateY(0);
+  }
+
+  33%,
+  58% {
+    transform: translateY(-0.92em);
+  }
+
+  66%,
+  91% {
+    transform: translateY(-1.84em);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes mobile-liquid-roll {
+  0% {
+    box-shadow:
+      0 14px 30px rgba(35, 105, 58, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  46% {
+    box-shadow:
+      0 18px 40px rgba(35, 105, 58, 0.26),
+      inset 0 1px 0 rgba(255, 255, 255, 1),
+      inset 0 -12px 28px rgba(47, 143, 79, 0.18);
+  }
+
+  100% {
+    box-shadow:
+      0 14px 30px rgba(35, 105, 58, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.96),
+      inset 0 -10px 24px rgba(47, 143, 79, 0.16);
+  }
 }
 
 @keyframes cart-pop {
@@ -174,6 +433,22 @@ button:disabled,
   }
 }
 
+@keyframes notification-toast {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-notification-toast {
+  animation: notification-toast 260ms ease-out both;
+}
+
 @media (max-width: 768px) {
   .section-shell {
     width: min(100%, calc(100% - 1rem));
@@ -192,9 +467,8 @@ button:disabled,
 
   button:not(:disabled):active,
   [role="button"]:not([aria-disabled="true"]):active,
-  a[href].inline-flex:active,
-  a[href].flex:active,
-  a[href].grid:active {
+  a[href]:active,
+  .press-feedback-active {
     transform: none;
   }
 }

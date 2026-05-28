@@ -61,6 +61,11 @@ export default async function OrdersPage() {
                   <div className="flex flex-wrap items-center gap-3">
                     <h2 className="text-2xl font-semibold">{order.orderNumber}</h2>
                     <StatusPill status={order.status} />
+                    {order.sharedCartId ? (
+                      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">
+                        Общий заказ
+                      </span>
+                    ) : null}
                   </div>
                   <p className="text-sm text-[var(--muted)]">
                     Доставка {formatDateInputValue(order.deliveryDate)} · {order.deliveryTimeSlot.title}

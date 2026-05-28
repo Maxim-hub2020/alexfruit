@@ -8,8 +8,16 @@ import {
   Role,
 } from "@/generated/prisma";
 import { ApiError } from "@/lib/api";
-import { DELIVERY_FEE, orderStatusMeta } from "@/lib/constants";
-import { prisma } from "@/lib/db";
+import {
+  DELIVERY_FEE,
+  labelPrintableOrderStatuses,
+  orderStatusMeta,
+} from "@/lib/constants";
+import { prisma, readWithPrismaRetry } from "@/lib/db";
+import {
+  sendPushForNotification,
+  sendPushForNotifications,
+} from "@/lib/push-notifications";
 import { dateStringToDbDate } from "@/lib/utils";
 import {
   assignCourierSchema,
@@ -43,16 +51,73 @@ type AddressWithCoordinates = {
   longitude?: number | string | { toString(): string } | null;
 };
 
+type StorefrontProduct = Prisma.ProductGetPayload<{
+  include: { category: true };
+}>;
+
+export type StorefrontCollectionItem = {
+  productId: string;
+  name: string;
+  price: number;
+  unit: string;
+  imageUrl?: string | null;
+  quantity: number;
+};
+
+export type StorefrontCollection = {
+  key: string;
+  eyebrow: string;
+  title: string;
+  text: string;
+  source: "personal" | "fallback";
+  items: StorefrontCollectionItem[];
+};
+
 const MAX_SLOT_DISTANCE_KM = 2;
+const MIN_ORDER_NUMBER = 1000;
+const MAX_ORDER_NUMBER = 9999;
 const unavailableProductTitlePrefixes = [
   "Сейчас нет: ",
   "Нужно выбрать новую дату: ",
 ];
 
-function createOrderNumber() {
-  return `RD-${format(new Date(), "yyMMdd-HHmm")}-${Math.floor(
-    1000 + Math.random() * 9000,
-  )}`;
+async function createOrderNumber() {
+  const orders = await prisma.order.findMany({
+    select: { orderNumber: true },
+  });
+  const usedNumbers = new Set(orders.map((order) => order.orderNumber));
+  const numericOrderNumbers = orders
+    .map((order) => Number(order.orderNumber))
+    .filter(
+      (orderNumber) =>
+        Number.isInteger(orderNumber) &&
+        orderNumber >= MIN_ORDER_NUMBER &&
+        orderNumber <= MAX_ORDER_NUMBER,
+    );
+  let nextNumber =
+    numericOrderNumbers.length > 0
+      ? Math.max(...numericOrderNumbers) + 1
+      : MIN_ORDER_NUMBER;
+
+  for (
+    let attempts = 0;
+    attempts <= MAX_ORDER_NUMBER - MIN_ORDER_NUMBER;
+    attempts += 1
+  ) {
+    if (nextNumber > MAX_ORDER_NUMBER) {
+      nextNumber = MIN_ORDER_NUMBER;
+    }
+
+    const candidate = String(nextNumber).padStart(4, "0");
+
+    if (!usedNumbers.has(candidate)) {
+      return candidate;
+    }
+
+    nextNumber += 1;
+  }
+
+  throw new ApiError("Свободные короткие номера заказов закончились", 500);
 }
 
 function toCoordinate(value: AddressWithCoordinates["latitude"]) {
@@ -179,9 +244,13 @@ async function createNotification(params: {
   title: string;
   message: string;
 }) {
-  return prisma.notification.create({
+  const notification = await prisma.notification.create({
     data: params,
   });
+
+  await sendPushForNotification(notification);
+
+  return notification;
 }
 
 function canCustomerEdit(order: {
@@ -307,7 +376,315 @@ async function buildOrderItems(items: OrderInputLine[]) {
   };
 }
 
-export async function getStorefrontData() {
+function aggregateSharedCartOrderItems(
+  items: Array<{
+    productId: string;
+    quantity: number | string | { toString(): string };
+  }>,
+): OrderInputLine[] {
+  const aggregated = new Map<string, number>();
+
+  for (const item of items) {
+    const quantity = Number(item.quantity);
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      continue;
+    }
+
+    aggregated.set(item.productId, (aggregated.get(item.productId) ?? 0) + quantity);
+  }
+
+  return [...aggregated.entries()].map(([productId, quantity]) => ({
+    productId,
+    quantity,
+  }));
+}
+
+function normalizeCollectionQuantity(quantity: number) {
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return 1;
+  }
+
+  return Math.max(1, Math.round(quantity));
+}
+
+function createCollectionItem(
+  product: StorefrontProduct,
+  quantity = 1,
+): StorefrontCollectionItem {
+  return {
+    productId: product.id,
+    name: product.name,
+    price: Number(product.price),
+    unit: product.unit,
+    imageUrl: product.imageUrl,
+    quantity: normalizeCollectionQuantity(quantity),
+  };
+}
+
+function mergeCollectionItems(items: StorefrontCollectionItem[]) {
+  const merged = new Map<string, StorefrontCollectionItem>();
+
+  for (const item of items) {
+    const current = merged.get(item.productId);
+
+    if (!current) {
+      merged.set(item.productId, item);
+      continue;
+    }
+
+    merged.set(item.productId, {
+      ...current,
+      quantity: current.quantity + item.quantity,
+    });
+  }
+
+  return [...merged.values()];
+}
+
+function buildFallbackCollections(
+  products: StorefrontProduct[],
+  highlights: {
+    popular: StorefrontProduct[];
+    seasonal: StorefrontProduct[];
+    promo: StorefrontProduct[];
+  },
+): StorefrontCollection[] {
+  const fallbackProducts = products.slice(0, 3);
+
+  return [
+    {
+      key: "popular",
+      eyebrow: "Готовый старт",
+      title: "Популярная корзина",
+      text: "Несколько свежих позиций, с которых удобно начать заказ.",
+      source: "fallback" as const,
+      items: (highlights.popular.length > 0 ? highlights.popular : fallbackProducts)
+        .slice(0, 3)
+        .map((product) => createCollectionItem(product)),
+    },
+    {
+      key: "seasonal",
+      eyebrow: "Сезон прямо сейчас",
+      title: "Ягоды, фрукты и зелень",
+      text: "Свежие акценты для завтраков, салатов, лимонадов и лёгких ужинов.",
+      source: "fallback" as const,
+      items: (highlights.seasonal.length > 0 ? highlights.seasonal : fallbackProducts)
+        .slice(0, 3)
+        .map((product) => createCollectionItem(product)),
+    },
+    {
+      key: "promo",
+      eyebrow: "Когда хочется быстро",
+      title: "Наборы и выгодные позиции",
+      text: "Готовые решения на неделю, в гости или просто на холодильник без суеты.",
+      source: "fallback" as const,
+      items: (highlights.promo.length > 0 ? highlights.promo : fallbackProducts)
+        .slice(0, 3)
+        .map((product) => createCollectionItem(product)),
+    },
+  ].filter((collection) => collection.items.length > 0);
+}
+
+async function buildStorefrontCollections(
+  userId: string | undefined,
+  products: StorefrontProduct[],
+  highlights: {
+    popular: StorefrontProduct[];
+    seasonal: StorefrontProduct[];
+    promo: StorefrontProduct[];
+  },
+) {
+  const fallbackCollections = buildFallbackCollections(products, highlights);
+
+  if (!userId) {
+    return fallbackCollections;
+  }
+
+  const recentOrders = await prisma.order.findMany({
+    where: {
+      userId,
+      status: {
+        not: OrderStatus.CANCELLED,
+      },
+    },
+    include: {
+      items: true,
+    },
+    orderBy: { createdAt: "desc" },
+    take: 12,
+  });
+
+  if (recentOrders.length === 0) {
+    return fallbackCollections;
+  }
+
+  const productMap = new Map(products.map((product) => [product.id, product]));
+  const latestOrderItems = mergeCollectionItems(
+    recentOrders[0].items
+      .map((item) => {
+        const product = item.productId ? productMap.get(item.productId) : null;
+
+        return product
+          ? createCollectionItem(product, Number(item.orderedQuantity))
+          : null;
+      })
+      .filter((item): item is StorefrontCollectionItem => Boolean(item)),
+  ).slice(0, 4);
+  const stats = new Map<
+    string,
+    {
+      product: StorefrontProduct;
+      orderHits: number;
+      totalQuantity: number;
+      latestOrderIndex: number;
+      latestQuantity: number;
+    }
+  >();
+
+  recentOrders.forEach((order, orderIndex) => {
+    const seenInOrder = new Set<string>();
+
+    for (const item of order.items) {
+      const product = item.productId ? productMap.get(item.productId) : null;
+
+      if (!product) {
+        continue;
+      }
+
+      const quantity = Number(item.orderedQuantity);
+      const current = stats.get(product.id) ?? {
+        product,
+        orderHits: 0,
+        totalQuantity: 0,
+        latestOrderIndex: Number.POSITIVE_INFINITY,
+        latestQuantity: 1,
+      };
+
+      current.totalQuantity += Number.isFinite(quantity) ? quantity : 1;
+
+      if (!seenInOrder.has(product.id)) {
+        current.orderHits += 1;
+        seenInOrder.add(product.id);
+      }
+
+      if (orderIndex < current.latestOrderIndex) {
+        current.latestOrderIndex = orderIndex;
+        current.latestQuantity = quantity;
+      }
+
+      stats.set(product.id, current);
+    }
+  });
+
+  const favoriteStats = [...stats.values()].sort((first, second) => {
+    const hitsDiff = second.orderHits - first.orderHits;
+
+    if (hitsDiff !== 0) {
+      return hitsDiff;
+    }
+
+    const quantityDiff = second.totalQuantity - first.totalQuantity;
+
+    if (quantityDiff !== 0) {
+      return quantityDiff;
+    }
+
+    return first.latestOrderIndex - second.latestOrderIndex;
+  });
+  const favoriteItems = favoriteStats
+    .slice(0, 4)
+    .map((stat) => createCollectionItem(stat.product, stat.latestQuantity));
+  const categoryWeights = new Map<string, number>();
+
+  for (const stat of favoriteStats) {
+    categoryWeights.set(
+      stat.product.categoryId,
+      (categoryWeights.get(stat.product.categoryId) ?? 0) + stat.orderHits,
+    );
+  }
+
+  const usedProductIds = new Set([
+    ...latestOrderItems.map((item) => item.productId),
+    ...favoriteItems.map((item) => item.productId),
+  ]);
+  const preferredCategoryIds = [...categoryWeights.entries()]
+    .sort((first, second) => second[1] - first[1])
+    .map(([categoryId]) => categoryId);
+  const similarItems: StorefrontCollectionItem[] = [];
+
+  for (const categoryId of preferredCategoryIds) {
+    for (const product of products) {
+      if (
+        product.categoryId !== categoryId ||
+        usedProductIds.has(product.id) ||
+        similarItems.some((item) => item.productId === product.id)
+      ) {
+        continue;
+      }
+
+      similarItems.push(createCollectionItem(product));
+
+      if (similarItems.length >= 4) {
+        break;
+      }
+    }
+
+    if (similarItems.length >= 4) {
+      break;
+    }
+  }
+
+  const personalCollections: StorefrontCollection[] = [];
+
+  if (latestOrderItems.length > 0) {
+    personalCollections.push({
+      key: "personal-latest",
+      eyebrow: "На основе прошлого заказа",
+      title: "Повторить последнюю корзину",
+      text: "Собрали позиции из вашего последнего заказа, чтобы можно было быстро стартовать и поправить детали в корзине.",
+      source: "personal",
+      items: latestOrderItems,
+    });
+  }
+
+  if (favoriteItems.length > 0) {
+    personalCollections.push({
+      key: "personal-favorites",
+      eyebrow: "По вашей истории",
+      title: "Ваши частые покупки",
+      text: "То, что чаще всего появлялось в ваших заказах: удобно добавить всё одним нажатием.",
+      source: "personal",
+      items: favoriteItems,
+    });
+  }
+
+  if (similarItems.length > 0) {
+    personalCollections.push({
+      key: "personal-similar",
+      eyebrow: "Похоже на ваши заказы",
+      title: "Можно докинуть к привычному",
+      text: "Дополнительные позиции из любимых категорий, которые хорошо ложатся в вашу обычную корзину.",
+      source: "personal",
+      items: similarItems,
+    });
+  }
+
+  for (const fallbackCollection of fallbackCollections) {
+    if (personalCollections.length >= 3) {
+      break;
+    }
+
+    personalCollections.push({
+      ...fallbackCollection,
+      key: `fallback-${fallbackCollection.key}`,
+    });
+  }
+
+  return personalCollections.slice(0, 3);
+}
+
+export async function getStorefrontData(userId?: string) {
   const [categories, products, timeSlots] = await Promise.all([
     prisma.category.findMany({
       where: { isActive: true },
@@ -323,16 +700,18 @@ export async function getStorefrontData() {
       orderBy: { startTime: "asc" },
     }),
   ]);
+  const highlights = {
+    popular: products.filter((product) => product.isHit).slice(0, 6),
+    seasonal: products.filter((product) => product.isNew).slice(0, 6),
+    promo: products.filter((product) => product.isPromo).slice(0, 6),
+  };
 
   return {
     categories,
     products,
     timeSlots,
-    highlights: {
-      popular: products.filter((product) => product.isHit).slice(0, 6),
-      seasonal: products.filter((product) => product.isNew).slice(0, 6),
-      promo: products.filter((product) => product.isPromo).slice(0, 6),
-    },
+    highlights,
+    collections: await buildStorefrontCollections(userId, products, highlights),
   };
 }
 
@@ -417,6 +796,13 @@ export async function getCustomerOrders(userId: string) {
     include: {
       items: true,
       address: true,
+      sharedCart: {
+        select: {
+          id: true,
+          token: true,
+          title: true,
+        },
+      },
       deliveryTimeSlot: true,
       notifications: {
         where: {
@@ -450,12 +836,43 @@ export async function getCustomerOrderById(userId: string, orderId: string) {
 
 export async function createOrderForCustomer(userId: string, input: unknown) {
   const data = createOrderSchema.parse(input);
-  const address = await prisma.address.findFirst({
-    where: { id: data.addressId, userId },
-  });
+  const [address, sharedCart] = await Promise.all([
+    prisma.address.findFirst({
+      where: { id: data.addressId, userId },
+    }),
+    data.sharedCartToken
+      ? prisma.sharedCart.findFirst({
+          where: {
+            token: data.sharedCartToken,
+            isActive: true,
+          },
+          include: {
+            items: true,
+          },
+        })
+      : Promise.resolve(null),
+  ]);
 
   if (!address) {
     throw new ApiError("Адрес не найден", 404);
+  }
+
+  if (data.sharedCartToken) {
+    if (!sharedCart) {
+      throw new ApiError("Общая корзина не найдена", 404);
+    }
+
+    if (sharedCart.ownerId !== userId) {
+      throw new ApiError("Оформить общую корзину может только её организатор", 403);
+    }
+
+    if (sharedCart.orderedAt) {
+      throw new ApiError("Эта общая корзина уже оформлена", 409);
+    }
+
+    if (sharedCart.items.length === 0) {
+      throw new ApiError("Общая корзина пока пустая", 400);
+    }
   }
 
   await validateTimeSlotCapacity(
@@ -464,31 +881,48 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
     undefined,
     address,
   );
-  const built = await buildOrderItems(data.items);
+  const orderInputItems = sharedCart
+    ? aggregateSharedCartOrderItems(sharedCart.items)
+    : data.items;
+  const built = await buildOrderItems(orderInputItems);
 
-  const order = await prisma.order.create({
-    data: {
-      orderNumber: createOrderNumber(),
-      userId,
-      addressId: data.addressId,
-      deliveryDate: dateStringToDbDate(data.deliveryDate),
-      deliveryTimeSlotId: data.deliveryTimeSlotId,
-      status: OrderStatus.NEW,
-      preliminaryTotal: built.preliminaryTotal,
-      finalTotal: built.finalTotal,
-      customerComment: data.customerComment || null,
-      editableUntil: new Date(Date.now() + 60 * 60 * 1000),
-      items: {
-        createMany: {
-          data: built.itemRows,
+  const order = await prisma.$transaction(async (tx) => {
+    const createdOrder = await tx.order.create({
+      data: {
+        orderNumber: await createOrderNumber(),
+        userId,
+        addressId: data.addressId,
+        sharedCartId: sharedCart?.id,
+        sharedCartTitle: sharedCart?.title,
+        deliveryDate: dateStringToDbDate(data.deliveryDate),
+        deliveryTimeSlotId: data.deliveryTimeSlotId,
+        status: OrderStatus.NEW,
+        preliminaryTotal: built.preliminaryTotal,
+        finalTotal: built.finalTotal,
+        customerComment: data.customerComment || null,
+        editableUntil: new Date(Date.now() + 60 * 60 * 1000),
+        items: {
+          createMany: {
+            data: built.itemRows,
+          },
         },
       },
-    },
-    include: {
-      items: true,
-      deliveryTimeSlot: true,
-      address: true,
-    },
+      include: {
+        items: true,
+        deliveryTimeSlot: true,
+        address: true,
+        sharedCart: true,
+      },
+    });
+
+    if (sharedCart) {
+      await tx.sharedCart.update({
+        where: { id: sharedCart.id },
+        data: { orderedAt: new Date() },
+      });
+    }
+
+    return createdOrder;
   });
 
   await createNotification({
@@ -496,7 +930,9 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
     orderId: order.id,
     type: NotificationType.ORDER_CREATED,
     title: "Заказ оформлен",
-    message: `Заказ ${order.orderNumber} принят в работу.`,
+    message: sharedCart
+      ? `Общий заказ ${order.orderNumber} принят в работу.`
+      : `Заказ ${order.orderNumber} принят в работу.`,
   });
 
   return order;
@@ -612,7 +1048,7 @@ export async function rescheduleOrderByCustomer(
     existing.address,
   );
 
-  const order = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.order.update({
       where: { id: orderId },
       data: {
@@ -639,7 +1075,7 @@ export async function rescheduleOrderByCustomer(
       },
     });
 
-    await tx.notification.create({
+    const notification = await tx.notification.create({
       data: {
         userId,
         orderId,
@@ -649,10 +1085,12 @@ export async function rescheduleOrderByCustomer(
       },
     });
 
-    return updated;
+    return { order: updated, notification };
   });
 
-  return order;
+  await sendPushForNotification(result.notification);
+
+  return result.order;
 }
 
 export async function removeUnavailableOrderItemByCustomer(
@@ -708,7 +1146,7 @@ export async function removeUnavailableOrderItemByCustomer(
 
   const remainingItems = order.items.filter((item) => item.id !== unavailableItem.id);
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     if (remainingItems.length === 0) {
       const cancelled = await tx.order.update({
         where: { id: orderId },
@@ -728,7 +1166,7 @@ export async function removeUnavailableOrderItemByCustomer(
         data: { isRead: true },
       });
 
-      await tx.notification.create({
+      const pushNotification = await tx.notification.create({
         data: {
           userId,
           orderId,
@@ -742,6 +1180,7 @@ export async function removeUnavailableOrderItemByCustomer(
         order: cancelled,
         productName: unavailableProductName,
         orderCancelled: true,
+        pushNotification,
       };
     }
 
@@ -770,7 +1209,7 @@ export async function removeUnavailableOrderItemByCustomer(
       data: { isRead: true },
     });
 
-    await tx.notification.create({
+    const pushNotification = await tx.notification.create({
       data: {
         userId,
         orderId,
@@ -784,8 +1223,17 @@ export async function removeUnavailableOrderItemByCustomer(
       order: updated,
       productName: unavailableProductName,
       orderCancelled: false,
+      pushNotification,
     };
   });
+
+  await sendPushForNotification(result.pushNotification);
+
+  return {
+    order: result.order,
+    productName: result.productName,
+    orderCancelled: result.orderCancelled,
+  };
 }
 
 export async function markOrderItemUnavailable(orderItemId: string) {
@@ -857,7 +1305,7 @@ export async function markOrderItemUnavailable(orderItemId: string) {
   );
   const message = `К сожалению, позиции «${productName}» сегодня нет в хорошем качестве. Пожалуйста, пройдите в личный кабинет: вы можете убрать эту позицию из заказа или выбрать другую дату доставки.`;
 
-  await prisma.$transaction(async (tx) => {
+  const pushNotifications = await prisma.$transaction(async (tx) => {
     await tx.order.updateMany({
       where: {
         id: {
@@ -870,17 +1318,25 @@ export async function markOrderItemUnavailable(orderItemId: string) {
     });
 
     if (ordersToNotify.length > 0) {
-      await tx.notification.createMany({
-        data: ordersToNotify.map((order) => ({
-          userId: order.userId,
-          orderId: order.id,
-          type: NotificationType.REPLACEMENT_REQUIRED,
-          title,
-          message,
-        })),
-      });
+      return Promise.all(
+        ordersToNotify.map((order) =>
+          tx.notification.create({
+            data: {
+              userId: order.userId,
+              orderId: order.id,
+              type: NotificationType.REPLACEMENT_REQUIRED,
+              title,
+              message,
+            },
+          }),
+        ),
+      );
     }
+
+    return [];
   });
+
+  await sendPushForNotifications(pushNotifications);
 
   return {
     productName,
@@ -1019,17 +1475,20 @@ export async function getAdminOrders(filters: {
     where.deliveryTimeSlotId = filters.timeSlotId;
   }
 
-  return prisma.order.findMany({
-    where,
-    include: {
-      user: true,
-      address: true,
-      items: true,
-      courier: true,
-      deliveryTimeSlot: true,
-    },
-    orderBy: [{ deliveryDate: "asc" }, { createdAt: "desc" }],
-  });
+  return readWithPrismaRetry(() =>
+    prisma.order.findMany({
+      where,
+      include: {
+        user: true,
+        address: true,
+        sharedCart: true,
+        items: true,
+        courier: true,
+        deliveryTimeSlot: true,
+      },
+      orderBy: [{ deliveryDate: "asc" }, { createdAt: "desc" }],
+    }),
+  );
 }
 
 export async function getAdminOrder(orderId: string) {
@@ -1038,6 +1497,7 @@ export async function getAdminOrder(orderId: string) {
     include: {
       user: true,
       address: true,
+      sharedCart: true,
       items: true,
       courier: true,
       deliveryTimeSlot: true,
@@ -1097,6 +1557,23 @@ export async function updateOrderByAdmin(orderId: string, input: unknown) {
       status: data.status,
     },
   });
+}
+
+export async function deleteOrderByAdmin(orderId: string) {
+  const existing = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    throw new ApiError("Заказ не найден", 404);
+  }
+
+  await prisma.order.delete({
+    where: { id: orderId },
+  });
+
+  return { ok: true };
 }
 
 export async function updateOrderStatusByAdmin(orderId: string, input: unknown) {
@@ -1243,6 +1720,7 @@ export async function getDeliveryBoard(filters: {
       user: true,
       courier: true,
       address: true,
+      sharedCart: true,
       deliveryTimeSlot: true,
       deliveryTask: true,
     },
@@ -1255,7 +1733,7 @@ export async function getOrdersForLabels(filters: { date: string }) {
     where: {
       deliveryDate: dateStringToDbDate(filters.date),
       status: {
-        not: OrderStatus.CANCELLED,
+        in: [...labelPrintableOrderStatuses] as OrderStatus[],
       },
     },
     include: {

@@ -4,7 +4,7 @@ import { AdminOrderManager } from "@/components/admin/admin-order-manager";
 import { AssemblyProductShortagePanel } from "@/components/admin/assembly-product-shortage-panel";
 import { MainShell } from "@/components/layout/main-shell";
 import { requirePageUser } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { canPrintOrderLabelStatus } from "@/lib/constants";
 import { getAdminOrders } from "@/lib/orders";
 import { toClientValue } from "@/lib/serialize";
 
@@ -18,31 +18,19 @@ export default async function AdminOrdersPage({
   const user = await requirePageUser([Role.ADMIN]);
   const params = await searchParams;
   const selectedDate = typeof params.date === "string" ? params.date : "";
-  const [orders, courierProfiles] = await Promise.all([
-    getAdminOrders({
-      date: selectedDate || null,
-      status: typeof params.status === "string" ? params.status : null,
-      customer: typeof params.customer === "string" ? params.customer : null,
-      courierId: typeof params.courierId === "string" ? params.courierId : null,
-      timeSlotId: typeof params.timeSlotId === "string" ? params.timeSlotId : null,
-    }),
-    prisma.courier.findMany({
-      where: { isActive: true },
-      include: {
-        user: {
-          select: { id: true, name: true },
-        },
-      },
-      orderBy: { name: "asc" },
-    }),
-  ]);
-  const couriers = courierProfiles.map((profile) => ({
-    id: profile.userId,
-    name: profile.name || profile.user.name,
-  }));
+  const orders = await getAdminOrders({
+    date: selectedDate || null,
+    status: typeof params.status === "string" ? params.status : null,
+    customer: typeof params.customer === "string" ? params.customer : null,
+    courierId: typeof params.courierId === "string" ? params.courierId : null,
+    timeSlotId: typeof params.timeSlotId === "string" ? params.timeSlotId : null,
+  });
   const labelsUrl = selectedDate
     ? `/api/admin/orders/labels?date=${encodeURIComponent(selectedDate)}`
     : "";
+  const labelsCount = orders.filter((order) =>
+    canPrintOrderLabelStatus(order.status),
+  ).length;
   const assemblyUrl = selectedDate
     ? `/api/admin/orders/assembly-pdf?date=${encodeURIComponent(selectedDate)}`
     : "";
@@ -65,6 +53,7 @@ export default async function AdminOrdersPage({
           basePath="/admin/orders"
           selectedDate={selectedDate}
           ordersCount={orders.length}
+          labelsCount={labelsCount}
           eyebrow="Фильтр по дате"
           title="Заказы на выбранную дату"
           description="Выберите дату доставки: список заказов, этикетки, лист сборки и маршрутный лист будут собраны только по ней."
@@ -72,14 +61,12 @@ export default async function AdminOrdersPage({
           assemblyUrl={assemblyUrl}
           deliveryUrl={deliveryPdfUrl}
           emptyText="Нет заказов для документов на выбранную дату."
+          labelsEmptyText="Этикетки появятся после подтверждения заказа администратором."
         />
 
         <AssemblyProductShortagePanel orders={toClientValue(orders as never)} />
 
-        <AdminOrderManager
-          orders={toClientValue(orders as never)}
-          couriers={toClientValue(couriers)}
-        />
+        <AdminOrderManager orders={toClientValue(orders as never)} />
       </section>
     </MainShell>
   );

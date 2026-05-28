@@ -16,6 +16,16 @@ function getRedirectByRole(role: string) {
   return "/";
 }
 
+function getRussianPhoneDigits(value: string) {
+  let digits = value.replace(/\D/g, "");
+
+  if (digits.length === 11 && (digits.startsWith("7") || digits.startsWith("8"))) {
+    digits = digits.slice(1);
+  }
+
+  return digits.slice(0, 10);
+}
+
 export function LoginForm() {
   const router = useRouter();
   const [form, setForm] = useState({ emailOrPhone: "", password: "" });
@@ -49,7 +59,9 @@ export function LoginForm() {
         onChange={(event) =>
           setForm((current) => ({ ...current, emailOrPhone: event.target.value }))
         }
-        placeholder="Email или телефон"
+        placeholder="Телефон +7..."
+        inputMode="tel"
+        autoComplete="tel"
         className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
       />
       <input
@@ -72,9 +84,7 @@ export function LoginForm() {
 export function RegisterForm() {
   const router = useRouter();
   const [form, setForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
+    phoneDigits: "",
     password: "",
   });
   const [error, setError] = useState("");
@@ -83,10 +93,20 @@ export function RegisterForm() {
   async function submit() {
     setIsLoading(true);
     setError("");
+
+    if (form.phoneDigits.length !== 10) {
+      setIsLoading(false);
+      setError("Укажите 10 цифр телефона после +7.");
+      return;
+    }
+
     const response = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        phone: `+7${form.phoneDigits}`,
+        password: form.password,
+      }),
     });
     const result = await response.json();
     setIsLoading(false);
@@ -100,30 +120,71 @@ export function RegisterForm() {
     router.refresh();
   }
 
+  function updatePhoneDigits(value: string) {
+    setForm((current) => ({
+      ...current,
+      phoneDigits: getRussianPhoneDigits(value),
+    }));
+  }
+
   return (
     <div className="space-y-4">
-      <input
-        value={form.name}
-        onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-        placeholder="Имя"
-        className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
-      />
-      <input
-        value={form.email}
-        onChange={(event) =>
-          setForm((current) => ({ ...current, email: event.target.value }))
-        }
-        placeholder="Email"
-        className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
-      />
-      <input
-        value={form.phone}
-        onChange={(event) =>
-          setForm((current) => ({ ...current, phone: event.target.value }))
-        }
-        placeholder="Телефон"
-        className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
-      />
+      <label className="block">
+        <span className="mb-2 block text-sm font-medium text-[var(--muted)]">
+          Телефон
+        </span>
+        <div className="flex h-12 overflow-hidden rounded-2xl bg-white ring-1 ring-[var(--line)] focus-within:ring-[var(--accent-soft)]">
+          <span className="flex shrink-0 items-center border-r border-[var(--line)] px-4 font-semibold text-[var(--foreground)]">
+            +7
+          </span>
+          <input
+            value={form.phoneDigits}
+            onInput={(event) => updatePhoneDigits(event.currentTarget.value)}
+            onChange={(event) => updatePhoneDigits(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.ctrlKey || event.metaKey || event.altKey) {
+                return;
+              }
+
+              const navigationKeys = [
+                "Backspace",
+                "Delete",
+                "ArrowLeft",
+                "ArrowRight",
+                "Tab",
+                "Home",
+                "End",
+              ];
+
+              if (navigationKeys.includes(event.key)) {
+                return;
+              }
+
+              if (!/^\d$/.test(event.key)) {
+                event.preventDefault();
+                return;
+              }
+
+              const input = event.currentTarget;
+              const hasSelection = input.selectionStart !== input.selectionEnd;
+
+              if (form.phoneDigits.length >= 10 && !hasSelection) {
+                event.preventDefault();
+              }
+            }}
+            onPaste={(event) => {
+              event.preventDefault();
+              updatePhoneDigits(event.clipboardData.getData("text"));
+            }}
+            type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete="tel-national"
+            placeholder="9991234567"
+            className="min-w-0 flex-1 bg-transparent px-4 outline-none"
+          />
+        </div>
+      </label>
       <input
         value={form.password}
         onChange={(event) =>

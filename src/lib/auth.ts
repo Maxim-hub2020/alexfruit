@@ -32,6 +32,24 @@ export async function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
 }
 
+function normalizeRussianPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+
+  if (digits.length === 10) {
+    return `+7${digits}`;
+  }
+
+  if (digits.length === 11 && (digits.startsWith("7") || digits.startsWith("8"))) {
+    return `+7${digits.slice(1)}`;
+  }
+
+  return value.trim();
+}
+
+function createDefaultCustomerName(phone: string) {
+  return `Клиент ${phone.slice(-4)}`;
+}
+
 export async function createSession(user: SessionPayload) {
   const token = await new SignJWT(user)
     .setProtectedHeader({ alg: "HS256" })
@@ -129,23 +147,22 @@ export async function requireApiUser(roles?: Role[]) {
 
 export async function registerAndLogin(input: unknown) {
   const data = registerSchema.parse(input);
-  const email = data.email || null;
-  const phone = data.phone || null;
+  const phone = data.phone;
 
   const existing = await prisma.user.findFirst({
     where: {
-      OR: [{ email: email ?? undefined }, { phone: phone ?? undefined }],
+      phone,
     },
   });
 
   if (existing) {
-    throw new ApiError("Пользователь с таким email или телефоном уже существует", 409);
+    throw new ApiError("Пользователь с таким телефоном уже существует", 409);
   }
 
   const user = await prisma.user.create({
     data: {
-      name: data.name,
-      email,
+      name: createDefaultCustomerName(phone),
+      email: null,
       phone,
       passwordHash: await hashPassword(data.password),
       role: Role.CUSTOMER,
@@ -200,10 +217,12 @@ export async function updateCustomerProfile(userId: string, input: unknown) {
 
 export async function loginAndCreateSession(input: unknown) {
   const data = loginSchema.parse(input);
+  const identifier = data.emailOrPhone.trim();
+  const normalizedPhone = normalizeRussianPhone(identifier);
 
   const user = await prisma.user.findFirst({
     where: {
-      OR: [{ email: data.emailOrPhone }, { phone: data.emailOrPhone }],
+      OR: [{ email: identifier }, { phone: normalizedPhone }],
     },
   });
 

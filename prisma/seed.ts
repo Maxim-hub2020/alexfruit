@@ -325,9 +325,17 @@ async function main() {
     `${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`,
   );
 
-  const orderExists = await prisma.order.findFirst({
-    where: { orderNumber: "AF-DEMO-0001" },
+  const demoOrderNumber = "1001";
+  const legacyDemoOrderNumber = "AF-DEMO-0001";
+  const compactDemoOrder = await prisma.order.findFirst({
+    where: { orderNumber: demoOrderNumber },
   });
+  const legacyDemoOrder = compactDemoOrder
+    ? null
+    : await prisma.order.findFirst({
+        where: { orderNumber: legacyDemoOrderNumber },
+      });
+  const orderExists = compactDemoOrder ?? legacyDemoOrder;
 
   if (orderExists) {
     const slot = await prisma.deliveryTimeSlot.findFirst({
@@ -338,6 +346,9 @@ async function main() {
       await prisma.order.update({
         where: { id: orderExists.id },
         data: {
+          ...(orderExists.orderNumber !== demoOrderNumber
+            ? { orderNumber: demoOrderNumber }
+            : {}),
           userId: customer.id,
           addressId: address.id,
           deliveryDate: todayDeliveryDate,
@@ -377,7 +388,7 @@ async function main() {
     if (slot && productsForOrder.length > 0) {
       const order = await prisma.order.create({
         data: {
-          orderNumber: "AF-DEMO-0001",
+          orderNumber: demoOrderNumber,
           userId: customer.id,
           addressId: address.id,
           deliveryDate: todayDeliveryDate,

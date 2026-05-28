@@ -14,6 +14,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { MobileLiquidNav } from "@/components/layout/mobile-liquid-nav";
 import { LogoutButton } from "@/components/profile/logout-button";
 import { APP_NAME, roleLabels } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -87,9 +88,8 @@ export function MainShell({
     : isCourier
       ? courierNavItems
       : user
-        ? customerNavItems
-        : null;
-  const mobileNavItems = isAdmin ? adminNavItems : isCourier ? courierNavItems : customerNavItems;
+      ? customerNavItems
+      : null;
 
   return (
     <div className="relative min-h-screen pb-28">
@@ -163,34 +163,7 @@ export function MainShell({
 
       <main>{children}</main>
 
-      {mobileNavItems && (
-        <nav className="fixed inset-x-0 bottom-4 z-30 px-4 md:hidden">
-          <div
-            className={cn(
-              "glass-panel mx-auto grid max-w-md rounded-[1.75rem] p-2",
-              mobileNavItems.length === 4 ? "grid-cols-4" : "grid-cols-5",
-            )}
-          >
-            {mobileNavItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = active === item.key;
-              return (
-                <Link
-                  key={item.key}
-                  href={item.href}
-                  className={cn(
-                    "flex flex-col items-center gap-1 rounded-2xl px-2 py-3 text-[11px] font-medium text-[var(--muted)] transition",
-                    isActive && "bg-white text-[var(--accent-strong)] shadow-sm",
-                  )}
-                >
-                  <Icon size={18} />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
-      )}
+      <MobileLiquidNav active={active} role={user?.role} />
     </div>
   );
 }

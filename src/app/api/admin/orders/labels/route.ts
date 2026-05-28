@@ -25,7 +25,10 @@ export async function GET(request: Request) {
     const orders = await getOrdersForLabels({ date });
 
     if (orders.length === 0) {
-      throw new ApiError("На выбранную дату нет заказов для этикеток", 404);
+      throw new ApiError(
+        "На выбранную дату нет подтверждённых заказов для этикеток",
+        404,
+      );
     }
 
     const pdfBytes = await createOrdersLabelsPdf(orders);

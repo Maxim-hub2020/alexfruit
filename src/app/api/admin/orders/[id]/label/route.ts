@@ -1,6 +1,7 @@
 import { Role } from "@/generated/prisma";
-import { jsonError } from "@/lib/api";
+import { ApiError, jsonError } from "@/lib/api";
 import { requireApiUser } from "@/lib/auth";
+import { canPrintOrderLabelStatus } from "@/lib/constants";
 import { createOrderLabelPdf } from "@/lib/label-pdf";
 import { getAdminOrder } from "@/lib/orders";
 
@@ -15,6 +16,14 @@ export async function GET(
     await requireApiUser([Role.ADMIN]);
     const { id } = await params;
     const order = await getAdminOrder(id);
+
+    if (!canPrintOrderLabelStatus(order.status)) {
+      throw new ApiError(
+        "Этикетка доступна только после подтверждения заказа.",
+        409,
+      );
+    }
+
     const pdfBytes = await createOrderLabelPdf(order);
     const pdfBody = new ArrayBuffer(pdfBytes.byteLength);
 

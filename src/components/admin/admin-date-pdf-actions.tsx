@@ -10,6 +10,7 @@ type AdminDatePdfActionsProps = {
   basePath: string;
   selectedDate: string;
   ordersCount: number;
+  labelsCount?: number;
   eyebrow: string;
   title: string;
   description: string;
@@ -17,6 +18,7 @@ type AdminDatePdfActionsProps = {
   assemblyUrl?: string;
   deliveryUrl?: string;
   emptyText?: string;
+  labelsEmptyText?: string;
   requireDate?: boolean;
 };
 
@@ -55,6 +57,7 @@ export function AdminDatePdfActions({
   basePath,
   selectedDate,
   ordersCount,
+  labelsCount,
   eyebrow,
   title,
   description,
@@ -62,12 +65,15 @@ export function AdminDatePdfActions({
   assemblyUrl,
   deliveryUrl,
   emptyText = "Нет заказов на выбранную дату",
+  labelsEmptyText = "Этикетки доступны только для подтверждённых заказов.",
   requireDate = true,
 }: AdminDatePdfActionsProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const hasDate = Boolean(selectedDate);
   const canGenerate = ordersCount > 0 && (!requireDate || hasDate);
+  const printableLabelsCount = labelsCount ?? ordersCount;
+  const canGenerateLabels = printableLabelsCount > 0 && (!requireDate || hasDate);
 
   function changeDate(nextDate: string) {
     const nextUrl = nextDate
@@ -106,7 +112,7 @@ export function AdminDatePdfActions({
             />
           </label>
 
-          <PdfActionLink href={labelsUrl} enabled={canGenerate} variant="accent">
+          <PdfActionLink href={labelsUrl} enabled={canGenerateLabels} variant="accent">
             <FileText size={16} />
             Этикетки 40×50
           </PdfActionLink>
@@ -124,6 +130,11 @@ export function AdminDatePdfActions({
           {!canGenerate && (
             <span className="text-xs leading-relaxed text-[var(--muted)] sm:basis-full lg:text-right">
               {hasDate ? emptyText : "Сначала выберите дату доставки."}
+            </span>
+          )}
+          {canGenerate && !canGenerateLabels && (
+            <span className="text-xs leading-relaxed text-[var(--muted)] sm:basis-full lg:text-right">
+              {labelsEmptyText}
             </span>
           )}
         </div>
