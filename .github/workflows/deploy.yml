@@ -1,0 +1,44 @@
+name: Deploy AlexFruit to Timeweb
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.TIMEWEB_SSH_KEY }}" > ~/.ssh/timeweb_key
+          chmod 600 ~/.ssh/timeweb_key
+          ssh-keyscan -p ${{ secrets.TIMEWEB_PORT }} ${{ secrets.TIMEWEB_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Prepare server directory
+        run: |
+          ssh -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} ${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }} "mkdir -p /opt/alexfruit"
+
+      - name: Upload project to Timeweb
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }}" \
+            --exclude ".git" \
+            --exclude ".github" \
+            --exclude "node_modules" \
+            --exclude ".next" \
+            --exclude ".env" \
+            ./ ${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/opt/alexfruit/
+
+      - name: Deploy with Docker Compose
+        run: |
+          ssh -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} ${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }} '
+            cd /opt/alexfruit &&
+            docker compose -f docker-compose.prod.yml up -d --build
+          '
