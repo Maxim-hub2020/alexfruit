@@ -19,13 +19,33 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.TIMEWEB_SSH_KEY }}" > ~/.ssh/timeweb_key
           chmod 600 ~/.ssh/timeweb_key
-          ssh-keyscan -p ${{ secrets.TIMEWEB_PORT }} ${{ secrets.TIMEWEB_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -T 10 -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Test SSH connection
+        run: |
+          timeout 20 ssh \
+            -i ~/.ssh/timeweb_key \
+            -p "${{ secrets.TIMEWEB_PORT }}" \
+            -o BatchMode=yes \
+            -o PreferredAuthentications=publickey \
+            -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=10 \
+            "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" \
+            "echo SSH_OK"
 
       - name: Prepare server directory
         run: |
-          ssh -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} ${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }} "mkdir -p /opt/alexfruit"
+          timeout 20 ssh \
+            -i ~/.ssh/timeweb_key \
+            -p "${{ secrets.TIMEWEB_PORT }}" \
+            -o BatchMode=yes \
+            -o PreferredAuthentications=publickey \
+            -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=10 \
+            "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" \
+            "mkdir -p /opt/alexfruit && echo DIR_OK"
 
-      - name: Upload project to Timeweb
+      - name: Pack project
         run: |
           tar \
             --exclude=".git" \
@@ -35,17 +55,38 @@ jobs:
             --exclude=".env" \
             -czf /tmp/alexfruit.tar.gz .
 
-          scp -i ~/.ssh/timeweb_key -P ${{ secrets.TIMEWEB_PORT }} /tmp/alexfruit.tar.gz ${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit.tar.gz
+      - name: Upload archive to Timeweb
+        run: |
+          timeout 120 scp \
+            -i ~/.ssh/timeweb_key \
+            -P "${{ secrets.TIMEWEB_PORT }}" \
+            -o BatchMode=yes \
+            -o PreferredAuthentications=publickey \
+            -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=10 \
+            /tmp/alexfruit.tar.gz \
+            "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit.tar.gz"
 
-          ssh -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} ${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }} '
-            rm -rf /opt/alexfruit/*
-            tar -xzf /tmp/alexfruit.tar.gz -C /opt/alexfruit
-            rm /tmp/alexfruit.tar.gz
-          '
+      - name: Unpack project on Timeweb
+        run: |
+          timeout 60 ssh \
+            -i ~/.ssh/timeweb_key \
+            -p "${{ secrets.TIMEWEB_PORT }}" \
+            -o BatchMode=yes \
+            -o PreferredAuthentications=publickey \
+            -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=10 \
+            "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" \
+            "rm -rf /opt/alexfruit/* && tar -xzf /tmp/alexfruit.tar.gz -C /opt/alexfruit && rm /tmp/alexfruit.tar.gz && ls -la /opt/alexfruit"
 
       - name: Deploy with Docker Compose
         run: |
-          ssh -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} ${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }} '
-            cd /opt/alexfruit &&
-            docker compose -f docker-compose.prod.yml up -d --build
-          '
+          timeout 300 ssh \
+            -i ~/.ssh/timeweb_key \
+            -p "${{ secrets.TIMEWEB_PORT }}" \
+            -o BatchMode=yes \
+            -o PreferredAuthentications=publickey \
+            -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=10 \
+            "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" \
+            "cd /opt/alexfruit && docker compose -f docker-compose.prod.yml up -d --build"
