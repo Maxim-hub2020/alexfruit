@@ -31,15 +31,25 @@ jobs:
 
       - name: Prepare server directory
         run: |
-          timeout 20 ssh \
-            -i ~/.ssh/timeweb_key \
-            -p "${{ secrets.TIMEWEB_PORT }}" \
-            -o BatchMode=yes \
-            -o PreferredAuthentications=publickey \
-            -o StrictHostKeyChecking=yes \
-            -o ConnectTimeout=10 \
-            "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" \
-            "mkdir -p /opt/alexfruit && echo DIR_OK"
+          for i in 1 2 3 4 5; do
+            echo "SSH attempt $i..."
+            if timeout 90 ssh \
+              -i ~/.ssh/timeweb_key \
+              -p "${{ secrets.TIMEWEB_PORT }}" \
+              -o BatchMode=yes \
+              -o PreferredAuthentications=publickey \
+              -o StrictHostKeyChecking=yes \
+              -o ConnectTimeout=30 \
+              -o ServerAliveInterval=10 \
+              -o ServerAliveCountMax=3 \
+              "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" \
+              "mkdir -p /opt/alexfruit && echo DIR_OK"; then
+              exit 0
+            fi
+            echo "SSH failed, waiting before retry..."
+            sleep 15
+          done
+          exit 1
 
       - name: Upload project files to Timeweb
         run: |
