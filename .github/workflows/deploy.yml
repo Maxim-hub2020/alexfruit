@@ -28,22 +28,14 @@ jobs:
           printf '%s\n' "${{ secrets.TIMEWEB_SSH_KEY }}" | tr -d '\r' > ~/.ssh/timeweb_key
           chmod 600 ~/.ssh/timeweb_key
           touch ~/.ssh/known_hosts
-          ssh-keyscan -T 20 -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -4 -T 60 -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Prepare server directory
         run: |
+          SSH_OPTS="-4 -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
           for i in 1 2 3 4 5; do
             echo "SSH attempt $i..."
-            if timeout 90 ssh \
-              -i ~/.ssh/timeweb_key \
-              -p "${{ secrets.TIMEWEB_PORT }}" \
-              -o BatchMode=yes \
-              -o PreferredAuthentications=publickey \
-              -o StrictHostKeyChecking=accept-new \
-              -o UserKnownHostsFile=~/.ssh/known_hosts \
-              -o ConnectTimeout=30 \
-              -o ServerAliveInterval=10 \
-              -o ServerAliveCountMax=3 \
+            if timeout 180 ssh $SSH_OPTS \
               "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" \
               "mkdir -p /opt/alexfruit && echo DIR_OK"; then
               exit 0
@@ -55,6 +47,8 @@ jobs:
 
       - name: Upload project files to Timeweb
         run: |
+          SSH_OPTS="-4 -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
+          SCP_OPTS="-4 -i ~/.ssh/timeweb_key -P ${{ secrets.TIMEWEB_PORT }} -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
           tar \
             --exclude=".git" \
             --exclude=".github" \
@@ -63,9 +57,9 @@ jobs:
             --exclude=".env" \
             -czf /tmp/alexfruit-files.tar.gz .
 
-          scp -i ~/.ssh/timeweb_key -P "${{ secrets.TIMEWEB_PORT }}" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts /tmp/alexfruit-files.tar.gz "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit-files.tar.gz"
+          scp $SCP_OPTS /tmp/alexfruit-files.tar.gz "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit-files.tar.gz"
 
-          ssh -i ~/.ssh/timeweb_key -p "${{ secrets.TIMEWEB_PORT }}" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
+          ssh $SSH_OPTS "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
             find /opt/alexfruit -mindepth 1 ! -name ".env" -exec rm -rf {} +
             tar -xzf /tmp/alexfruit-files.tar.gz -C /opt/alexfruit
             rm /tmp/alexfruit-files.tar.gz
@@ -73,18 +67,21 @@ jobs:
 
       - name: Upload Docker image to Timeweb
         run: |
-          scp -i ~/.ssh/timeweb_key -P "${{ secrets.TIMEWEB_PORT }}" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts /tmp/alexfruit-prod-app.tar.gz "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit-prod-app.tar.gz"
+          SCP_OPTS="-4 -i ~/.ssh/timeweb_key -P ${{ secrets.TIMEWEB_PORT }} -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
+          scp $SCP_OPTS /tmp/alexfruit-prod-app.tar.gz "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit-prod-app.tar.gz"
 
       - name: Load Docker image on Timeweb
         run: |
-          ssh -i ~/.ssh/timeweb_key -p "${{ secrets.TIMEWEB_PORT }}" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
+          SSH_OPTS="-4 -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
+          ssh $SSH_OPTS "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
             docker load < /tmp/alexfruit-prod-app.tar.gz
             rm /tmp/alexfruit-prod-app.tar.gz
           '
 
       - name: Deploy with Docker Compose
         run: |
-          ssh -i ~/.ssh/timeweb_key -p "${{ secrets.TIMEWEB_PORT }}" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
+          SSH_OPTS="-4 -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
+          ssh $SSH_OPTS "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
             cd /opt/alexfruit &&
             docker compose -f docker-compose.prod.yml up -d --force-recreate app proxy
           '
