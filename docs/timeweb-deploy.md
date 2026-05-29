@@ -45,6 +45,7 @@ nano .env
 
 - `APP_DOMAIN` — домен без `https://`, например `alexfruit.ru`;
 - `APP_URL` — полный HTTPS-адрес, например `https://alexfruit.ru`;
+- `ACME_EMAIL` — email для выпуска SSL-сертификата Let's Encrypt;
 - `POSTGRES_PASSWORD` — пароль базы;
 - `DATABASE_URL` — тот же пароль внутри строки подключения;
 - `JWT_SECRET` — длинная случайная строка;
