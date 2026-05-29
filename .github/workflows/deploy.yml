@@ -8,80 +8,44 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, alexfruit]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build Docker image on GitHub
+      - name: Check server environment
         run: |
-          docker build -t alexfruit-prod-app:latest .
+          if [ ! -f /opt/alexfruit/.env ]; then
+            echo "Missing /opt/alexfruit/.env on the Timeweb server"
+            exit 1
+          fi
 
-      - name: Save Docker image
+      - name: Sync project files
         run: |
-          docker save alexfruit-prod-app:latest | gzip > /tmp/alexfruit-prod-app.tar.gz
-
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.TIMEWEB_SSH_KEY }}" | tr -d '\r' > ~/.ssh/timeweb_key
-          chmod 600 ~/.ssh/timeweb_key
-          touch ~/.ssh/known_hosts
-          ssh-keyscan -4 -T 60 -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
-
-      - name: Prepare server directory
-        run: |
-          SSH_OPTS="-4 -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
-          for i in 1 2 3 4 5; do
-            echo "SSH attempt $i..."
-            if timeout 180 ssh $SSH_OPTS \
-              "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" \
-              "mkdir -p /opt/alexfruit && echo DIR_OK"; then
-              exit 0
-            fi
-            echo "SSH failed, waiting before retry..."
-            sleep 15
-          done
-          exit 1
-
-      - name: Upload project files to Timeweb
-        run: |
-          SSH_OPTS="-4 -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
-          SCP_OPTS="-4 -i ~/.ssh/timeweb_key -P ${{ secrets.TIMEWEB_PORT }} -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
+          cp /opt/alexfruit/.env /tmp/alexfruit.env
+          find /opt/alexfruit -mindepth 1 ! -name ".env" -exec rm -rf {} +
           tar \
             --exclude=".git" \
             --exclude=".github" \
             --exclude="node_modules" \
             --exclude=".next" \
             --exclude=".env" \
-            -czf /tmp/alexfruit-files.tar.gz .
+            -cf - . | tar -xf - -C /opt/alexfruit
+          cp /tmp/alexfruit.env /opt/alexfruit/.env
 
-          scp $SCP_OPTS /tmp/alexfruit-files.tar.gz "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit-files.tar.gz"
-
-          ssh $SSH_OPTS "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
-            find /opt/alexfruit -mindepth 1 ! -name ".env" -exec rm -rf {} +
-            tar -xzf /tmp/alexfruit-files.tar.gz -C /opt/alexfruit
-            rm /tmp/alexfruit-files.tar.gz
-          '
-
-      - name: Upload Docker image to Timeweb
+      - name: Build Docker image on Timeweb
         run: |
-          SCP_OPTS="-4 -i ~/.ssh/timeweb_key -P ${{ secrets.TIMEWEB_PORT }} -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
-          scp $SCP_OPTS /tmp/alexfruit-prod-app.tar.gz "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit-prod-app.tar.gz"
-
-      - name: Load Docker image on Timeweb
-        run: |
-          SSH_OPTS="-4 -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
-          ssh $SSH_OPTS "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
-            docker load < /tmp/alexfruit-prod-app.tar.gz
-            rm /tmp/alexfruit-prod-app.tar.gz
-          '
+          cd /opt/alexfruit
+          docker build -t alexfruit-prod-app:latest .
 
       - name: Deploy with Docker Compose
         run: |
-          SSH_OPTS="-4 -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
-          ssh $SSH_OPTS "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
-            cd /opt/alexfruit &&
-            docker compose -f docker-compose.prod.yml up -d --force-recreate app proxy
-          '
+          cd /opt/alexfruit
+          docker compose -p alexfruit -f docker-compose.prod.yml up -d --force-recreate db app proxy
+          docker image prune -f
+
+      - name: Show container status
+        run: |
+          cd /opt/alexfruit
+          docker compose -p alexfruit -f docker-compose.prod.yml ps
