@@ -84,5 +84,5 @@ jobs:
         run: |
           ssh -i ~/.ssh/timeweb_key -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
             cd /opt/alexfruit &&
-            docker compose -f docker-compose.prod.yml up -d
+            docker compose -f docker-compose.prod.yml up -d --force-recreate app proxy
           '
