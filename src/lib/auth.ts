@@ -24,6 +24,20 @@ function getJwtSecret() {
   );
 }
 
+function shouldUseSecureCookies() {
+  const appUrl = process.env.APP_URL;
+
+  if (appUrl) {
+    try {
+      return new URL(appUrl).protocol === "https:";
+    } catch {
+      return appUrl.startsWith("https://");
+    }
+  }
+
+  return process.env.NODE_ENV === "production";
+}
+
 export async function hashPassword(password: string) {
   return bcrypt.hash(password, 10);
 }
@@ -63,7 +77,7 @@ export async function createSession(user: SessionPayload) {
     httpOnly: true,
     path: "/",
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureCookies(),
     maxAge: 60 * 60 * 24 * 7,
   });
 }
