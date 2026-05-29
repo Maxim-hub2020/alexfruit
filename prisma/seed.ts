@@ -3,14 +3,14 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
+import { PrismaClient } from "../src/generated/prisma/client";
 import {
   DeliveryTaskStatus,
   OrderStatus,
-  PrismaClient,
   ProductUnit,
   Role,
   StockStatus,
-} from "../src/generated/prisma";
+} from "../src/generated/prisma/enums";
 
 function loadLocalEnv() {
   const envPath = resolve(process.cwd(), ".env.local");
