@@ -25,9 +25,10 @@ jobs:
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.TIMEWEB_SSH_KEY }}" > ~/.ssh/timeweb_key
+          printf '%s\n' "${{ secrets.TIMEWEB_SSH_KEY }}" | tr -d '\r' > ~/.ssh/timeweb_key
           chmod 600 ~/.ssh/timeweb_key
-          ssh-keyscan -T 10 -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_HOST }}" >> ~/.ssh/known_hosts
+          touch ~/.ssh/known_hosts
+          ssh-keyscan -T 20 -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Prepare server directory
         run: |
@@ -38,7 +39,8 @@ jobs:
               -p "${{ secrets.TIMEWEB_PORT }}" \
               -o BatchMode=yes \
               -o PreferredAuthentications=publickey \
-              -o StrictHostKeyChecking=yes \
+              -o StrictHostKeyChecking=accept-new \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
               -o ConnectTimeout=30 \
               -o ServerAliveInterval=10 \
               -o ServerAliveCountMax=3 \
@@ -61,9 +63,9 @@ jobs:
             --exclude=".env" \
             -czf /tmp/alexfruit-files.tar.gz .
 
-          scp -i ~/.ssh/timeweb_key -P "${{ secrets.TIMEWEB_PORT }}" /tmp/alexfruit-files.tar.gz "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit-files.tar.gz"
+          scp -i ~/.ssh/timeweb_key -P "${{ secrets.TIMEWEB_PORT }}" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts /tmp/alexfruit-files.tar.gz "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit-files.tar.gz"
 
-          ssh -i ~/.ssh/timeweb_key -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
+          ssh -i ~/.ssh/timeweb_key -p "${{ secrets.TIMEWEB_PORT }}" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
             find /opt/alexfruit -mindepth 1 ! -name ".env" -exec rm -rf {} +
             tar -xzf /tmp/alexfruit-files.tar.gz -C /opt/alexfruit
             rm /tmp/alexfruit-files.tar.gz
@@ -71,18 +73,18 @@ jobs:
 
       - name: Upload Docker image to Timeweb
         run: |
-          scp -i ~/.ssh/timeweb_key -P "${{ secrets.TIMEWEB_PORT }}" /tmp/alexfruit-prod-app.tar.gz "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit-prod-app.tar.gz"
+          scp -i ~/.ssh/timeweb_key -P "${{ secrets.TIMEWEB_PORT }}" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts /tmp/alexfruit-prod-app.tar.gz "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit-prod-app.tar.gz"
 
       - name: Load Docker image on Timeweb
         run: |
-          ssh -i ~/.ssh/timeweb_key -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
+          ssh -i ~/.ssh/timeweb_key -p "${{ secrets.TIMEWEB_PORT }}" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
             docker load < /tmp/alexfruit-prod-app.tar.gz
             rm /tmp/alexfruit-prod-app.tar.gz
           '
 
       - name: Deploy with Docker Compose
         run: |
-          ssh -i ~/.ssh/timeweb_key -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
+          ssh -i ~/.ssh/timeweb_key -p "${{ secrets.TIMEWEB_PORT }}" -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
             cd /opt/alexfruit &&
             docker compose -f docker-compose.prod.yml up -d --force-recreate app proxy
           '
