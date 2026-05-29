@@ -29,7 +29,7 @@ export const customerProfileSchema = emailOrPhone.extend({
 });
 
 export const loginSchema = z.object({
-  emailOrPhone: z.string().trim().min(2, "Укажите email или телефон"),
+  phone: z.string().trim().min(10, "Укажите телефон"),
   password: z.string().min(6, "Минимум 6 символов"),
 });
 

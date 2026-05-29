@@ -4,8 +4,6 @@ import { useRouter } from "next/navigation";
 import { useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 
-type LoginMode = "phone" | "email";
-
 function getRedirectByRole(role: string) {
   if (role === "ADMIN") {
     return "/admin";
@@ -100,27 +98,23 @@ function PhoneDigitsInput({
 
 export function LoginForm() {
   const router = useRouter();
-  const [loginMode, setLoginMode] = useState<LoginMode>("phone");
-  const [form, setForm] = useState({ email: "", phoneDigits: "", password: "" });
+  const [form, setForm] = useState({ phoneDigits: "", password: "" });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   async function submit() {
     setError("");
 
-    if (loginMode === "phone" && form.phoneDigits.length !== 10) {
+    if (form.phoneDigits.length !== 10) {
       setError("Укажите 10 цифр телефона после +7.");
       return;
     }
-
-    const emailOrPhone =
-      loginMode === "phone" ? `+7${form.phoneDigits}` : form.email.trim();
 
     setIsLoading(true);
     const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ emailOrPhone, password: form.password }),
+      body: JSON.stringify({ phone: `+7${form.phoneDigits}`, password: form.password }),
     });
     const result = await response.json();
     setIsLoading(false);
@@ -134,69 +128,19 @@ export function LoginForm() {
     router.refresh();
   }
 
-  function updateEmail(value: string) {
-    if (/^\s*\d/.test(value)) {
-      setLoginMode("phone");
-      setForm((current) => ({
-        ...current,
-        phoneDigits: getRussianPhoneDigits(value),
-      }));
-      return;
-    }
-
-    setForm((current) => ({ ...current, email: value }));
-  }
-
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 rounded-2xl bg-white p-1 ring-1 ring-[var(--line)]">
-        {(["phone", "email"] as const).map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            onClick={() => {
-              setLoginMode(mode);
-              setError("");
-            }}
-            className={`h-10 rounded-xl text-sm font-semibold transition ${
-              loginMode === mode
-                ? "bg-[var(--accent)] text-white shadow-sm"
-                : "text-[var(--muted)] hover:text-[var(--foreground)]"
-            }`}
-          >
-            {mode === "phone" ? "Телефон" : "Email"}
-          </button>
-        ))}
-      </div>
-
-      {loginMode === "phone" ? (
-        <label className="block">
-          <span className="mb-2 block text-sm font-medium text-[var(--muted)]">
-            Телефон
-          </span>
-          <PhoneDigitsInput
-            value={form.phoneDigits}
-            onChange={(phoneDigits) =>
-              setForm((current) => ({ ...current, phoneDigits }))
-            }
-          />
-        </label>
-      ) : (
-        <label className="block">
-          <span className="mb-2 block text-sm font-medium text-[var(--muted)]">
-            Email
-          </span>
-          <input
-            value={form.email}
-            onChange={(event) => updateEmail(event.target.value)}
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="name@example.com"
-            className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
-          />
-        </label>
-      )}
+      <label className="block">
+        <span className="mb-2 block text-sm font-medium text-[var(--muted)]">
+          Телефон
+        </span>
+        <PhoneDigitsInput
+          value={form.phoneDigits}
+          onChange={(phoneDigits) =>
+            setForm((current) => ({ ...current, phoneDigits }))
+          }
+        />
+      </label>
 
       <input
         value={form.password}

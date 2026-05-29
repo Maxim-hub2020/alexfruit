@@ -238,17 +238,20 @@ export async function updateCustomerProfile(userId: string, input: unknown) {
 
 export async function loginAndCreateSession(input: unknown) {
   const data = loginSchema.parse(input);
-  const identifier = data.emailOrPhone.trim();
-  const normalizedPhone = normalizeRussianPhone(identifier);
+  const normalizedPhone = normalizeRussianPhone(data.phone);
+
+  if (!/^\+7\d{10}$/.test(normalizedPhone)) {
+    throw new ApiError("Укажите телефон в формате +7XXXXXXXXXX", 400);
+  }
 
   const user = await prisma.user.findFirst({
     where: {
-      OR: [{ email: identifier }, { phone: normalizedPhone }],
+      phone: normalizedPhone,
     },
   });
 
   if (!user) {
-    throw new ApiError("Пользователь не найден", 401);
+    throw new ApiError("Пользователь с таким телефоном не найден", 401);
   }
 
   const isValid = await verifyPassword(data.password, user.passwordHash);
