@@ -19,7 +19,7 @@ const cormorant = Cormorant_Garamond({
 export const metadata: Metadata = {
   title: "АлексФрут",
   description:
-    "АлексФрут: доставка фруктов и овощей по Ростову-на-Дону, каталог, заказы, админ-панель и кабинет курьера.",
+    "АлексФрут: свежие фрукты и овощи с доставкой по Ростову-на-Дону.",
   manifest: "/manifest.webmanifest",
   applicationName: "АлексФрут",
   appleWebApp: {

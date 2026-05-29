@@ -91,7 +91,7 @@ export async function createCourier(input: unknown) {
       : null;
 
   if (existingUser) {
-    throw new ApiError("Пользователь с таким email или телефоном уже существует", 409);
+    throw new ApiError("Пользователь с такими контактами уже существует", 409);
   }
 
   return prisma.user.create({

@@ -477,7 +477,7 @@ export function AdminCatalogManager({
                   onChange={(event) =>
                     setProductForm((current) => ({ ...current, imageUrl: event.target.value }))
                   }
-                  placeholder="https://... или /products/photo.png"
+                  placeholder="https://... или /products/photo.webp"
                   className="h-11 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
                 />
               </label>

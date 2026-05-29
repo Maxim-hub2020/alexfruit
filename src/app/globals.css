@@ -180,13 +180,8 @@ button:disabled,
   inset-block: var(--nav-padding);
   left: var(--nav-padding);
   z-index: 0;
-  display: flex;
   width: calc((100% - (var(--nav-padding) * 2)) / var(--nav-count));
-  align-items: center;
-  justify-content: flex-end;
   border-radius: 1.55rem;
-  padding-right: 0.88rem;
-  color: rgba(47, 143, 79, 0.54);
   background:
     radial-gradient(circle at 80% 18%, rgba(255, 255, 255, 0.98), transparent 24%),
     linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(219, 239, 213, 0.66));
@@ -521,6 +516,112 @@ button:disabled,
       0 14px 32px rgba(35, 105, 58, 0.18),
       inset 0 1px 0 rgba(255, 255, 255, 0.98),
       inset 0 -10px 24px rgba(47, 143, 79, 0.14);
+  }
+}
+
+.login-produce-field {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  overflow: hidden;
+}
+
+.login-produce-float {
+  position: absolute;
+  display: block;
+  width: clamp(7rem, 13vw, 13rem);
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: clamp(1.4rem, 2.4vw, 2.4rem);
+  background: rgba(255, 255, 255, 0.42);
+  background-position: center;
+  background-size: cover;
+  box-shadow:
+    0 24px 80px rgba(23, 50, 38, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  opacity: 0.86;
+  filter: saturate(1.14) contrast(1.05);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  backdrop-filter: blur(14px) saturate(1.25);
+  animation: login-produce-drift var(--float-duration, 14s) ease-in-out infinite alternate;
+}
+
+.float-apple {
+  --float-duration: 15s;
+  left: 7vw;
+  top: 16vh;
+  background-image: url("/products/apples.webp");
+}
+
+.float-berry {
+  --float-duration: 18s;
+  right: 9vw;
+  top: 14vh;
+  width: clamp(6.5rem, 10vw, 10rem);
+  background-image: url("/products/strawberries.webp");
+  animation-delay: -4s;
+}
+
+.float-tomato {
+  --float-duration: 16s;
+  left: 14vw;
+  bottom: 17vh;
+  width: clamp(6rem, 10vw, 10.5rem);
+  background-image: url("/products/tomatoes.webp");
+  animation-delay: -7s;
+}
+
+.float-mango {
+  --float-duration: 20s;
+  right: 12vw;
+  bottom: 13vh;
+  width: clamp(8rem, 14vw, 14rem);
+  background-image: url("/products/mangoes.webp");
+  animation-delay: -9s;
+}
+
+.float-pepper {
+  --float-duration: 17s;
+  left: 50%;
+  top: 7vh;
+  width: clamp(6rem, 9vw, 9rem);
+  background-image: url("/products/bell-peppers.webp");
+  animation-delay: -11s;
+}
+
+.float-blueberry {
+  --float-duration: 19s;
+  right: 28vw;
+  bottom: 8vh;
+  width: clamp(5.8rem, 9vw, 9rem);
+  background-image: url("/products/blueberries.webp");
+  animation-delay: -13s;
+}
+
+@keyframes login-produce-drift {
+  0% {
+    transform: translate3d(-0.8rem, 0.6rem, 0) rotate(-8deg) scale(0.96);
+  }
+
+  45% {
+    transform: translate3d(0.8rem, -1rem, 0) rotate(6deg) scale(1.03);
+  }
+
+  100% {
+    transform: translate3d(1.2rem, 0.8rem, 0) rotate(12deg) scale(0.98);
+  }
+}
+
+@media (max-width: 767px) {
+  .login-produce-float {
+    opacity: 0.58;
+  }
+
+  .float-pepper,
+  .float-blueberry {
+    display: none;
   }
 }
 

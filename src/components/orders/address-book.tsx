@@ -16,7 +16,7 @@ type AddressSuggestion = {
   apartment: string;
   latitude: number | null;
   longitude: number | null;
-  source: "dadata" | "demo";
+  source: "dadata" | "fallback";
 };
 
 type AddressForm = {
@@ -68,7 +68,7 @@ export function AddressBook({
   const [form, setForm] = useState<AddressForm>(EMPTY_FORM);
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [error, setError] = useState("");
-  const [source, setSource] = useState<"dadata" | "demo" | null>(null);
+  const [source, setSource] = useState<"dadata" | "fallback" | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const deferredAddressText = useDeferredValue(form.addressText);
   const selectedAddressTextRef = useRef("");
@@ -307,10 +307,10 @@ export function AddressBook({
             )}
           </div>
 
-          {source === "demo" && (
+          {source === "fallback" && (
             <p className="rounded-[1.25rem] bg-amber-50 p-3 text-xs text-amber-900">
-              Сейчас используется локальный демо-поиск. Для настоящих подсказок
-              добавьте ключ DaData в `DADATA_API_KEY`.
+              Проверьте адрес перед сохранением: подсказки могут быть временно
+              ограничены.
             </p>
           )}
 

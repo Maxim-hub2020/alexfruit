@@ -30,7 +30,7 @@ function configureWebPush() {
   const subject =
     process.env.WEB_PUSH_SUBJECT ||
     process.env.APP_URL ||
-    "mailto:admin@alexfrut.local";
+    "mailto:info@alexfruit.ru";
 
   if (!publicKey || !privateKey) {
     return false;

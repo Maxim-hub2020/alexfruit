@@ -72,7 +72,7 @@ const imageSourceSchema = z
     } catch {
       return false;
     }
-  }, "Укажите ссылку на изображение или путь вида /products/image.png");
+  }, "Укажите ссылку на изображение или путь вида /products/image.webp");
 
 export const productSchema = z.object({
   categoryId: z.string().trim().min(1),
@@ -135,7 +135,9 @@ export const assignCourierSchema = z.object({
   courierId: z.string().trim().nullable().optional(),
 });
 
-export const adminCourierSchema = emailOrPhone.extend({
+export const adminCourierSchema = z.object({
+  email: z.string().trim().email().optional().or(z.literal("")),
+  phone: z.string().trim().min(10, "Укажите телефон курьера"),
   name: z.string().trim().min(2, "Укажите имя курьера"),
   password: z.string().min(6, "Минимум 6 символов"),
 });

@@ -13,7 +13,6 @@ import {
   Route,
   ShoppingCart,
   ShoppingBasket,
-  Sparkles,
   Truck,
   UserRound,
 } from "lucide-react";
@@ -154,9 +153,7 @@ export function DesktopLiquidNav({
       style={navStyle}
       aria-label="Основная навигация"
     >
-      <span className="desktop-liquid-lens" aria-hidden="true">
-        <Sparkles size={15} />
-      </span>
+      <span className="desktop-liquid-lens" aria-hidden="true" />
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = active === item.key;

@@ -80,7 +80,7 @@ async function upsertUser(params: {
 }
 
 async function main() {
-  const admin = await upsertUser({
+  await upsertUser({
     email: process.env.DEFAULT_ADMIN_EMAIL ?? "admin@alexfrut.local",
     password: process.env.DEFAULT_ADMIN_PASSWORD ?? "admin12345",
     name: "Марина Админ",
@@ -363,13 +363,7 @@ async function main() {
   }
 
   console.log("Seed completed");
-  console.log(`Admin: ${admin.email} / ${process.env.DEFAULT_ADMIN_PASSWORD ?? "admin12345"}`);
-  console.log(
-    `Courier: ${courier.email} / ${process.env.DEFAULT_COURIER_PASSWORD ?? "courier12345"}`,
-  );
-  console.log(
-    `Customer: ${customer.email} / ${process.env.DEFAULT_CUSTOMER_PASSWORD ?? "customer12345"}`,
-  );
+  console.log("Base users, catalog, slots, and sample order are ready.");
 }
 
 main()

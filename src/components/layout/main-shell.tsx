@@ -33,6 +33,12 @@ export function MainShell({
         <div className="liquid-app-header section-shell flex items-center justify-between gap-3 px-3 py-3 md:px-4">
           <Link href="/" className="flex min-w-0 items-center gap-3">
             <BrandLogo priority />
+            <div className="min-w-0 md:hidden">
+              <p className="truncate font-serif text-lg font-semibold leading-tight">{APP_NAME}</p>
+              <p className="truncate text-[0.68rem] font-medium text-[var(--muted)]">
+                свежие овощи и фрукты
+              </p>
+            </div>
             <div className="hidden min-w-0 xl:block">
               <p className="truncate font-serif text-2xl font-semibold tracking-wide">{APP_NAME}</p>
               <p className="text-sm text-[var(--muted)]">

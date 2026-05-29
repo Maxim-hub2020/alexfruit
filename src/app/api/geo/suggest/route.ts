@@ -37,15 +37,15 @@ type AddressSuggestion = {
   apartment: string;
   latitude: number | null;
   longitude: number | null;
-  source: "dadata" | "demo";
+  source: "dadata" | "fallback";
 };
 
 const ROSTOV_CITY = "Ростов-на-Дону";
 const ADDRESS_SUGGEST_MIN_LENGTH = 3;
 
-const DEMO_SUGGESTIONS: AddressSuggestion[] = [
+const FALLBACK_SUGGESTIONS: AddressSuggestion[] = [
   {
-    id: "demo-pushkinskaya-104",
+    id: "fallback-pushkinskaya-104",
     title: "Пушкинская улица, 104",
     subtitle: ROSTOV_CITY,
     formattedAddress: "Ростов-на-Дону, Пушкинская улица, 104",
@@ -55,10 +55,10 @@ const DEMO_SUGGESTIONS: AddressSuggestion[] = [
     apartment: "",
     latitude: 47.2288,
     longitude: 39.7291,
-    source: "demo",
+    source: "fallback",
   },
   {
-    id: "demo-bolshaya-sadovaya-72",
+    id: "fallback-bolshaya-sadovaya-72",
     title: "Большая Садовая улица, 72",
     subtitle: ROSTOV_CITY,
     formattedAddress: "Ростов-на-Дону, Большая Садовая улица, 72",
@@ -68,10 +68,10 @@ const DEMO_SUGGESTIONS: AddressSuggestion[] = [
     apartment: "",
     latitude: 47.2214,
     longitude: 39.7115,
-    source: "demo",
+    source: "fallback",
   },
   {
-    id: "demo-rylskogo-1",
+    id: "fallback-rylskogo-1",
     title: "улица Рыльского, 1",
     subtitle: ROSTOV_CITY,
     formattedAddress: "Ростов-на-Дону, улица Рыльского, 1",
@@ -81,10 +81,10 @@ const DEMO_SUGGESTIONS: AddressSuggestion[] = [
     apartment: "",
     latitude: 47.2452,
     longitude: 39.7162,
-    source: "demo",
+    source: "fallback",
   },
   {
-    id: "demo-budennovskiy-49",
+    id: "fallback-budennovskiy-49",
     title: "Будённовский проспект, 49",
     subtitle: ROSTOV_CITY,
     formattedAddress: "Ростов-на-Дону, Будённовский проспект, 49",
@@ -94,7 +94,7 @@ const DEMO_SUGGESTIONS: AddressSuggestion[] = [
     apartment: "",
     latitude: 47.2228,
     longitude: 39.7029,
-    source: "demo",
+    source: "fallback",
   },
 ];
 
@@ -133,7 +133,7 @@ function getFallbackSuggestions(text: string) {
   const query = normalize(text);
   const tokens = query.split(/\s+/).filter(Boolean);
 
-  return DEMO_SUGGESTIONS.filter((suggestion) => {
+  return FALLBACK_SUGGESTIONS.filter((suggestion) => {
     const address = normalize(suggestion.formattedAddress);
     return address.includes(query) || tokens.every((token) => address.includes(token));
   }).slice(0, 6);
@@ -223,7 +223,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       suggestions,
-      source: dadataSuggestions ? "dadata" : "demo",
+      source: dadataSuggestions ? "dadata" : "fallback",
     });
   } catch (error) {
     return jsonError(error);

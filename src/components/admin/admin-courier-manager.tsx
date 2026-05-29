@@ -137,8 +137,8 @@ export function AdminCourierManager({ couriers }: { couriers: CourierRecord[] })
             </p>
             <h2 className="mt-2 text-2xl font-semibold">Новый курьер</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Создайте курьеру учётную запись. Он сможет войти в кабинет курьера по email или
-              телефону и видеть назначенные заказы.
+              Создайте курьеру учётную запись. Он сможет войти в кабинет курьера
+              по телефону и видеть назначенные заказы.
             </p>
           </div>
           <Truck className="text-[var(--accent-strong)]" size={22} />
@@ -166,7 +166,7 @@ export function AdminCourierManager({ couriers }: { couriers: CourierRecord[] })
               onChange={(event) =>
                 setForm((current) => ({ ...current, email: event.target.value }))
               }
-              placeholder="courier@example.ru"
+              placeholder="Email для связи (необязательно)"
               className="h-11 rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
             />
           </div>

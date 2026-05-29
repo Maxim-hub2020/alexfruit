@@ -215,7 +215,7 @@ export async function updateCustomerProfile(userId: string, input: unknown) {
       : null;
 
   if (existing) {
-    throw new ApiError("Пользователь с таким email или телефоном уже существует", 409);
+    throw new ApiError("Пользователь с таким телефоном уже существует", 409);
   }
 
   const user = await prisma.user.update({

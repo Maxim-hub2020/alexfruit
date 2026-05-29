@@ -26,21 +26,38 @@ export default async function LoginPage() {
           <div className="absolute bottom-10 left-1/2 h-28 w-80 -translate-x-1/2 rounded-[2rem] bg-white/36 shadow-[0_24px_80px_rgba(23,50,38,0.1)] blur-[2px]" />
         </div>
 
+        <div className="login-produce-field" aria-hidden="true">
+          <span
+            className="login-produce-float float-apple"
+            style={{ backgroundImage: "url('/products/apples.webp')" }}
+          />
+          <span
+            className="login-produce-float float-berry"
+            style={{ backgroundImage: "url('/products/strawberries.webp')" }}
+          />
+          <span
+            className="login-produce-float float-tomato"
+            style={{ backgroundImage: "url('/products/tomatoes.webp')" }}
+          />
+          <span
+            className="login-produce-float float-mango"
+            style={{ backgroundImage: "url('/products/mangoes.webp')" }}
+          />
+          <span
+            className="login-produce-float float-pepper"
+            style={{ backgroundImage: "url('/products/bell-peppers.webp')" }}
+          />
+          <span
+            className="login-produce-float float-blueberry"
+            style={{ backgroundImage: "url('/products/blueberries.webp')" }}
+          />
+        </div>
+
         <div className="relative z-[60] mx-auto max-w-xl rounded-[2.5rem] border border-white/72 bg-white/86 p-8 shadow-[0_34px_100px_rgba(23,50,38,0.22)] backdrop-blur-2xl">
-          <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">
-            Единый вход
-          </p>
+          <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">Вход</p>
           <h1 className="mt-3 font-serif text-5xl font-semibold">
             Фрукты для вас уже созрели
           </h1>
-          <p className="mt-3 text-[var(--muted)]">
-            Используйте номер телефона, привязанный к аккаунту. Клиенты,
-            курьеры и администраторы входят по телефону и паролю.
-          </p>
-          <p className="mt-3 rounded-2xl bg-[var(--surface-muted)] px-4 py-3 text-sm text-[var(--muted)]">
-            Служебные аккаунты создаются отдельно и не регистрируются через
-            публичную форму.
-          </p>
           <div className="mt-6">
             <LoginForm />
           </div>
