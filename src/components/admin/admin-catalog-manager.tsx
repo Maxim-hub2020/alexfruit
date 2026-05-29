@@ -51,6 +51,11 @@ type ProductFormState = {
   isPromo: boolean;
 };
 
+type CatalogFeedback = {
+  type: "success" | "error";
+  message: string;
+};
+
 const unitOptions = [
   { value: "KG", label: "кг" },
   { value: "PIECE", label: "шт." },
@@ -79,6 +84,119 @@ function createEmptyProductForm(categoryId = ""): ProductFormState {
   };
 }
 
+function priceToInputValue(price: ProductRecord["price"]) {
+  return String(Number(price));
+}
+
+function parsePriceInput(value: string) {
+  return Number(value.trim().replace(",", "."));
+}
+
+function QuickPriceEditor({
+  product,
+  onSaved,
+  onFeedback,
+}: {
+  product: ProductRecord;
+  onSaved: () => void;
+  onFeedback: (feedback: CatalogFeedback | null) => void;
+}) {
+  const [price, setPrice] = useState(() => priceToInputValue(product.price));
+  const [isSaving, setIsSaving] = useState(false);
+  const currentPrice = Number(product.price);
+  const nextPrice = parsePriceInput(price);
+  const hasValidPrice = Number.isFinite(nextPrice) && nextPrice > 0;
+  const hasChanged = hasValidPrice && Math.abs(nextPrice - currentPrice) > 0.001;
+
+  async function savePrice() {
+    if (!hasValidPrice) {
+      onFeedback({ type: "error", message: "Укажите корректную цену больше нуля." });
+      return;
+    }
+
+    if (!hasChanged) {
+      return;
+    }
+
+    setIsSaving(true);
+    onFeedback(null);
+
+    const response = await fetch(`/api/admin/products/${product.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ price: nextPrice }),
+    });
+    const result = await response.json();
+    setIsSaving(false);
+
+    if (!response.ok) {
+      onFeedback({
+        type: "error",
+        message: result.error ?? "Не удалось обновить цену товара.",
+      });
+      return;
+    }
+
+    onFeedback({
+      type: "success",
+      message: `Цена "${product.name}" обновлена: ${formatCurrency(nextPrice)}.`,
+    });
+    onSaved();
+  }
+
+  return (
+    <div className="w-full rounded-[1.35rem] bg-[var(--surface-muted)] p-3 xl:min-w-[280px]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+            Быстрая цена
+          </p>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Сейчас: {formatCurrency(product.price)} / {unitLabels[product.unit] ?? product.unit}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 flex gap-2">
+        <label className="relative min-w-0 flex-1">
+          <input
+            type="text"
+            inputMode="decimal"
+            value={price}
+            onChange={(event) => setPrice(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void savePrice();
+              }
+
+              if (event.key === "Escape") {
+                setPrice(priceToInputValue(product.price));
+              }
+            }}
+            aria-label={`Новая цена товара ${product.name}`}
+            className="h-11 w-full rounded-2xl bg-white pl-4 pr-9 text-lg font-semibold outline-none ring-1 ring-[var(--line)] transition focus:ring-[var(--accent)]"
+          />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-[var(--muted)]">
+            ₽
+          </span>
+        </label>
+        <Button
+          className="min-h-11 whitespace-nowrap px-4"
+          onClick={() => savePrice()}
+          disabled={isSaving || !hasChanged}
+        >
+          {isSaving ? "..." : "Сохранить"}
+        </Button>
+      </div>
+
+      <p className="mt-2 text-xs text-[var(--muted)]">
+        Enter сохраняет, Esc возвращает старую цену.
+      </p>
+    </div>
+  );
+}
+
 export function AdminCatalogManager({
   categories,
   products,
@@ -95,9 +213,7 @@ export function AdminCatalogManager({
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(
-    null,
-  );
+  const [feedback, setFeedback] = useState<CatalogFeedback | null>(null);
   const [isSubmittingProduct, setIsSubmittingProduct] = useState(false);
   const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
@@ -591,12 +707,12 @@ export function AdminCatalogManager({
                   </div>
 
                   <div className="flex flex-col items-start gap-3 xl:items-end">
-                    <div className="text-left xl:text-right">
-                      <p className="text-sm text-[var(--muted)]">Текущая цена</p>
-                      <p className="mt-1 text-2xl font-semibold">
-                        {formatCurrency(product.price)}
-                      </p>
-                    </div>
+                    <QuickPriceEditor
+                      key={`${product.id}-${product.price}`}
+                      product={product}
+                      onSaved={refreshCatalog}
+                      onFeedback={setFeedback}
+                    />
 
                     <div className="flex flex-wrap gap-2">
                       <Button
