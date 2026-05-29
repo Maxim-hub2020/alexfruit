@@ -54,13 +54,33 @@ export const categorySchema = z.object({
   isActive: z.coerce.boolean().optional().default(true),
 });
 
+const imageSourceSchema = z
+  .string()
+  .trim()
+  .refine((value) => {
+    if (value === "") {
+      return true;
+    }
+
+    if (/^\/[A-Za-z0-9/_-]+\.(avif|jpe?g|png|svg|webp)$/i.test(value)) {
+      return true;
+    }
+
+    try {
+      const url = new URL(value);
+      return url.protocol === "http:" || url.protocol === "https:";
+    } catch {
+      return false;
+    }
+  }, "Укажите ссылку на изображение или путь вида /products/image.png");
+
 export const productSchema = z.object({
   categoryId: z.string().trim().min(1),
   name: z.string().trim().min(2),
   description: z.string().trim().optional().or(z.literal("")),
   price: z.coerce.number().positive(),
   unit: z.nativeEnum(ProductUnit),
-  imageUrl: z.string().trim().url().optional().or(z.literal("")),
+  imageUrl: imageSourceSchema.optional().or(z.literal("")),
   isActive: z.coerce.boolean().optional().default(true),
   isHit: z.coerce.boolean().optional().default(false),
   isNew: z.coerce.boolean().optional().default(false),

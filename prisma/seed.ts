@@ -7,10 +7,10 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import {
   DeliveryTaskStatus,
   OrderStatus,
-  ProductUnit,
   Role,
   StockStatus,
 } from "../src/generated/prisma/enums";
+import { seasonalCategories, seasonalProducts } from "./seasonal-price-list";
 
 function loadLocalEnv() {
   const envPath = resolve(process.cwd(), ".env.local");
@@ -164,16 +164,7 @@ async function main() {
     },
   });
 
-  const categories = [
-    { name: "Фрукты", slug: "frukty", sortOrder: 1 },
-    { name: "Овощи", slug: "ovoschi", sortOrder: 2 },
-    { name: "Зелень", slug: "zelen", sortOrder: 3 },
-    { name: "Ягоды", slug: "yagody", sortOrder: 4 },
-    { name: "Орехи", slug: "orehi", sortOrder: 5 },
-    { name: "Сухофрукты", slug: "suhofrukty", sortOrder: 6 },
-    { name: "Готовые наборы", slug: "nabory", sortOrder: 7 },
-    { name: "Акции", slug: "aktsii", sortOrder: 8 },
-  ];
+  const categories = seasonalCategories;
 
   for (const category of categories) {
     await prisma.category.upsert({
@@ -191,80 +182,7 @@ async function main() {
     ).map((category) => [category.slug, category.id]),
   );
 
-  const products = [
-    {
-      categorySlug: "frukty",
-      name: "Яблоки Гренни Смит",
-      description: "Хрустящие зелёные яблоки для соков и закусок.",
-      price: 210,
-      unit: ProductUnit.KG,
-      imageUrl:
-        "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=900&q=80",
-      isHit: true,
-      isNew: false,
-      isPromo: false,
-    },
-    {
-      categorySlug: "frukty",
-      name: "Черешня отборная",
-      description: "Сладкая крупная черешня без лишней обработки.",
-      price: 540,
-      unit: ProductUnit.KG,
-      imageUrl:
-        "https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=900&q=80",
-      isHit: true,
-      isNew: true,
-      isPromo: false,
-    },
-    {
-      categorySlug: "yagody",
-      name: "Клубника фермерская",
-      description: "Яркая, сладкая клубника в удобной упаковке 500 г.",
-      price: 390,
-      unit: ProductUnit.PACK,
-      imageUrl:
-        "https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=900&q=80",
-      isHit: true,
-      isNew: true,
-      isPromo: true,
-    },
-    {
-      categorySlug: "ovoschi",
-      name: "Томаты розовые",
-      description: "Мясистые сладкие томаты для салатов и брускетты.",
-      price: 280,
-      unit: ProductUnit.KG,
-      imageUrl:
-        "https://images.unsplash.com/photo-1582284540020-8acbe03f4924?auto=format&fit=crop&w=900&q=80",
-      isHit: false,
-      isNew: false,
-      isPromo: true,
-    },
-    {
-      categorySlug: "zelen",
-      name: "Мята свежая",
-      description: "Пучок ароматной мяты для напитков и десертов.",
-      price: 120,
-      unit: ProductUnit.PACK,
-      imageUrl:
-        "https://images.unsplash.com/photo-1628557044797-f21a177c37ec?auto=format&fit=crop&w=900&q=80",
-      isHit: false,
-      isNew: true,
-      isPromo: false,
-    },
-    {
-      categorySlug: "nabory",
-      name: "Набор на неделю",
-      description: "Собранный набор фруктов и овощей для семьи из 3-4 человек.",
-      price: 1890,
-      unit: ProductUnit.PIECE,
-      imageUrl:
-        "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=80",
-      isHit: true,
-      isNew: false,
-      isPromo: true,
-    },
-  ];
+  const products = seasonalProducts;
 
   for (const product of products) {
     const existing = await prisma.product.findFirst({
@@ -277,7 +195,6 @@ async function main() {
         data: {
           categoryId: categoryMap.get(product.categorySlug)!,
           description: product.description,
-          price: product.price,
           unit: product.unit,
           imageUrl: product.imageUrl,
           isActive: true,
@@ -305,6 +222,20 @@ async function main() {
       });
     }
   }
+
+  await prisma.product.updateMany({
+    where: {
+      name: {
+        in: [
+          "Яблоки Гренни Смит",
+          "Черешня отборная",
+          "Клубника фермерская",
+          "Томаты розовые",
+        ],
+      },
+    },
+    data: { isActive: false },
+  });
 
   const timeSlots = [
     { title: "09:00-11:00", startTime: "09:00", endTime: "11:00", maxOrders: 5 },

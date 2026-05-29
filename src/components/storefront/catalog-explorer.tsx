@@ -40,10 +40,13 @@ type CatalogProduct = {
 const categoryIcons = {
   frukty: Apple,
   ovoschi: Carrot,
+  kartofel: CircleDot,
   zelen: Leaf,
   yagody: CircleDot,
+  griby: PackageOpen,
   orehi: CircleDot,
   suhofrukty: Sparkles,
+  ekzotika: Sparkles,
   nabory: PackageOpen,
   aktsii: BadgePercent,
 } as const;

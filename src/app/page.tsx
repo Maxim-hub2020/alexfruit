@@ -13,8 +13,11 @@ export const dynamic = "force-dynamic";
 const categoryDescriptions: Record<string, string> = {
   frukty: "Сладкое к завтраку",
   ovoschi: "Основа для ужина",
+  kartofel: "Мешки и сорта",
   zelen: "Зелёный акцент",
   yagody: "Яркий сезон",
+  griby: "Свежие грибы",
+  ekzotika: "Тропики к столу",
   orehi: "Для перекуса",
   suhofrukty: "Полезный запас",
   nabory: "Готовые решения",
