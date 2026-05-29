@@ -234,7 +234,8 @@ async function main() {
       description: "Мясистые сладкие томаты для салатов и брускетты.",
       price: 280,
       unit: ProductUnit.KG,
-      imageUrl: null,
+      imageUrl:
+        "https://images.unsplash.com/photo-1582284540020-8acbe03f4924?auto=format&fit=crop&w=900&q=80",
       isHit: false,
       isNew: false,
       isPromo: true,
@@ -245,7 +246,8 @@ async function main() {
       description: "Пучок ароматной мяты для напитков и десертов.",
       price: 120,
       unit: ProductUnit.PACK,
-      imageUrl: null,
+      imageUrl:
+        "https://images.unsplash.com/photo-1628557044797-f21a177c37ec?auto=format&fit=crop&w=900&q=80",
       isHit: false,
       isNew: true,
       isPromo: false,

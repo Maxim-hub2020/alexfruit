@@ -65,6 +65,9 @@ export function ProfileDetailsForm({ user }: ProfileDetailsFormProps) {
         />
         <input
           value={form.phone}
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
           onChange={(event) =>
             setForm((current) => ({ ...current, phone: event.target.value }))
           }
@@ -73,6 +76,9 @@ export function ProfileDetailsForm({ user }: ProfileDetailsFormProps) {
         />
         <input
           value={form.email}
+          type="email"
+          inputMode="email"
+          autoComplete="email"
           onChange={(event) =>
             setForm((current) => ({ ...current, email: event.target.value }))
           }

@@ -1,8 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
+
+type LoginMode = "phone" | "email";
 
 function getRedirectByRole(role: string) {
   if (role === "ADMIN") {
@@ -26,19 +28,99 @@ function getRussianPhoneDigits(value: string) {
   return digits.slice(0, 10);
 }
 
+function canEditPhone(event: KeyboardEvent<HTMLInputElement>) {
+  if (event.ctrlKey || event.metaKey || event.altKey) {
+    return true;
+  }
+
+  return [
+    "Backspace",
+    "Delete",
+    "ArrowLeft",
+    "ArrowRight",
+    "Tab",
+    "Home",
+    "End",
+  ].includes(event.key);
+}
+
+function PhoneDigitsInput({
+  value,
+  onChange,
+  placeholder = "9991234567",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  function updatePhoneDigits(rawValue: string) {
+    onChange(getRussianPhoneDigits(rawValue));
+  }
+
+  return (
+    <div className="flex h-12 overflow-hidden rounded-2xl bg-white ring-1 ring-[var(--line)] focus-within:ring-[var(--accent-soft)]">
+      <span className="flex shrink-0 items-center border-r border-[var(--line)] px-4 font-semibold text-[var(--foreground)]">
+        +7
+      </span>
+      <input
+        value={value}
+        onInput={(event) => updatePhoneDigits(event.currentTarget.value)}
+        onChange={(event) => updatePhoneDigits(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (canEditPhone(event)) {
+            return;
+          }
+
+          if (!/^\d$/.test(event.key)) {
+            event.preventDefault();
+            return;
+          }
+
+          const input = event.currentTarget;
+          const hasSelection = input.selectionStart !== input.selectionEnd;
+
+          if (value.length >= 10 && !hasSelection) {
+            event.preventDefault();
+          }
+        }}
+        onPaste={(event) => {
+          event.preventDefault();
+          updatePhoneDigits(event.clipboardData.getData("text"));
+        }}
+        type="tel"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        autoComplete="tel-national"
+        placeholder={placeholder}
+        className="min-w-0 flex-1 bg-transparent px-4 outline-none"
+      />
+    </div>
+  );
+}
+
 export function LoginForm() {
   const router = useRouter();
-  const [form, setForm] = useState({ emailOrPhone: "", password: "" });
+  const [loginMode, setLoginMode] = useState<LoginMode>("phone");
+  const [form, setForm] = useState({ email: "", phoneDigits: "", password: "" });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   async function submit() {
-    setIsLoading(true);
     setError("");
+
+    if (loginMode === "phone" && form.phoneDigits.length !== 10) {
+      setError("Укажите 10 цифр телефона после +7.");
+      return;
+    }
+
+    const emailOrPhone =
+      loginMode === "phone" ? `+7${form.phoneDigits}` : form.email.trim();
+
+    setIsLoading(true);
     const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ emailOrPhone, password: form.password }),
     });
     const result = await response.json();
     setIsLoading(false);
@@ -52,18 +134,70 @@ export function LoginForm() {
     router.refresh();
   }
 
+  function updateEmail(value: string) {
+    if (/^\s*\d/.test(value)) {
+      setLoginMode("phone");
+      setForm((current) => ({
+        ...current,
+        phoneDigits: getRussianPhoneDigits(value),
+      }));
+      return;
+    }
+
+    setForm((current) => ({ ...current, email: value }));
+  }
+
   return (
     <div className="space-y-4">
-      <input
-        value={form.emailOrPhone}
-        onChange={(event) =>
-          setForm((current) => ({ ...current, emailOrPhone: event.target.value }))
-        }
-        placeholder="Телефон +7..."
-        inputMode="tel"
-        autoComplete="tel"
-        className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
-      />
+      <div className="grid grid-cols-2 rounded-2xl bg-white p-1 ring-1 ring-[var(--line)]">
+        {(["phone", "email"] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => {
+              setLoginMode(mode);
+              setError("");
+            }}
+            className={`h-10 rounded-xl text-sm font-semibold transition ${
+              loginMode === mode
+                ? "bg-[var(--accent)] text-white shadow-sm"
+                : "text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            {mode === "phone" ? "Телефон" : "Email"}
+          </button>
+        ))}
+      </div>
+
+      {loginMode === "phone" ? (
+        <label className="block">
+          <span className="mb-2 block text-sm font-medium text-[var(--muted)]">
+            Телефон
+          </span>
+          <PhoneDigitsInput
+            value={form.phoneDigits}
+            onChange={(phoneDigits) =>
+              setForm((current) => ({ ...current, phoneDigits }))
+            }
+          />
+        </label>
+      ) : (
+        <label className="block">
+          <span className="mb-2 block text-sm font-medium text-[var(--muted)]">
+            Email
+          </span>
+          <input
+            value={form.email}
+            onChange={(event) => updateEmail(event.target.value)}
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder="name@example.com"
+            className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
+          />
+        </label>
+      )}
+
       <input
         value={form.password}
         onChange={(event) =>
@@ -133,57 +267,7 @@ export function RegisterForm() {
         <span className="mb-2 block text-sm font-medium text-[var(--muted)]">
           Телефон
         </span>
-        <div className="flex h-12 overflow-hidden rounded-2xl bg-white ring-1 ring-[var(--line)] focus-within:ring-[var(--accent-soft)]">
-          <span className="flex shrink-0 items-center border-r border-[var(--line)] px-4 font-semibold text-[var(--foreground)]">
-            +7
-          </span>
-          <input
-            value={form.phoneDigits}
-            onInput={(event) => updatePhoneDigits(event.currentTarget.value)}
-            onChange={(event) => updatePhoneDigits(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.ctrlKey || event.metaKey || event.altKey) {
-                return;
-              }
-
-              const navigationKeys = [
-                "Backspace",
-                "Delete",
-                "ArrowLeft",
-                "ArrowRight",
-                "Tab",
-                "Home",
-                "End",
-              ];
-
-              if (navigationKeys.includes(event.key)) {
-                return;
-              }
-
-              if (!/^\d$/.test(event.key)) {
-                event.preventDefault();
-                return;
-              }
-
-              const input = event.currentTarget;
-              const hasSelection = input.selectionStart !== input.selectionEnd;
-
-              if (form.phoneDigits.length >= 10 && !hasSelection) {
-                event.preventDefault();
-              }
-            }}
-            onPaste={(event) => {
-              event.preventDefault();
-              updatePhoneDigits(event.clipboardData.getData("text"));
-            }}
-            type="tel"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            autoComplete="tel-national"
-            placeholder="9991234567"
-            className="min-w-0 flex-1 bg-transparent px-4 outline-none"
-          />
-        </div>
+        <PhoneDigitsInput value={form.phoneDigits} onChange={updatePhoneDigits} />
       </label>
       <input
         value={form.password}

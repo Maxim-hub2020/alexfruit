@@ -198,14 +198,21 @@ export async function registerAndLogin(input: unknown) {
 export async function updateCustomerProfile(userId: string, input: unknown) {
   const data = customerProfileSchema.parse(input);
   const email = data.email || null;
-  const phone = data.phone || null;
+  const phone = data.phone ? normalizeRussianPhone(data.phone) : null;
+  const duplicateFilters = [
+    ...(email ? [{ email }] : []),
+    ...(phone ? [{ phone }] : []),
+  ];
 
-  const existing = await prisma.user.findFirst({
-    where: {
-      id: { not: userId },
-      OR: [{ email: email ?? undefined }, { phone: phone ?? undefined }],
-    },
-  });
+  const existing =
+    duplicateFilters.length > 0
+      ? await prisma.user.findFirst({
+          where: {
+            id: { not: userId },
+            OR: duplicateFilters,
+          },
+        })
+      : null;
 
   if (existing) {
     throw new ApiError("Пользователь с таким email или телефоном уже существует", 409);
