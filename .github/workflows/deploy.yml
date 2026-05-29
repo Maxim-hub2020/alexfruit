@@ -10,6 +10,11 @@ concurrency:
   group: alexfruit-production
   cancel-in-progress: true
 
+env:
+  DEPLOY_HOST: alexfruit.ru
+  DEPLOY_PORT: ${{ secrets.TIMEWEB_PORT || '22' }}
+  DEPLOY_USER: ${{ secrets.TIMEWEB_USER }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -42,15 +47,15 @@ jobs:
           printf '%s\n' "${{ secrets.TIMEWEB_SSH_KEY }}" | tr -d '\r' > ~/.ssh/timeweb_key
           chmod 600 ~/.ssh/timeweb_key
           touch ~/.ssh/known_hosts
-          ssh-keyscan -4 -T 60 -p "${{ secrets.TIMEWEB_PORT }}" "${{ secrets.TIMEWEB_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -4 -T 45 -p "${{ env.DEPLOY_PORT }}" "${{ env.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Prepare server directory
         run: |
-          SSH_OPTS="-4 -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
-          for i in 1 2 3 4 5; do
+          SSH_OPTS="-4 -i ~/.ssh/timeweb_key -p ${{ env.DEPLOY_PORT }} -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=45 -o ConnectionAttempts=1 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o IPQoS=none"
+          for i in 1 2 3 4; do
             echo "SSH attempt $i..."
-            if timeout 180 ssh $SSH_OPTS \
-              "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" \
+            if timeout 75 ssh $SSH_OPTS \
+              "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}" \
               "mkdir -p /opt/alexfruit && test -f /opt/alexfruit/.env && echo DIR_OK"; then
               exit 0
             fi
@@ -62,14 +67,14 @@ jobs:
 
       - name: Upload release bundle to Timeweb
         run: |
-          SCP_OPTS="-4 -i ~/.ssh/timeweb_key -P ${{ secrets.TIMEWEB_PORT }} -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
-          scp $SCP_OPTS /tmp/alexfruit-files.tar.gz "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit-files.tar.gz"
-          scp $SCP_OPTS /tmp/alexfruit-prod-app.tar.gz "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}:/tmp/alexfruit-prod-app.tar.gz"
+          SCP_OPTS="-4 -i ~/.ssh/timeweb_key -P ${{ env.DEPLOY_PORT }} -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=45 -o ConnectionAttempts=1 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o IPQoS=none"
+          scp $SCP_OPTS /tmp/alexfruit-files.tar.gz "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:/tmp/alexfruit-files.tar.gz"
+          scp $SCP_OPTS /tmp/alexfruit-prod-app.tar.gz "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:/tmp/alexfruit-prod-app.tar.gz"
 
       - name: Install release on Timeweb
         run: |
-          SSH_OPTS="-4 -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
-          ssh $SSH_OPTS "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
+          SSH_OPTS="-4 -i ~/.ssh/timeweb_key -p ${{ env.DEPLOY_PORT }} -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=45 -o ConnectionAttempts=1 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o IPQoS=none"
+          ssh $SSH_OPTS "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}" '
             set -eu
             cp /opt/alexfruit/.env /tmp/alexfruit.env
             find /opt/alexfruit -mindepth 1 ! -name ".env" -exec rm -rf {} +
@@ -81,8 +86,8 @@ jobs:
 
       - name: Deploy with Docker Compose
         run: |
-          SSH_OPTS="-4 -i ~/.ssh/timeweb_key -p ${{ secrets.TIMEWEB_PORT }} -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=120 -o ConnectionAttempts=1 -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -o IPQoS=none"
-          ssh $SSH_OPTS "${{ secrets.TIMEWEB_USER }}@${{ secrets.TIMEWEB_HOST }}" '
+          SSH_OPTS="-4 -i ~/.ssh/timeweb_key -p ${{ env.DEPLOY_PORT }} -o BatchMode=yes -o PreferredAuthentications=publickey -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -o ConnectTimeout=45 -o ConnectionAttempts=1 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o IPQoS=none"
+          ssh $SSH_OPTS "${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}" '
             set -eu
             cd /opt/alexfruit
             docker compose -p alexfruit -f docker-compose.prod.yml up -d --force-recreate db app proxy
