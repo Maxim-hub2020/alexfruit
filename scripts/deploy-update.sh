@@ -2,5 +2,6 @@
 set -eu
 
 git pull --ff-only
-docker compose -f docker-compose.prod.yml up -d --build
+docker build -t alexfruit-prod-app:latest .
+docker compose -f docker-compose.prod.yml up -d --force-recreate app proxy
 docker image prune -f

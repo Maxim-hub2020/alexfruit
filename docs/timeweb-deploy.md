@@ -90,10 +90,19 @@ sh scripts/deploy-update.sh
 Скрипт делает:
 
 - `git pull --ff-only`;
-- пересборку и перезапуск контейнеров;
+- сборку нового Docker-образа `alexfruit-prod-app:latest`;
+- пересоздание контейнеров `app` и `proxy`;
 - очистку старых Docker-образов.
 
 Файл `.env` и данные PostgreSQL при этом остаются на сервере.
+
+Если GitHub Actions не может подключиться к серверу по SSH, можно выполнить обновление вручную прямо на Timeweb:
+
+```bash
+cd /opt/alexfruit
+sh scripts/deploy-update.sh
+docker compose -f docker-compose.prod.yml logs --tail=80 app
+```
 
 ## 6. Полезные команды
 
