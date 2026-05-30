@@ -31,8 +31,11 @@ export const metadata: Metadata = {
     telephone: true,
   },
   icons: {
-    icon: "/brand/alexfrut-logo-icon.png",
-    apple: "/brand/alexfrut-logo-icon.png",
+    icon: [
+      { url: "/brand/alexfrut-logo-icon.png", sizes: "192x192", type: "image/png" },
+      { url: "/brand/alexfrut-logo-square.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
 

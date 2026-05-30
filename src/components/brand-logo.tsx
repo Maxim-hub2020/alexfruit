@@ -11,7 +11,7 @@ export function BrandLogo({ className, priority = false, size = 48 }: BrandLogoP
   return (
     <div
       className={cn(
-        "relative shrink-0 overflow-hidden rounded-full bg-white shadow-sm ring-2 ring-white",
+        "relative shrink-0 overflow-hidden rounded-full shadow-sm",
         className,
       )}
       style={{ width: size, height: size }}
