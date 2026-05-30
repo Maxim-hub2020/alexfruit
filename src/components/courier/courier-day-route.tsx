@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPin, Navigation, Route } from "lucide-react";
+import { FileText, MapPin, Navigation, Route } from "lucide-react";
 import {
   buildYandexRouteUrl,
   routePointFromAddress,
@@ -27,7 +27,13 @@ type CourierRouteTask = {
   };
 };
 
-export function CourierDayRoute({ tasks }: { tasks: CourierRouteTask[] }) {
+export function CourierDayRoute({
+  tasks,
+  routePdfUrl,
+}: {
+  tasks: CourierRouteTask[];
+  routePdfUrl: string;
+}) {
   const routeTasks = tasks
     .filter((task) => task.status !== "CANCELLED" && task.order.status !== "CANCELLED")
     .toSorted((a, b) => {
@@ -67,15 +73,28 @@ export function CourierDayRoute({ tasks }: { tasks: CourierRouteTask[] }) {
           </div>
         </div>
 
-        <Link
-          href={routeUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-5 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(47,143,79,0.22)]"
-        >
-          <Navigation size={17} />
-          Построить маршрут дня
-        </Link>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Link
+            href={routeUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-5 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(47,143,79,0.22)]"
+          >
+            <Navigation size={17} />
+            Построить маршрут дня
+          </Link>
+
+          {routeTasks.length > 0 && (
+            <Link
+              href={routePdfUrl}
+              target="_blank"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-5 text-sm font-semibold text-[var(--foreground)] ring-1 ring-[var(--line)]"
+            >
+              <FileText size={17} />
+              Скачать PDF
+            </Link>
+          )}
+        </div>
       </div>
 
       {routeTasks.length > 0 && (

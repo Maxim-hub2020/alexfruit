@@ -2066,10 +2066,14 @@ export async function getOrdersForLabels(filters: { date: string }) {
   });
 }
 
-export async function getOrdersForStaffPdf(filters: { date: string }) {
+export async function getOrdersForStaffPdf(filters: {
+  date: string;
+  courierId?: string | null;
+}) {
   return prisma.order.findMany({
     where: {
       deliveryDate: dateStringToDbDate(filters.date),
+      courierId: filters.courierId || undefined,
       status: {
         not: OrderStatus.CANCELLED,
       },
@@ -2080,6 +2084,7 @@ export async function getOrdersForStaffPdf(filters: { date: string }) {
       items: true,
       courier: true,
       deliveryTimeSlot: true,
+      deliveryTask: true,
     },
     orderBy: [{ deliveryTimeSlot: { startTime: "asc" } }, { createdAt: "asc" }],
   });

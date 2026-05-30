@@ -4,6 +4,7 @@ import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, PDFPage, PDFFont, rgb } from "pdf-lib";
 import { APP_NAME, unitLabels } from "@/lib/constants";
 import { formatCurrency, getAddressLabel } from "@/lib/utils";
+import { buildYandexRouteUrl, routePointFromAddress } from "@/lib/yandex-routes";
 
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;
@@ -29,6 +30,8 @@ type StaffPdfOrder = {
     street: string;
     house: string;
     apartment?: string | null;
+    latitude?: PrintableValue;
+    longitude?: PrintableValue;
   };
   deliveryTimeSlot?: {
     title: string;
@@ -37,6 +40,10 @@ type StaffPdfOrder = {
     name?: string | null;
     phone?: string | null;
   } | null;
+  deliveryTask?: {
+    routeOrder?: number | null;
+    status?: string | null;
+  } | null;
   items?: Array<{
     productName: string;
     unit: string;
@@ -44,6 +51,22 @@ type StaffPdfOrder = {
     actualQuantity?: PrintableValue;
   }>;
 };
+
+function sortOrdersByRoute(orders: StaffPdfOrder[]) {
+  return orders.toSorted((first, second) => {
+    const firstRouteOrder = first.deliveryTask?.routeOrder ?? 999;
+    const secondRouteOrder = second.deliveryTask?.routeOrder ?? 999;
+
+    return (
+      firstRouteOrder - secondRouteOrder ||
+      (first.deliveryTimeSlot?.title ?? "").localeCompare(
+        second.deliveryTimeSlot?.title ?? "",
+        "ru",
+      ) ||
+      first.orderNumber.localeCompare(second.orderNumber, "ru")
+    );
+  });
+}
 
 const regularFontCandidates = [
   process.env.LABEL_FONT_PATH,
@@ -506,6 +529,179 @@ export async function createDeliveryPdf(orders: StaffPdfOrder[], date: string) {
     }
 
     y -= 18;
+  });
+
+  return pdfDoc.save();
+}
+
+export async function createCourierRoutePdf(
+  orders: StaffPdfOrder[],
+  date: string,
+  courierName?: string | null,
+) {
+  const routeOrders = sortOrdersByRoute(orders);
+  const routeUrl = buildYandexRouteUrl(
+    routeOrders.map((order) => routePointFromAddress(order.address)),
+    { includeStart: true },
+  );
+  const { pdfDoc, regularFont, boldFont } = await createBasePdf();
+  let pageNumber = 1;
+  let page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+  let y = drawHeader({
+    page,
+    title: "Маршрут курьера",
+    date,
+    count: routeOrders.length,
+    regularFont,
+    boldFont,
+  });
+
+  drawFooter(page, pageNumber, regularFont);
+
+  function nextPage() {
+    pageNumber += 1;
+    page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+    y = drawHeader({
+      page,
+      title: "Маршрут курьера",
+      date,
+      count: routeOrders.length,
+      regularFont,
+      boldFont,
+    });
+    drawFooter(page, pageNumber, regularFont);
+  }
+
+  function ensureSpace(height: number) {
+    if (y - height < 56) {
+      nextPage();
+    }
+  }
+
+  y = drawWrappedText({
+    page,
+    text: `Курьер: ${courierName?.trim() || routeOrders[0]?.courier?.name || "не назначен"}`,
+    x: PAGE_MARGIN,
+    y,
+    maxWidth: CONTENT_WIDTH,
+    font: boldFont,
+    size: 12,
+    lineHeight: 15,
+    color: rgb(0.1, 0.29, 0.12),
+  });
+  y = drawWrappedText({
+    page,
+    text: `Яндекс маршрут: ${routeUrl}`,
+    x: PAGE_MARGIN,
+    y,
+    maxWidth: CONTENT_WIDTH,
+    font: regularFont,
+    size: 7,
+    lineHeight: 9,
+    color: rgb(0.38, 0.45, 0.38),
+  });
+  y -= 14;
+
+  routeOrders.forEach((order, index) => {
+    ensureSpace(148);
+
+    const slot = order.deliveryTimeSlot?.title ?? "слот не указан";
+    const address = `${getAddressLabel(order.address)}${
+      order.needsLift ? " · подъём до двери" : ""
+    }`;
+    const amount = formatCurrency(
+      valueToNumber(order.finalTotal ?? order.preliminaryTotal),
+    );
+    const comments = [order.customerComment, order.adminComment]
+      .map((comment) => comment?.trim())
+      .filter(Boolean)
+      .join(" · ");
+    const items = (order.items ?? [])
+      .slice(0, 5)
+      .map((item) => `${item.productName} ${formatQuantity(item.orderedQuantity, item.unit)}`)
+      .join("; ");
+
+    page.drawRectangle({
+      x: PAGE_MARGIN,
+      y: y - 126,
+      width: CONTENT_WIDTH,
+      height: 134,
+      color: index % 2 === 0 ? rgb(0.98, 1, 0.97) : rgb(1, 1, 1),
+      borderColor: rgb(0.83, 0.9, 0.82),
+      borderWidth: 0.6,
+    });
+
+    drawText(
+      page,
+      `${index + 1}. ${slot} · ${order.orderNumber}`,
+      PAGE_MARGIN + 12,
+      y - 13,
+      boldFont,
+      13,
+      rgb(0.1, 0.29, 0.12),
+    );
+    drawText(
+      page,
+      amount,
+      A4_WIDTH - PAGE_MARGIN - 100,
+      y - 13,
+      boldFont,
+      11,
+      rgb(0.14, 0.45, 0.18),
+    );
+    y -= 32;
+
+    y = drawWrappedText({
+      page,
+      text: `Адрес: ${address}`,
+      x: PAGE_MARGIN + 12,
+      y,
+      maxWidth: CONTENT_WIDTH - 24,
+      font: boldFont,
+      size: 11,
+      lineHeight: 13,
+    });
+    y = drawWrappedText({
+      page,
+      text: `Клиент: ${order.user.name} · ${order.user.phone ?? "телефон не указан"}`,
+      x: PAGE_MARGIN + 12,
+      y,
+      maxWidth: CONTENT_WIDTH - 24,
+      font: regularFont,
+      size: 10,
+      lineHeight: 12,
+      color: rgb(0.38, 0.45, 0.38),
+    });
+
+    if (items) {
+      y = drawWrappedText({
+        page,
+        text: `Состав: ${items}`,
+        x: PAGE_MARGIN + 12,
+        y,
+        maxWidth: CONTENT_WIDTH - 24,
+        font: regularFont,
+        size: 9,
+        lineHeight: 11,
+        color: rgb(0.18, 0.24, 0.18),
+      });
+    }
+
+    if (comments) {
+      y = drawWrappedText({
+        page,
+        text: `Комментарий: ${comments}`,
+        x: PAGE_MARGIN + 12,
+        y,
+        maxWidth: CONTENT_WIDTH - 24,
+        font: regularFont,
+        size: 8,
+        lineHeight: 10,
+        color: rgb(0.42, 0.35, 0.2),
+      });
+    }
+
+    y -= 22;
   });
 
   return pdfDoc.save();

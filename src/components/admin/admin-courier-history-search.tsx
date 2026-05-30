@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   CalendarDays,
   Clock,
+  FileText,
   MapPin,
   PackageCheck,
   Search,
@@ -85,6 +86,12 @@ export function AdminCourierHistorySearch({
   filters: HistoryFilters;
 }) {
   const isFiltered = hasActiveFilters(filters);
+  const routePdfUrl =
+    filters.date && filters.courierId
+      ? `/api/admin/orders/courier-route-pdf?date=${encodeURIComponent(
+          filters.date,
+        )}&courierId=${encodeURIComponent(filters.courierId)}`
+      : "";
 
   return (
     <section className="glass-panel rounded-[2.2rem] p-5">
@@ -106,7 +113,7 @@ export function AdminCourierHistorySearch({
         </div>
       </div>
 
-      <form className="mt-5 grid gap-3 lg:grid-cols-[1.4fr_0.8fr_0.9fr_auto_auto]">
+      <form className="mt-5 grid gap-3 lg:grid-cols-[1.4fr_0.8fr_0.9fr_auto_auto_auto]">
         <label className="relative">
           <Search
             size={16}
@@ -157,6 +164,21 @@ export function AdminCourierHistorySearch({
           >
             Сбросить
           </Link>
+        )}
+
+        {routePdfUrl ? (
+          <Link
+            href={routePdfUrl}
+            target="_blank"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white px-5 text-sm font-semibold text-[var(--foreground)] ring-1 ring-[var(--line)]"
+          >
+            <FileText size={16} />
+            PDF маршрута
+          </Link>
+        ) : (
+          <span className="inline-flex h-12 items-center justify-center rounded-2xl bg-white/60 px-5 text-sm font-semibold text-[var(--muted)] ring-1 ring-[var(--line)]">
+            PDF после выбора даты и курьера
+          </span>
         )}
       </form>
 

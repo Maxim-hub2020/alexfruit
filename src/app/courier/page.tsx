@@ -82,7 +82,10 @@ export default async function CourierPage({
 
         {activeTab === "route" && (
           <>
-            <CourierDayRoute tasks={activeTasks} />
+            <CourierDayRoute
+              tasks={activeTasks}
+              routePdfUrl={`/api/courier/route-pdf?date=${todayKey}`}
+            />
             {activeTasks.length === 0 && (
               <div className="glass-panel rounded-[2rem] p-8 text-center text-[var(--muted)]">
                 На сегодня нет активных точек маршрута.
