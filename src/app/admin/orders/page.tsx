@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Role } from "@/generated/prisma";
 import { AdminDatePdfActions } from "@/components/admin/admin-date-pdf-actions";
 import { AdminOrderManager } from "@/components/admin/admin-order-manager";
@@ -18,13 +19,28 @@ export default async function AdminOrdersPage({
   const user = await requirePageUser([Role.ADMIN]);
   const params = await searchParams;
   const selectedDate = typeof params.date === "string" ? params.date : "";
+  const courierFilter = typeof params.courierId === "string" ? params.courierId : null;
   const orders = await getAdminOrders({
     date: selectedDate || null,
     status: typeof params.status === "string" ? params.status : null,
     customer: typeof params.customer === "string" ? params.customer : null,
-    courierId: typeof params.courierId === "string" ? params.courierId : null,
+    courierId: courierFilter,
     timeSlotId: typeof params.timeSlotId === "string" ? params.timeSlotId : null,
   });
+  const baseQuery = new URLSearchParams();
+  const unassignedQuery = new URLSearchParams();
+
+  if (selectedDate) {
+    baseQuery.set("date", selectedDate);
+    unassignedQuery.set("date", selectedDate);
+  }
+
+  unassignedQuery.set("courierId", "unassigned");
+
+  const allOrdersQuery = baseQuery.toString();
+  const allOrdersUrl = allOrdersQuery ? `/admin/orders?${allOrdersQuery}` : "/admin/orders";
+  const unassignedUrl = `/admin/orders?${unassignedQuery}`;
+  const unassignedOrdersCount = orders.filter((order) => !order.courier).length;
   const labelsUrl = selectedDate
     ? `/api/admin/orders/labels?date=${encodeURIComponent(selectedDate)}`
     : "";
@@ -63,6 +79,38 @@ export default async function AdminOrdersPage({
           emptyText="Нет заказов для документов на выбранную дату."
           labelsEmptyText="Этикетки появятся после подтверждения заказа администратором."
         />
+
+        <div className="glass-panel flex flex-col gap-4 rounded-[2rem] p-5 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">
+              Назначение курьеров
+            </p>
+            <h2 className="mt-1 text-2xl font-semibold">
+              {courierFilter === "unassigned"
+                ? "Показаны заказы без курьера"
+                : "Заказы без курьера"}
+            </h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              {unassignedOrdersCount} заказ(ов) требуют ручного назначения.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={unassignedUrl}
+              className="inline-flex h-12 items-center justify-center rounded-2xl bg-[var(--accent)] px-5 text-sm font-semibold text-white"
+            >
+              Показать без курьера
+            </Link>
+            {courierFilter === "unassigned" ? (
+              <Link
+                href={allOrdersUrl}
+                className="inline-flex h-12 items-center justify-center rounded-2xl bg-white px-5 text-sm font-semibold text-[var(--foreground)] ring-1 ring-[var(--line)]"
+              >
+                Все заказы
+              </Link>
+            ) : null}
+          </div>
+        </div>
 
         <AssemblyProductShortagePanel orders={toClientValue(orders as never)} />
 

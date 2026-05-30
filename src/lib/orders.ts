@@ -72,6 +72,8 @@ type StorefrontProduct = Prisma.ProductGetPayload<{
   include: { category: true };
 }>;
 
+type OrderWriteClient = Prisma.TransactionClient | typeof prisma;
+
 export type StorefrontCollectionItem = {
   productId: string;
   name: string;
@@ -243,6 +245,56 @@ function getUnavailableProductName(notification: {
   }
 
   return notification.message.match(/«(.+?)»/)?.[1]?.trim() ?? null;
+}
+
+async function getAutomaticCourierAssignment(
+  client: OrderWriteClient,
+  deliveryDate: Date,
+) {
+  const couriers = await client.courier.findMany({
+    where: {
+      isActive: true,
+      user: {
+        role: Role.COURIER,
+      },
+    },
+    select: {
+      userId: true,
+      name: true,
+      user: {
+        select: {
+          assignedOrders: {
+            where: {
+              deliveryDate,
+              status: {
+                not: OrderStatus.CANCELLED,
+              },
+            },
+            select: {
+              id: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ name: "asc" }],
+  });
+
+  const courier = couriers.toSorted((first, second) => {
+    const loadDiff =
+      first.user.assignedOrders.length - second.user.assignedOrders.length;
+
+    return loadDiff || first.name.localeCompare(second.name);
+  })[0];
+
+  if (!courier) {
+    return null;
+  }
+
+  return {
+    courierId: courier.userId,
+    routeOrder: courier.user.assignedOrders.length + 1,
+  };
 }
 
 function getTotalsFromExistingItems(
@@ -988,9 +1040,11 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
   const built = await buildOrderItems(orderInputItems, {
     needsLift: data.needsLift,
   });
+  const orderDeliveryDate = dateStringToDbDate(data.deliveryDate);
 
   const order = await prisma.$transaction(async (tx) => {
     await reserveDailyInventoryForLines(tx, data.deliveryDate, orderInputItems);
+    const courierAssignment = await getAutomaticCourierAssignment(tx, orderDeliveryDate);
 
     const createdOrder = await tx.order.create({
       data: {
@@ -999,9 +1053,10 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
         addressId: data.addressId,
         sharedCartId: sharedCart?.id,
         sharedCartTitle: sharedCart?.title,
-        deliveryDate: dateStringToDbDate(data.deliveryDate),
+        deliveryDate: orderDeliveryDate,
         deliveryTimeSlotId: deliveryTimeSlot.id,
         status: OrderStatus.NEW,
+        courierId: courierAssignment?.courierId,
         preliminaryTotal: built.preliminaryTotal,
         finalTotal: built.finalTotal,
         needsLift: data.needsLift,
@@ -1021,6 +1076,17 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
         sharedCart: true,
       },
     });
+
+    if (courierAssignment) {
+      await tx.deliveryTask.create({
+        data: {
+          orderId: createdOrder.id,
+          courierId: courierAssignment.courierId,
+          status: DeliveryTaskStatus.ASSIGNED,
+          routeOrder: courierAssignment.routeOrder,
+        },
+      });
+    }
 
     if (sharedCart) {
       await tx.sharedCart.update({
@@ -1609,7 +1675,9 @@ export async function getAdminOrders(filters: {
     };
   }
 
-  if (filters.courierId) {
+  if (filters.courierId === "unassigned") {
+    where.courierId = null;
+  } else if (filters.courierId) {
     where.courierId = filters.courierId;
   }
 
@@ -1879,9 +1947,15 @@ export async function assignCourierToOrder(orderId: string, input: unknown) {
   const order = await getAdminOrder(orderId);
 
   if (!data.courierId) {
-    return prisma.order.update({
-      where: { id: orderId },
-      data: { courierId: null },
+    return prisma.$transaction(async (tx) => {
+      await tx.deliveryTask.deleteMany({
+        where: { orderId },
+      });
+
+      return tx.order.update({
+        where: { id: orderId },
+        data: { courierId: null },
+      });
     });
   }
 
@@ -1901,6 +1975,18 @@ export async function assignCourierToOrder(orderId: string, input: unknown) {
     throw new ApiError("Курьер не найден", 404);
   }
 
+  const routeOrder =
+    (await prisma.order.count({
+      where: {
+        id: { not: orderId },
+        courierId: courier.id,
+        deliveryDate: order.deliveryDate,
+        status: {
+          not: OrderStatus.CANCELLED,
+        },
+      },
+    })) + 1;
+
   const updatedOrder = await prisma.order.update({
     where: { id: orderId },
     data: {
@@ -1917,11 +2003,13 @@ export async function assignCourierToOrder(orderId: string, input: unknown) {
     update: {
       courierId: courier.id,
       status: DeliveryTaskStatus.ASSIGNED,
+      routeOrder,
     },
     create: {
       orderId,
       courierId: courier.id,
       status: DeliveryTaskStatus.ASSIGNED,
+      routeOrder,
     },
   });
 
