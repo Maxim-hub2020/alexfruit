@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { MapPin, Navigation, Route, TriangleAlert } from "lucide-react";
 import { StatusPill } from "@/components/ui/status-pill";
-import { getAddressLabel, getMapAddressLabel } from "@/lib/utils";
+import { formatCurrency, getAddressLabel, getMapAddressLabel } from "@/lib/utils";
 
 type CoordinateValue = number | string | { toString(): string } | null | undefined;
 
@@ -36,6 +36,13 @@ type RoutePoint = {
 };
 
 type RouteQueryPoint = Pick<RoutePoint, "address" | "latitude" | "longitude">;
+
+type RoutePointCost = {
+  point: RoutePoint;
+  distanceFromPreviousKm: number | null;
+  price: number;
+  needsReview: boolean;
+};
 
 const ROSTOV_CENTER = {
   latitude: 47.2221,
@@ -170,6 +177,33 @@ function getRouteDistance(points: RouteQueryPoint[]) {
   return { distance, knownSegments };
 }
 
+function getRoutePointCosts(points: RoutePoint[]): RoutePointCost[] {
+  const routePoints = [ROUTE_START_POINT, ...points];
+
+  return points.map((point, index) => {
+    const previousPoint = routePoints[index];
+    const distance = getDistanceKm(previousPoint, point);
+    const needsReview = distance === null;
+
+    return {
+      point,
+      distanceFromPreviousKm: distance,
+      price: !needsReview && distance < 1 ? 200 : 400,
+      needsReview,
+    };
+  });
+}
+
+function getRouteCostSummary(points: RoutePoint[]) {
+  const costs = getRoutePointCosts(points);
+
+  return {
+    costs,
+    total: costs.reduce((sum, item) => sum + item.price, 0),
+    reviewCount: costs.filter((item) => item.needsReview).length,
+  };
+}
+
 function getSlotSummary(points: RoutePoint[]) {
   const counts = new Map<string, number>();
 
@@ -216,6 +250,14 @@ export function YandexRoutePanel({ orders }: { orders: DeliveryRouteOrder[] }) {
   const distancePoints =
     routePoints.length === 1 ? [ROUTE_START_POINT, ...routePoints] : routePoints;
   const routeDistance = getRouteDistance(distancePoints);
+  const totalRouteCost = groupedRoutes.reduce(
+    (sum, group) => sum + getRouteCostSummary(group.points).total,
+    0,
+  );
+  const routeCostReviewCount = groupedRoutes.reduce(
+    (sum, group) => sum + getRouteCostSummary(group.points).reviewCount,
+    0,
+  );
   const mapUrl = buildYandexMapWidgetUrl(routePoints);
   const fullRouteUrl = buildYandexRouteUrl(routePoints);
 
@@ -284,6 +326,15 @@ export function YandexRoutePanel({ orders }: { orders: DeliveryRouteOrder[] }) {
             </p>
           </div>
           <div className="rounded-[1.5rem] bg-white/82 p-4">
+            <p className="text-sm text-[var(--muted)]">Внутренняя стоимость точек</p>
+            <p className="mt-2 text-3xl font-semibold">{formatCurrency(totalRouteCost)}</p>
+            {routeCostReviewCount > 0 && (
+              <p className="mt-1 text-xs text-amber-700">
+                {routeCostReviewCount} точ. без точных координат
+              </p>
+            )}
+          </div>
+          <div className="rounded-[1.5rem] bg-white/82 p-4">
             <p className="text-sm text-[var(--muted)]">Без курьера</p>
             <p className="mt-2 text-3xl font-semibold">{ordersWithoutCourier.length}</p>
           </div>
@@ -311,46 +362,75 @@ export function YandexRoutePanel({ orders }: { orders: DeliveryRouteOrder[] }) {
 
       <div className="xl:col-span-2">
         <div className="grid gap-4 lg:grid-cols-2">
-          {groupedRoutes.map((group) => (
-            <article key={group.courier} className="glass-panel rounded-[2rem] p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">
-                    Курьер
-                  </p>
-                  <h3 className="mt-1 text-xl font-semibold">{group.courier}</h3>
-                </div>
-                <Link
-                  href={buildYandexRouteUrl(group.points)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--line)]"
-                >
-                  Маршрут
-                </Link>
-              </div>
+          {groupedRoutes.map((group) => {
+            const costSummary = getRouteCostSummary(group.points);
 
-              <div className="mt-4 space-y-3">
-                {group.points.map((point, index) => (
-                  <div key={point.order.id} className="rounded-[1.4rem] bg-white/82 p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-semibold text-white">
-                        {index + 1}
-                      </span>
-                      <p className="font-semibold">{point.order.orderNumber}</p>
-                      <StatusPill status={point.order.status} />
-                    </div>
-                    <p className="mt-2 flex gap-2 text-sm text-[var(--muted)]">
-                      <MapPin size={15} className="mt-0.5 shrink-0" />
-                      <span>
-                        {getAddressLabel(point.order.address)} · {point.order.deliveryTimeSlot.title}
-                      </span>
+            return (
+              <article key={group.courier} className="glass-panel rounded-[2rem] p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">
+                      Курьер
+                    </p>
+                    <h3 className="mt-1 text-xl font-semibold">{group.courier}</h3>
+                    <p className="mt-1 text-sm text-[var(--muted)]">
+                      Точки: {formatCurrency(costSummary.total)}
+                      {costSummary.reviewCount > 0
+                        ? ` · проверить ${costSummary.reviewCount}`
+                        : ""}
                     </p>
                   </div>
-                ))}
-              </div>
-            </article>
-          ))}
+                  <Link
+                    href={buildYandexRouteUrl(group.points)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--line)]"
+                  >
+                    Маршрут
+                  </Link>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {costSummary.costs.map((routeCost, index) => (
+                    <div
+                      key={routeCost.point.order.id}
+                      className="rounded-[1.4rem] bg-white/82 p-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-semibold text-white">
+                          {index + 1}
+                        </span>
+                        <p className="font-semibold">{routeCost.point.order.orderNumber}</p>
+                        <StatusPill status={routeCost.point.order.status} />
+                        <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-semibold text-[var(--foreground)]">
+                          {formatCurrency(routeCost.price)}
+                        </span>
+                        {routeCost.needsReview && (
+                          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+                            проверить
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-2 flex gap-2 text-sm text-[var(--muted)]">
+                        <MapPin size={15} className="mt-0.5 shrink-0" />
+                        <span>
+                          {getAddressLabel(routeCost.point.order.address)} ·{" "}
+                          {routeCost.point.order.deliveryTimeSlot.title}
+                        </span>
+                      </p>
+                      <p className="mt-2 text-xs text-[var(--muted)]">
+                        {routeCost.distanceFromPreviousKm === null
+                          ? "Нет координат для точного расчета, применена резервная ставка 400 ₽."
+                          : `От предыдущей точки: ${routeCost.distanceFromPreviousKm.toFixed(
+                              1,
+                            )} км.`}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            );
+          })}
         </div>
       </div>
     </div>
