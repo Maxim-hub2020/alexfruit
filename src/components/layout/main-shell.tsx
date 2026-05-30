@@ -8,6 +8,7 @@ import { DesktopLiquidNav } from "@/components/layout/desktop-liquid-nav";
 import { MobileLiquidNav } from "@/components/layout/mobile-liquid-nav";
 import { LogoutButton } from "@/components/profile/logout-button";
 import { APP_NAME, roleLabels } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 
 type ShellUser = {
   name: string;
@@ -28,7 +29,12 @@ export function MainShell({
   const isCourier = user?.role === "COURIER";
 
   return (
-    <div className="relative min-h-screen pb-28 pt-24 md:pt-28">
+    <div
+      className={cn(
+        "relative min-h-screen pb-28 pt-24 md:pt-28",
+        isAdmin && "md:pt-[10.75rem]",
+      )}
+    >
       <header className="fixed inset-x-0 top-0 z-40 px-3 pt-3">
         <div className="liquid-app-header section-shell flex items-center justify-between gap-3 px-3 py-3 md:px-4">
           <Link href="/" className="flex min-w-0 items-center gap-3">
@@ -47,7 +53,7 @@ export function MainShell({
             </div>
           </Link>
 
-          <DesktopLiquidNav active={active} role={user?.role} />
+          {!isAdmin ? <DesktopLiquidNav active={active} role={user?.role} /> : null}
 
           <div className="flex shrink-0 items-center gap-2">
             {(isAdmin || isCourier) && (
@@ -78,6 +84,15 @@ export function MainShell({
             )}
           </div>
         </div>
+        {isAdmin ? (
+          <div className="admin-nav-dock section-shell">
+            <DesktopLiquidNav
+              active={active}
+              className="admin-desktop-liquid-nav"
+              role={user?.role}
+            />
+          </div>
+        ) : null}
       </header>
 
       <main>{children}</main>

@@ -152,6 +152,17 @@ button:disabled,
   pointer-events: none;
 }
 
+.admin-nav-dock {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.65rem;
+}
+
+.admin-desktop-liquid-nav {
+  width: min(100%, 48rem);
+  min-width: min(100%, 48rem);
+}
+
 .desktop-liquid-nav {
   --nav-padding: 0.38rem;
   position: relative;

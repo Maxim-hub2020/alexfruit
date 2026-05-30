@@ -76,9 +76,11 @@ function getStoredIndex(activeIndex: number, maxItems: number) {
 
 export function DesktopLiquidNav({
   active,
+  className,
   role,
 }: {
   active?: string;
+  className?: string;
   role?: string | null;
 }) {
   const navItems = getNavItems(role);
@@ -148,7 +150,11 @@ export function DesktopLiquidNav({
 
   return (
     <nav
-      className={cn("desktop-liquid-nav hidden md:grid", isFlying && "is-flying")}
+      className={cn(
+        "desktop-liquid-nav hidden md:grid",
+        className,
+        isFlying && "is-flying",
+      )}
       data-direction={direction}
       style={navStyle}
       aria-label="Основная навигация"
