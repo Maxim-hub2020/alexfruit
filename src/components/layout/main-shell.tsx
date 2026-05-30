@@ -32,7 +32,7 @@ export function MainShell({
     <div
       className={cn(
         "relative min-h-screen pb-28 pt-24 md:pt-28",
-        isAdmin && "md:pt-[12rem]",
+        isAdmin && "md:pb-40",
       )}
     >
       <header className="fixed inset-x-0 top-0 z-40 px-3 pt-3">
@@ -84,18 +84,19 @@ export function MainShell({
             )}
           </div>
         </div>
-        {isAdmin ? (
-          <div className="admin-nav-dock section-shell">
-            <DesktopLiquidNav
-              active={active}
-              className="admin-desktop-liquid-nav"
-              role={user?.role}
-            />
-          </div>
-        ) : null}
       </header>
 
       <main>{children}</main>
+
+      {isAdmin ? (
+        <div className="admin-nav-dock">
+          <DesktopLiquidNav
+            active={active}
+            className="admin-desktop-liquid-nav"
+            role={user?.role}
+          />
+        </div>
+      ) : null}
 
       <MobileLiquidNav active={active} role={user?.role} />
     </div>

@@ -153,14 +153,20 @@ button:disabled,
 }
 
 .admin-nav-dock {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 1.25rem;
+  z-index: 35;
   display: flex;
   justify-content: center;
-  margin-top: 1.35rem;
+  padding-inline: 1rem;
+  pointer-events: none;
 }
 
 .admin-desktop-liquid-nav {
-  width: min(100%, 48rem);
-  min-width: min(100%, 48rem);
+  width: min(100%, 60rem);
+  min-width: min(100%, 60rem);
+  pointer-events: auto;
 }
 
 .desktop-liquid-nav {
