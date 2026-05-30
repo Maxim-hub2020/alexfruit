@@ -88,6 +88,16 @@ export const productSchema = z.object({
   stockStatus: z.nativeEnum(StockStatus).default(StockStatus.IN_STOCK),
 });
 
+export const dailyInventorySchema = z.object({
+  date: z.string().trim().min(10),
+  items: z.array(
+    z.object({
+      productId: z.string().trim().min(1),
+      quantityStart: z.coerce.number().min(0),
+    }),
+  ),
+});
+
 export const orderLineSchema = z.object({
   productId: z.string().trim().min(1),
   quantity: z.coerce.number().positive(),

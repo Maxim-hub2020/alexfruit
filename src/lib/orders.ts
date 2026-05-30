@@ -23,6 +23,15 @@ import {
   getDeliveryDateAvailability,
 } from "@/lib/delivery-rules";
 import {
+  addDailyAvailabilityToProducts,
+  completeDailyInventoryForLines,
+  getInventoryDateFromOrder,
+  orderToInventoryLines,
+  releaseDailyInventoryForLines,
+  reserveDailyInventoryForLines,
+  undoDailyInventoryForLines,
+} from "@/lib/inventory";
+import {
   sendPushForNotification,
   sendPushForNotifications,
 } from "@/lib/push-notifications";
@@ -745,7 +754,7 @@ async function buildStorefrontCollections(
   return personalCollections.slice(0, 3);
 }
 
-export async function getStorefrontData(userId?: string) {
+export async function getStorefrontData(userId?: string, deliveryDate?: string | null) {
   const [categories, products, timeSlots] = await Promise.all([
     prisma.category.findMany({
       where: { isActive: true },
@@ -761,18 +770,25 @@ export async function getStorefrontData(userId?: string) {
       orderBy: { startTime: "asc" },
     }),
   ]);
+  const productsWithAvailability = await addDailyAvailabilityToProducts(
+    products,
+    deliveryDate,
+  );
+  const availableProducts = productsWithAvailability.filter(
+    (product) => product.isAvailableForDate,
+  );
   const highlights = {
-    popular: products.filter((product) => product.isHit).slice(0, 6),
-    seasonal: products.filter((product) => product.isNew).slice(0, 6),
-    promo: products.filter((product) => product.isPromo).slice(0, 6),
+    popular: availableProducts.filter((product) => product.isHit).slice(0, 6),
+    seasonal: availableProducts.filter((product) => product.isNew).slice(0, 6),
+    promo: availableProducts.filter((product) => product.isPromo).slice(0, 6),
   };
 
   return {
     categories,
-    products,
+    products: availableProducts,
     timeSlots,
     highlights,
-    collections: await buildStorefrontCollections(userId, products, highlights),
+    collections: await buildStorefrontCollections(userId, availableProducts, highlights),
   };
 }
 
@@ -974,6 +990,8 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
   });
 
   const order = await prisma.$transaction(async (tx) => {
+    await reserveDailyInventoryForLines(tx, data.deliveryDate, orderInputItems);
+
     const createdOrder = await tx.order.create({
       data: {
         orderNumber: await createOrderNumber(),
@@ -1035,6 +1053,7 @@ export async function updateOrderByCustomer(
   const data = orderEditSchema.parse(input);
   const existing = await prisma.order.findFirst({
     where: { id: orderId, userId },
+    include: { items: true },
   });
 
   if (!existing) {
@@ -1064,6 +1083,13 @@ export async function updateOrderByCustomer(
   });
 
   const order = await prisma.$transaction(async (tx) => {
+    await releaseDailyInventoryForLines(
+      tx,
+      getInventoryDateFromOrder(existing),
+      orderToInventoryLines(existing),
+    );
+    await reserveDailyInventoryForLines(tx, data.deliveryDate, data.items);
+
     await tx.orderItem.deleteMany({
       where: { orderId },
     });
@@ -1116,6 +1142,7 @@ export async function rescheduleOrderByCustomer(
     where: { id: orderId, userId },
     include: {
       address: true,
+      items: true,
       notifications: {
         where: {
           type: NotificationType.REPLACEMENT_REQUIRED,
@@ -1138,6 +1165,17 @@ export async function rescheduleOrderByCustomer(
   const deliveryTimeSlot = await getDefaultDeliveryTimeSlot();
 
   const result = await prisma.$transaction(async (tx) => {
+    await releaseDailyInventoryForLines(
+      tx,
+      getInventoryDateFromOrder(existing),
+      orderToInventoryLines(existing),
+    );
+    await reserveDailyInventoryForLines(
+      tx,
+      data.deliveryDate,
+      orderToInventoryLines(existing),
+    );
+
     const updated = await tx.order.update({
       where: { id: orderId },
       data: {
@@ -1236,6 +1274,13 @@ export async function removeUnavailableOrderItemByCustomer(
   const remainingItems = order.items.filter((item) => item.id !== unavailableItem.id);
 
   const result = await prisma.$transaction(async (tx) => {
+    await releaseDailyInventoryForLines(tx, getInventoryDateFromOrder(order), [
+      {
+        productId: unavailableItem.productId,
+        quantity: unavailableItem.orderedQuantity,
+      },
+    ]);
+
     if (remainingItems.length === 0) {
       const cancelled = await tx.order.update({
         where: { id: orderId },
@@ -1437,6 +1482,7 @@ export async function markOrderItemUnavailable(orderItemId: string) {
 export async function cancelOrderByCustomer(userId: string, orderId: string) {
   const order = await prisma.order.findFirst({
     where: { id: orderId, userId },
+    include: { items: true },
   });
 
   if (!order) {
@@ -1447,11 +1493,19 @@ export async function cancelOrderByCustomer(userId: string, orderId: string) {
     throw new ApiError("Отмена через кабинет уже недоступна", 403);
   }
 
-  const updated = await prisma.order.update({
-    where: { id: orderId },
-    data: {
-      status: OrderStatus.CANCELLED,
-    },
+  const updated = await prisma.$transaction(async (tx) => {
+    await releaseDailyInventoryForLines(
+      tx,
+      getInventoryDateFromOrder(order),
+      orderToInventoryLines(order),
+    );
+
+    return tx.order.update({
+      where: { id: orderId },
+      data: {
+        status: OrderStatus.CANCELLED,
+      },
+    });
   });
 
   await createNotification({
@@ -1605,6 +1659,7 @@ export async function updateOrderByAdmin(orderId: string, input: unknown) {
   const data = orderEditSchema.partial().parse(input);
   const existing = await prisma.order.findUnique({
     where: { id: orderId },
+    include: { items: true },
   });
 
   if (!existing) {
@@ -1633,33 +1688,59 @@ export async function updateOrderByAdmin(orderId: string, input: unknown) {
     );
   }
 
-  return prisma.order.update({
-    where: { id: orderId },
-    data: {
-      addressId: data.addressId,
-      deliveryDate: data.deliveryDate
-        ? dateStringToDbDate(data.deliveryDate)
-        : undefined,
-      deliveryTimeSlotId: data.deliveryTimeSlotId,
-      customerComment:
-        data.customerComment === undefined ? undefined : data.customerComment || null,
-      status: data.status,
-    },
+  return prisma.$transaction(async (tx) => {
+    const nextDeliveryDate = data.deliveryDate ?? getInventoryDateFromOrder(existing);
+
+    if (data.deliveryDate && data.deliveryDate !== getInventoryDateFromOrder(existing)) {
+      await releaseDailyInventoryForLines(
+        tx,
+        getInventoryDateFromOrder(existing),
+        orderToInventoryLines(existing),
+      );
+      await reserveDailyInventoryForLines(
+        tx,
+        nextDeliveryDate,
+        orderToInventoryLines(existing),
+      );
+    }
+
+    return tx.order.update({
+      where: { id: orderId },
+      data: {
+        addressId: data.addressId,
+        deliveryDate: data.deliveryDate
+          ? dateStringToDbDate(data.deliveryDate)
+          : undefined,
+        deliveryTimeSlotId: data.deliveryTimeSlotId,
+        customerComment:
+          data.customerComment === undefined ? undefined : data.customerComment || null,
+        status: data.status,
+      },
+    });
   });
 }
 
 export async function deleteOrderByAdmin(orderId: string) {
   const existing = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { id: true },
+    include: { items: true },
   });
 
   if (!existing) {
     throw new ApiError("Заказ не найден", 404);
   }
 
-  await prisma.order.delete({
-    where: { id: orderId },
+  await prisma.$transaction(async (tx) => {
+    await undoDailyInventoryForLines(
+      tx,
+      getInventoryDateFromOrder(existing),
+      orderToInventoryLines(existing),
+      existing.status,
+    );
+
+    await tx.order.delete({
+      where: { id: orderId },
+    });
   });
 
   return { ok: true };
@@ -1667,13 +1748,48 @@ export async function deleteOrderByAdmin(orderId: string) {
 
 export async function updateOrderStatusByAdmin(orderId: string, input: unknown) {
   const data = orderStatusSchema.parse(input);
-  const order = await prisma.order.update({
+  const existing = await prisma.order.findUnique({
     where: { id: orderId },
-    data: {
-      status: data.status,
-      adminComment:
-        data.adminComment === undefined ? undefined : data.adminComment || null,
-    },
+    include: { items: true },
+  });
+
+  if (!existing) {
+    throw new ApiError("Р—Р°РєР°Р· РЅРµ РЅР°Р№РґРµРЅ", 404);
+  }
+
+  const order = await prisma.$transaction(async (tx) => {
+    if (
+      data.status === OrderStatus.CANCELLED &&
+      existing.status !== OrderStatus.CANCELLED &&
+      existing.status !== OrderStatus.DELIVERED
+    ) {
+      await releaseDailyInventoryForLines(
+        tx,
+        getInventoryDateFromOrder(existing),
+        orderToInventoryLines(existing),
+      );
+    }
+
+    if (
+      data.status === OrderStatus.DELIVERED &&
+      existing.status !== OrderStatus.DELIVERED &&
+      existing.status !== OrderStatus.CANCELLED
+    ) {
+      await completeDailyInventoryForLines(
+        tx,
+        getInventoryDateFromOrder(existing),
+        orderToInventoryLines(existing),
+      );
+    }
+
+    return tx.order.update({
+      where: { id: orderId },
+      data: {
+        status: data.status,
+        adminComment:
+          data.adminComment === undefined ? undefined : data.adminComment || null,
+      },
+    });
   });
 
   const notificationTypeMap: Partial<Record<OrderStatus, NotificationType>> = {
@@ -1710,6 +1826,33 @@ export async function updateOrderItemsByAdmin(orderId: string, input: unknown) {
   });
 
   return prisma.$transaction(async (tx) => {
+    await undoDailyInventoryForLines(
+      tx,
+      getInventoryDateFromOrder(order),
+      orderToInventoryLines(order),
+      order.status,
+    );
+
+    if (order.status === OrderStatus.DELIVERED) {
+      await completeDailyInventoryForLines(
+        tx,
+        getInventoryDateFromOrder(order),
+        built.itemRows.map((item) => ({
+          productId: item.productId,
+          quantity: item.orderedQuantity,
+        })),
+      );
+    } else if (order.status !== OrderStatus.CANCELLED) {
+      await reserveDailyInventoryForLines(
+        tx,
+        getInventoryDateFromOrder(order),
+        built.itemRows.map((item) => ({
+          productId: item.productId,
+          quantity: item.orderedQuantity,
+        })),
+      );
+    }
+
     await tx.orderItem.deleteMany({
       where: { orderId },
     });
@@ -1958,7 +2101,11 @@ export async function updateCourierTaskStatus(
       courierId: courierUserId,
     },
     include: {
-      order: true,
+      order: {
+        include: {
+          items: true,
+        },
+      },
     },
   });
 
@@ -1973,20 +2120,33 @@ export async function updateCourierTaskStatus(
         ? OrderStatus.DELIVERED
         : task.order.status;
 
-  await prisma.deliveryTask.update({
-    where: { id: taskId },
-    data: {
-      status: data.status,
-      deliveredAt:
-        data.status === DeliveryTaskStatus.DELIVERED ? new Date() : undefined,
-    },
-  });
+  return prisma.$transaction(async (tx) => {
+    await tx.deliveryTask.update({
+      where: { id: taskId },
+      data: {
+        status: data.status,
+        deliveredAt:
+          data.status === DeliveryTaskStatus.DELIVERED ? new Date() : undefined,
+      },
+    });
 
-  return prisma.order.update({
-    where: { id: task.order.id },
-    data: {
-      status: nextOrderStatus,
-    },
+    if (
+      data.status === DeliveryTaskStatus.DELIVERED &&
+      task.order.status !== OrderStatus.DELIVERED
+    ) {
+      await completeDailyInventoryForLines(
+        tx,
+        getInventoryDateFromOrder(task.order),
+        orderToInventoryLines(task.order),
+      );
+    }
+
+    return tx.order.update({
+      where: { id: task.order.id },
+      data: {
+        status: nextOrderStatus,
+      },
+    });
   });
 }
 

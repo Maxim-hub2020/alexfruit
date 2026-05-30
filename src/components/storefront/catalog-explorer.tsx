@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useDeferredValue, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useDeferredValue, useMemo, useState, useTransition } from "react";
 import {
   Apple,
   BadgePercent,
@@ -30,6 +31,9 @@ type CatalogProduct = {
   isNew: boolean;
   isPromo: boolean;
   stockStatus: string;
+  hasDailyInventory?: boolean;
+  availableQuantity?: number | null;
+  isAvailableForDate?: boolean;
   category: {
     id: string;
     name: string;
@@ -54,13 +58,21 @@ const categoryIcons = {
 export function CatalogExplorer({
   categories,
   products,
+  deliveryDate,
+  defaultDeliveryDate,
 }: {
   categories: Array<{ id: string; name: string; slug: string }>;
   products: CatalogProduct[];
+  deliveryDate: string;
+  defaultDeliveryDate: string;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [heroIndex, setHeroIndex] = useState(0);
+  const [isDatePending, startDateTransition] = useTransition();
   const deferredQuery = useDeferredValue(query);
 
   const heroProducts = useMemo(() => {
@@ -104,6 +116,22 @@ export function CatalogExplorer({
     setHeroIndex((current) => (current + 1) % heroProducts.length);
   }
 
+  function updateDeliveryDate(nextDate: string) {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (!nextDate || nextDate === defaultDeliveryDate) {
+      params.delete("date");
+    } else {
+      params.set("date", nextDate);
+    }
+
+    const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+
+    startDateTransition(() => {
+      router.replace(nextUrl);
+    });
+  }
+
   return (
     <div className="rounded-[2.35rem] bg-white px-4 py-5 shadow-[0_30px_90px_rgba(61,93,74,0.12)] ring-1 ring-white/80 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -119,18 +147,36 @@ export function CatalogExplorer({
           </p>
         </div>
 
-        <label className="relative w-full lg:w-[22rem]">
-          <Search
-            size={18}
-            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)]"
-          />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Поиск по товарам"
-            className="h-12 w-full rounded-2xl bg-[var(--surface-muted)] pl-11 pr-4 text-sm outline-none ring-1 ring-[var(--line)] transition focus:bg-white focus:ring-[var(--accent)]"
-          />
-        </label>
+        <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row">
+          <label className="relative w-full lg:w-[22rem]">
+            <Search
+              size={18}
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+            />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Поиск по товарам"
+              className="h-12 w-full rounded-2xl bg-[var(--surface-muted)] pl-11 pr-4 text-sm outline-none ring-1 ring-[var(--line)] transition focus:bg-white focus:ring-[var(--accent)]"
+            />
+          </label>
+
+          <label className="grid min-w-[13rem] gap-1 rounded-2xl bg-[var(--surface-muted)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)] ring-1 ring-[var(--line)]">
+            Дата доставки
+            <input
+              type="date"
+              min={defaultDeliveryDate}
+              value={deliveryDate}
+              onChange={(event) => updateDeliveryDate(event.target.value)}
+              className="bg-transparent text-sm font-semibold tracking-normal text-[var(--foreground)] outline-none"
+            />
+            {isDatePending && (
+              <span className="text-[10px] normal-case tracking-normal text-[var(--accent-strong)]">
+                Обновляем наличие...
+              </span>
+            )}
+          </label>
+        </div>
       </div>
 
       <section className="mt-7">
@@ -181,7 +227,7 @@ export function CatalogExplorer({
             <h2 className="mt-1 font-serif text-4xl font-semibold">Выберите свежие позиции</h2>
           </div>
           <p className="hidden text-sm text-[var(--muted)] sm:block">
-            {filteredProducts.length} товаров
+            {filteredProducts.length} товаров на дату
           </p>
         </div>
 
@@ -266,6 +312,7 @@ export function CatalogExplorer({
                       unit={activeHero.unit}
                       imageUrl={activeHero.imageUrl}
                       variant="compact"
+                      maxQuantity={activeHero.availableQuantity}
                     />
                   )}
                 </div>

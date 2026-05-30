@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Home,
   PackageCheck,
+  PackageOpen,
   Route,
   ShoppingCart,
   ShoppingBasket,
@@ -32,6 +33,7 @@ const adminNavItems = [
   { key: "admin-orders", href: "/admin/orders", label: "Заказы", icon: Bell },
   { key: "admin-delivery", href: "/admin/delivery", label: "Сборка", icon: PackageCheck },
   { key: "admin-products", href: "/admin/products", label: "Каталог", icon: ShoppingBasket },
+  { key: "admin-inventory", href: "/admin/inventory", label: "Склад", icon: PackageOpen },
   { key: "admin-couriers", href: "/admin/couriers", label: "Курьеры", icon: Truck },
   { key: "admin-analytics", href: "/admin/analytics", label: "Аналитика", icon: BarChart3 },
 ] as const;

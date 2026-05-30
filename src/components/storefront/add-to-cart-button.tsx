@@ -13,6 +13,9 @@ type AddToCartButtonProps = {
   unit: string;
   imageUrl?: string | null;
   variant?: "full" | "compact";
+  maxQuantity?: number | null;
+  disabled?: boolean;
+  disabledLabel?: string;
 };
 
 export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonProps) {
@@ -21,6 +24,12 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
   const resetTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
   const quantity = items.find((item) => item.productId === props.productId)?.quantity ?? 0;
   const isCompact = variant === "compact";
+  const maxQuantity =
+    props.maxQuantity === null || props.maxQuantity === undefined
+      ? null
+      : Math.max(0, props.maxQuantity);
+  const reachedLimit = maxQuantity !== null && quantity >= maxQuantity;
+  const isDisabled = Boolean(props.disabled) || maxQuantity === 0;
 
   useEffect(() => {
     return () => {
@@ -44,11 +53,19 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
   }
 
   function handleAdd() {
+    if (isDisabled || reachedLimit) {
+      return;
+    }
+
     addItem(props);
     triggerAddedState();
   }
 
   function handleIncrease() {
+    if (reachedLimit) {
+      return;
+    }
+
     updateQuantity(props.productId, quantity + 1);
     triggerAddedState();
   }
@@ -111,8 +128,9 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
         <button
           type="button"
           onClick={handleIncrease}
+          disabled={reachedLimit}
           className={cn(
-            "relative z-[1] inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/14 transition hover:bg-white/22 active:scale-95",
+            "relative z-[1] inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/14 transition hover:bg-white/22 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45",
             isCompact && "h-8 w-8",
           )}
           aria-label={`Увеличить количество товара ${props.name}`}
@@ -128,7 +146,8 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
       <button
         type="button"
         onClick={handleAdd}
-        className="group inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-1 ring-[var(--line-strong)] transition hover:-translate-y-0.5 hover:bg-[#d2eacc] active:scale-95"
+        disabled={isDisabled || reachedLimit}
+        className="group inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-1 ring-[var(--line-strong)] transition hover:-translate-y-0.5 hover:bg-[#d2eacc] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         aria-label={`Добавить товар ${props.name} в корзину`}
       >
         <Plus size={20} className="transition-transform group-active:scale-90" />
@@ -140,11 +159,12 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
     <Button
       className="group relative w-full overflow-hidden transition-[transform,box-shadow,background-color] duration-300 active:scale-[0.985]"
       onClick={handleAdd}
+      disabled={isDisabled || reachedLimit}
       aria-label={`Добавить товар ${props.name} в корзину`}
     >
       <span className="relative z-[1] flex items-center gap-2 transition-transform duration-300 group-active:scale-[0.98]">
         <ShoppingBasket size={16} className="transition-transform duration-300 group-active:scale-90" />
-        <span>В корзину</span>
+        <span>{props.disabledLabel ?? (reachedLimit ? "Лимит в корзине" : "В корзину")}</span>
       </span>
     </Button>
   );

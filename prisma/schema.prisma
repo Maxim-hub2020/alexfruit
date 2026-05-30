@@ -151,8 +151,25 @@ model Product {
   category    Category    @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]
   sharedCartItems SharedCartItem[]
+  dailyInventories DailyInventory[]
 
   @@index([categoryId])
+}
+
+model DailyInventory {
+  id               String   @id @default(cuid())
+  productId        String
+  date             DateTime @db.Date
+  quantityStart    Decimal  @default(0) @db.Decimal(10, 2)
+  quantityReserved Decimal  @default(0) @db.Decimal(10, 2)
+  quantitySold     Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, date])
+  @@index([date])
+  @@index([productId])
 }
 
 model SharedCart {
