@@ -1,5 +1,5 @@
 export const APP_NAME = "АлексФрут";
-export const DELIVERY_FEE = 250;
+export const DELIVERY_FEE = 0;
 export const AUTH_COOKIE_NAME = "alexfrut-session";
 
 export const roleLabels: Record<string, string> = {

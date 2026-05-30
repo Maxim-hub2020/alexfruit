@@ -97,7 +97,8 @@ export const orderLineSchema = z.object({
 const orderBaseObjectSchema = z.object({
   addressId: z.string().trim().min(1),
   deliveryDate: z.string().trim().min(10),
-  deliveryTimeSlotId: z.string().trim().min(1),
+  deliveryTimeSlotId: z.string().trim().min(1).optional().or(z.literal("")),
+  needsLift: z.coerce.boolean().optional().default(false),
   customerComment: z.string().trim().optional().or(z.literal("")),
   items: z.array(orderLineSchema).optional().default([]),
   sharedCartToken: z.string().trim().min(1).optional(),
@@ -124,7 +125,7 @@ export const orderItemsSchema = z.object({
 
 export const orderRescheduleSchema = z.object({
   deliveryDate: z.string().trim().min(10),
-  deliveryTimeSlotId: z.string().trim().min(1),
+  deliveryTimeSlotId: z.string().trim().min(1).optional().or(z.literal("")),
 });
 
 export const replacementDecisionSchema = z.object({

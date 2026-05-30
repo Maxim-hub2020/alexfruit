@@ -1,17 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, Clock3, MapPin, ShoppingBag } from "lucide-react";
+import { ArrowUp, Calendar, MapPin, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  LIFT_SERVICE_FEE,
+  getDefaultDeliveryDate,
+  getDeliveryDateAvailability,
+} from "@/lib/delivery-rules";
 import { formatCurrency } from "@/lib/utils";
-
-type TimeSlot = {
-  id: string;
-  title: string;
-  available?: boolean;
-  reason?: string | null;
-};
 
 type SharedCartCheckoutPanelProps = {
   token: string;
@@ -26,10 +24,8 @@ type SharedCartCheckoutPanelProps = {
     street: string;
     house: string;
   }>;
-  initialSlots: TimeSlot[];
+  initialSlots?: unknown[];
 };
-
-const DELIVERY_FEE = 250;
 
 export function SharedCartCheckoutPanel({
   token,
@@ -38,40 +34,18 @@ export function SharedCartCheckoutPanel({
   isOwner,
   isOrdered,
   addresses,
-  initialSlots,
 }: SharedCartCheckoutPanelProps) {
   const router = useRouter();
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [slots, setSlots] = useState(initialSlots);
+  const minDeliveryDate = getDefaultDeliveryDate();
+  const [date, setDate] = useState(() => minDeliveryDate);
   const [addressId, setAddressId] = useState(addresses[0]?.id ?? "");
-  const [slotId, setSlotId] = useState(
-    initialSlots.find((slot) => slot.available !== false)?.id ?? "",
-  );
+  const [needsLift, setNeedsLift] = useState(false);
   const [comment, setComment] = useState("");
   const [error, setError] = useState("");
-  const [isPending, startTransition] = useTransition();
-  const total = useMemo(() => subtotal + DELIVERY_FEE, [subtotal]);
-
-  useEffect(() => {
-    if (!addressId || isOrdered) {
-      return;
-    }
-
-    startTransition(async () => {
-      const response = await fetch(
-        `/api/time-slots/available?date=${date}&addressId=${addressId}`,
-      );
-      const result: TimeSlot[] = await response.json();
-      const firstAvailable = result.find((slot) => slot.available !== false);
-
-      setSlots(result);
-      setSlotId((current) =>
-        result.some((slot) => slot.id === current && slot.available !== false)
-          ? current
-          : (firstAvailable?.id ?? ""),
-      );
-    });
-  }, [addressId, date, isOrdered]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const deliveryAvailability = getDeliveryDateAvailability(date);
+  const liftFee = needsLift ? LIFT_SERVICE_FEE : 0;
+  const total = useMemo(() => subtotal + liftFee, [liftFee, subtotal]);
 
   async function submitSharedOrder() {
     setError("");
@@ -91,22 +65,24 @@ export function SharedCartCheckoutPanel({
       return;
     }
 
-    if (!slotId) {
-      setError("Выберите доступный временной интервал.");
+    if (!deliveryAvailability.available) {
+      setError(deliveryAvailability.reason ?? "Выберите другую дату доставки.");
       return;
     }
 
+    setIsSubmitting(true);
     const response = await fetch("/api/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         addressId,
         deliveryDate: date,
-        deliveryTimeSlotId: slotId,
+        needsLift,
         customerComment: comment,
         sharedCartToken: token,
       }),
     });
+    setIsSubmitting(false);
     const result = await response.json();
 
     if (!response.ok) {
@@ -179,29 +155,37 @@ export function SharedCartCheckoutPanel({
         <input
           type="date"
           value={date}
+          min={minDeliveryDate}
           onChange={(event) => setDate(event.target.value)}
           className="h-11 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
         />
+        {!deliveryAvailability.available ? (
+          <span className="block rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {deliveryAvailability.reason}
+          </span>
+        ) : null}
       </label>
 
-      <label className="space-y-2 text-sm font-medium">
-        <span className="flex items-center gap-2">
-          <Clock3 size={16} />
-          Временной интервал
+      <div className="rounded-2xl bg-white/75 px-4 py-3 text-sm text-[var(--muted)] ring-1 ring-[var(--line)]">
+        Доставим в течение дня. Точное время согласуем при сборке.
+      </div>
+
+      <label className="flex items-start gap-3 rounded-2xl bg-white p-4 text-sm ring-1 ring-[var(--line)]">
+        <input
+          type="checkbox"
+          checked={needsLift}
+          onChange={(event) => setNeedsLift(event.target.checked)}
+          className="mt-1"
+        />
+        <span>
+          <span className="flex items-center gap-2 font-semibold">
+            <ArrowUp size={16} />
+            Нужен подъём до двери
+          </span>
+          <span className="mt-1 block text-[var(--muted)]">
+            Добавим {formatCurrency(LIFT_SERVICE_FEE)} к заказу.
+          </span>
         </span>
-        <select
-          value={slotId}
-          onChange={(event) => setSlotId(event.target.value)}
-          disabled={!addressId || slots.length === 0}
-          className="h-11 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
-        >
-          {slots.map((slot) => (
-            <option key={slot.id} value={slot.id} disabled={slot.available === false}>
-              {slot.title}
-              {slot.available === false ? ` — ${slot.reason ?? "недоступен"}` : ""}
-            </option>
-          ))}
-        </select>
       </label>
 
       <textarea
@@ -218,8 +202,8 @@ export function SharedCartCheckoutPanel({
           <span>{formatCurrency(subtotal)}</span>
         </div>
         <div className="mt-2 flex items-center justify-between text-[var(--muted)]">
-          <span>Доставка</span>
-          <span>{formatCurrency(DELIVERY_FEE)}</span>
+          <span>Подъём</span>
+          <span>{needsLift ? formatCurrency(LIFT_SERVICE_FEE) : "не нужен"}</span>
         </div>
         <div className="mt-3 flex items-center justify-between border-t border-[var(--line)] pt-3 text-base font-bold">
           <span>Итого</span>
@@ -232,9 +216,14 @@ export function SharedCartCheckoutPanel({
       <Button
         className="w-full"
         onClick={submitSharedOrder}
-        disabled={isPending || !addressId || !slotId || itemsCount === 0}
+        disabled={
+          isSubmitting ||
+          !addressId ||
+          !deliveryAvailability.available ||
+          itemsCount === 0
+        }
       >
-        {isPending ? "Проверяем слот..." : "Оформить общий заказ"}
+        {isSubmitting ? "Оформляем..." : "Оформить общий заказ"}
       </Button>
     </div>
   );

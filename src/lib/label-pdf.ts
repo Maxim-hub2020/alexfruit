@@ -15,6 +15,7 @@ const THERMAL_BOLD_OFFSET = 0.13;
 
 type LabelOrder = {
   orderNumber: string;
+  needsLift?: boolean;
   user: {
     name: string;
     phone?: string | null;
@@ -206,7 +207,9 @@ function drawOrderLabelPage({
   const page = pdfDoc.addPage([LABEL_WIDTH, LABEL_HEIGHT]);
   const contentWidth = LABEL_WIDTH - LABEL_MARGIN * 2;
   const clientName = order.user.name.trim() || "Клиент";
-  const address = getAddressLabel(order.address);
+  const address = `${getAddressLabel(order.address)}${
+    order.needsLift ? " · подъём до двери" : ""
+  }`;
   const slotTitle = order.deliveryTimeSlot?.title ?? "время не указано";
 
   page.drawRectangle({

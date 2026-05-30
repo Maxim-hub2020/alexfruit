@@ -28,7 +28,7 @@ function serializeAddress(address: Awaited<ReturnType<typeof prisma.address.find
 
 export async function getUserAddresses(userId: string) {
   const addresses = await prisma.address.findMany({
-    where: { userId },
+    where: { userId, isDeleted: false },
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
   });
 
@@ -62,7 +62,7 @@ export async function saveAddressForUser(
 
     if (addressId) {
       const existing = await tx.address.findFirst({
-        where: { id: addressId, userId },
+        where: { id: addressId, userId, isDeleted: false },
       });
 
       if (!existing) {
@@ -83,6 +83,7 @@ export async function saveAddressForUser(
       await tx.address.updateMany({
         where: {
           userId,
+          isDeleted: false,
           id: { not: address.id },
         },
         data: { isDefault: false },
@@ -104,21 +105,55 @@ export async function saveAddressForUser(
 
 export async function removeAddressForUser(userId: string, addressId: string) {
   const address = await prisma.address.findFirst({
-    where: { id: addressId, userId },
+    where: { id: addressId, userId, isDeleted: false },
   });
 
   if (!address) {
     throw new ApiError("Адрес не найден", 404);
   }
 
-  await prisma.address.delete({
-    where: { id: addressId },
+  await prisma.$transaction(async (tx) => {
+    await tx.address.update({
+      where: { id: addressId },
+      data: {
+        isDeleted: true,
+        isDefault: false,
+      },
+    });
+
+    const nextDefaultAddress = address.isDefault
+      ? await tx.address.findFirst({
+          where: {
+            userId,
+            isDeleted: false,
+            id: { not: addressId },
+          },
+          orderBy: { createdAt: "asc" },
+        })
+      : null;
+
+    if (nextDefaultAddress) {
+      await tx.address.update({
+        where: { id: nextDefaultAddress.id },
+        data: { isDefault: true },
+      });
+    }
+
+    await tx.customerProfile.updateMany({
+      where: {
+        userId,
+        defaultAddressId: addressId,
+      },
+      data: {
+        defaultAddressId: nextDefaultAddress?.id ?? null,
+      },
+    });
   });
 }
 
 export async function setDefaultAddress(userId: string, addressId: string) {
   const address = await prisma.address.findFirst({
-    where: { id: addressId, userId },
+    where: { id: addressId, userId, isDeleted: false },
   });
 
   if (!address) {
@@ -127,7 +162,7 @@ export async function setDefaultAddress(userId: string, addressId: string) {
 
   await prisma.$transaction([
     prisma.address.updateMany({
-      where: { userId },
+      where: { userId, isDeleted: false },
       data: { isDefault: false },
     }),
     prisma.address.update({

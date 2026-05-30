@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   ArrowRight,
+  ArrowUp,
   Clock3,
   Columns3,
   LayoutList,
@@ -54,6 +55,7 @@ type AdminOrder = {
   sharedCartTitle?: string | null;
   preliminaryTotal: number | string;
   finalTotal: number | string | null;
+  needsLift?: boolean;
   user: { name: string; phone?: string | null };
   address: { city: string; street: string; house: string; apartment?: string | null };
   deliveryTimeSlot: { title: string };
@@ -125,6 +127,12 @@ function OrderMiniCard({ order, dense = false }: { order: AdminOrder; dense?: bo
           <p className="flex items-center gap-2">
             <Truck size={14} />
             <span>{order.courier?.name ?? "курьер не назначен"}</span>
+          </p>
+        ) : null}
+        {order.needsLift ? (
+          <p className="flex items-center gap-2 font-semibold text-[var(--accent-strong)]">
+            <ArrowUp size={14} />
+            <span>подъём до двери</span>
           </p>
         ) : null}
       </div>

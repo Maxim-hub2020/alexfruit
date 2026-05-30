@@ -4,7 +4,6 @@ import { CheckoutClient } from "@/components/storefront/checkout-client";
 import { SharedCartCreatePanel } from "@/components/storefront/shared-cart-create-panel";
 import { getCurrentUser } from "@/lib/auth";
 import { getUserAddresses } from "@/lib/addresses";
-import { getAvailableTimeSlots } from "@/lib/orders";
 import { getOwnedSharedCarts } from "@/lib/shared-carts";
 import { formatCurrency } from "@/lib/utils";
 
@@ -14,13 +13,6 @@ export default async function CartPage() {
   const user = await getCurrentUser();
   const addresses = user ? await getUserAddresses(user.id) : [];
   const sharedCarts = user ? await getOwnedSharedCarts(user.id) : [];
-  const slots =
-    user && addresses[0]
-      ? await getAvailableTimeSlots(new Date().toISOString().slice(0, 10), {
-          userId: user.id,
-          addressId: addresses[0].id,
-        })
-      : [];
 
   return (
     <MainShell active="cart" user={user}>
@@ -28,15 +20,14 @@ export default async function CartPage() {
         <div className="glass-panel rounded-[2.2rem] p-6">
           <h1 className="font-serif text-5xl font-semibold">Корзина и оформление</h1>
           <p className="mt-3 max-w-2xl text-lg text-[var(--muted)]">
-            Клиент выбирает адрес, дату и временной интервал. Если слот заполнен,
-            система сразу помечает его как недоступный.
+            Выберите адрес, дату и оформите заказ. Доставку на сегодня принимаем
+            до 09:00, дальше ближайшая дата автоматически переносится на завтра.
           </p>
         </div>
 
         <CheckoutClient
           user={user ? { id: user.id, name: user.name } : null}
           addresses={addresses}
-          initialSlots={slots}
         />
 
         {user && sharedCarts.length > 0 ? (

@@ -4,7 +4,6 @@ import { SharedCartClient } from "@/components/storefront/shared-cart-client";
 import { getUserAddresses } from "@/lib/addresses";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getAvailableTimeSlots } from "@/lib/orders";
 import { getSharedCart } from "@/lib/shared-carts";
 import { toClientValue } from "@/lib/serialize";
 
@@ -31,13 +30,6 @@ export default async function SharedCartPage({
   }
   const addresses =
     user && user.id === sharedCart.ownerId ? await getUserAddresses(user.id) : [];
-  const slots =
-    user && user.id === sharedCart.ownerId && addresses[0]
-      ? await getAvailableTimeSlots(new Date().toISOString().slice(0, 10), {
-          userId: user.id,
-          addressId: addresses[0].id,
-        })
-      : [];
 
   return (
     <MainShell user={user}>
@@ -47,7 +39,7 @@ export default async function SharedCartPage({
           products={toClientValue(products as never)}
           user={user ? { id: user.id, name: user.name, role: user.role } : null}
           addresses={toClientValue(addresses as never)}
-          initialSlots={toClientValue(slots as never)}
+          initialSlots={[]}
         />
       </section>
     </MainShell>

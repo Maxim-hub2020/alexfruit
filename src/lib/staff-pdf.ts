@@ -17,6 +17,7 @@ type StaffPdfOrder = {
   status: string;
   preliminaryTotal: PrintableValue;
   finalTotal?: PrintableValue;
+  needsLift?: boolean;
   customerComment?: string | null;
   adminComment?: string | null;
   user: {
@@ -275,7 +276,9 @@ export async function createAssemblyPdf(orders: StaffPdfOrder[], date: string) {
     ensureSpace(155);
 
     const slot = order.deliveryTimeSlot?.title ?? "слот не указан";
-    const address = getAddressLabel(order.address);
+    const address = `${getAddressLabel(order.address)}${
+      order.needsLift ? " · подъём до двери" : ""
+    }`;
     const comments = [order.customerComment, order.adminComment]
       .map((comment) => comment?.trim())
       .filter(Boolean)
@@ -429,7 +432,9 @@ export async function createDeliveryPdf(orders: StaffPdfOrder[], date: string) {
     ensureSpace(96);
 
     const slot = order.deliveryTimeSlot?.title ?? "слот не указан";
-    const address = getAddressLabel(order.address);
+    const address = `${getAddressLabel(order.address)}${
+      order.needsLift ? " · подъём до двери" : ""
+    }`;
     const courier = order.courier?.name?.trim() || "курьер не назначен";
     const amount = formatCurrency(
       valueToNumber(order.finalTotal ?? order.preliminaryTotal),

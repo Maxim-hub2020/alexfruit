@@ -2,7 +2,7 @@
 
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, MapPin, Search } from "lucide-react";
+import { Loader2, MapPin, Pencil, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type AddressSuggestion = {
@@ -61,11 +61,17 @@ export function AddressBook({
     street: string;
     house: string;
     apartment?: string | null;
+    entrance?: string | null;
+    floor?: string | null;
+    comment?: string | null;
+    latitude?: string | null;
+    longitude?: string | null;
     isDefault: boolean;
   }>;
 }) {
   const router = useRouter();
   const [form, setForm] = useState<AddressForm>(EMPTY_FORM);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [error, setError] = useState("");
   const [source, setSource] = useState<"dadata" | "fallback" | null>(null);
@@ -73,6 +79,65 @@ export function AddressBook({
   const deferredAddressText = useDeferredValue(form.addressText);
   const selectedAddressTextRef = useRef("");
   const requestIdRef = useRef(0);
+
+  function getAddressText(address: {
+    city: string;
+    street: string;
+    house: string;
+    apartment?: string | null;
+  }) {
+    return `${address.city}, ${address.street}, ${address.house}${
+      address.apartment ? `, кв. ${address.apartment}` : ""
+    }`;
+  }
+
+  function resetForm() {
+    setForm({ ...EMPTY_FORM });
+    setEditingAddressId(null);
+    selectedAddressTextRef.current = "";
+    requestIdRef.current += 1;
+    setSuggestions([]);
+    setSource(null);
+    setIsLoading(false);
+    setError("");
+  }
+
+  function startEditAddress(address: {
+    id: string;
+    title: string;
+    city: string;
+    street: string;
+    house: string;
+    apartment?: string | null;
+    entrance?: string | null;
+    floor?: string | null;
+    comment?: string | null;
+    latitude?: string | null;
+    longitude?: string | null;
+    isDefault: boolean;
+  }) {
+    const addressText = getAddressText(address);
+
+    selectedAddressTextRef.current = addressText;
+    requestIdRef.current += 1;
+    setSuggestions([]);
+    setEditingAddressId(address.id);
+    setForm({
+      title: address.title,
+      addressText,
+      city: address.city,
+      street: address.street,
+      house: address.house,
+      apartment: address.apartment ?? "",
+      entrance: address.entrance ?? "",
+      floor: address.floor ?? "",
+      comment: address.comment ?? "",
+      latitude: address.latitude ? Number(address.latitude) : null,
+      longitude: address.longitude ? Number(address.longitude) : null,
+      isDefault: address.isDefault,
+    });
+    setError("");
+  }
 
   useEffect(() => {
     const query = deferredAddressText.trim();
@@ -155,23 +220,26 @@ export function AddressBook({
       return;
     }
 
-    const response = await fetch("/api/addresses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: form.title,
-        city: form.city,
-        street: form.street,
-        house: form.house,
-        apartment: form.apartment,
-        entrance: form.entrance,
-        floor: form.floor,
-        comment: form.comment,
-        latitude: form.latitude ?? undefined,
-        longitude: form.longitude ?? undefined,
-        isDefault: form.isDefault,
-      }),
-    });
+    const response = await fetch(
+      editingAddressId ? `/api/addresses/${editingAddressId}` : "/api/addresses",
+      {
+        method: editingAddressId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: form.title,
+          city: form.city,
+          street: form.street,
+          house: form.house,
+          apartment: form.apartment,
+          entrance: form.entrance,
+          floor: form.floor,
+          comment: form.comment,
+          latitude: form.latitude ?? undefined,
+          longitude: form.longitude ?? undefined,
+          isDefault: form.isDefault,
+        }),
+      },
+    );
     const result = await response.json();
 
     if (!response.ok) {
@@ -179,10 +247,30 @@ export function AddressBook({
       return;
     }
 
-    setForm(EMPTY_FORM);
-    selectedAddressTextRef.current = "";
-    requestIdRef.current += 1;
-    setSuggestions([]);
+    resetForm();
+    router.refresh();
+  }
+
+  async function deleteAddress(addressId: string) {
+    if (!window.confirm("Удалить адрес из профиля? В старых заказах он останется для истории.")) {
+      return;
+    }
+
+    setError("");
+    const response = await fetch(`/api/addresses/${addressId}`, {
+      method: "DELETE",
+    });
+    const result = await response.json();
+
+    if (!response.ok) {
+      setError(result.error ?? "Не удалось удалить адрес");
+      return;
+    }
+
+    if (editingAddressId === addressId) {
+      resetForm();
+    }
+
     router.refresh();
   }
 
@@ -202,30 +290,62 @@ export function AddressBook({
                   {address.apartment ? `, кв. ${address.apartment}` : ""}
                 </p>
               </div>
-              {address.isDefault ? (
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">
-                  Основной
-                </span>
-              ) : (
+              <div className="flex flex-wrap justify-end gap-2">
+                {address.isDefault ? (
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">
+                    Основной
+                  </span>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      await fetch(`/api/addresses/${address.id}/set-default`, {
+                        method: "PATCH",
+                      });
+                      router.refresh();
+                    }}
+                    className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-[var(--accent-strong)]"
+                  >
+                    Основной
+                  </button>
+                )}
                 <button
-                  onClick={async () => {
-                    await fetch(`/api/addresses/${address.id}/set-default`, {
-                      method: "PATCH",
-                    });
-                    router.refresh();
-                  }}
-                  className="text-sm text-[var(--accent-strong)]"
+                  type="button"
+                  onClick={() => startEditAddress(address)}
+                  className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-semibold text-[var(--ink)]"
                 >
-                  Сделать основным
+                  <Pencil size={13} />
+                  Изменить
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={() => deleteAddress(address.id)}
+                  className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700"
+                >
+                  <Trash2 size={13} />
+                  Удалить
+                </button>
+              </div>
             </div>
           </div>
         ))}
       </div>
 
       <div className="rounded-[2rem] bg-white/85 p-5 ring-1 ring-[var(--line)]">
-        <h3 className="text-xl font-semibold">Новый адрес</h3>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-xl font-semibold">
+            {editingAddressId ? "Редактирование адреса" : "Новый адрес"}
+          </h3>
+          {editingAddressId ? (
+            <button
+              type="button"
+              onClick={resetForm}
+              className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-semibold text-[var(--muted)]"
+            >
+              <X size={13} />
+              Отменить
+            </button>
+          ) : null}
+        </div>
 
         <div className="mt-4 grid gap-3">
           <label className="space-y-2 text-sm font-medium">
@@ -355,7 +475,9 @@ export function AddressBook({
             Сделать адресом по умолчанию
           </label>
           {error && <p className="text-sm text-rose-700">{error}</p>}
-          <Button onClick={() => saveAddress()}>Сохранить адрес</Button>
+          <Button onClick={() => saveAddress()}>
+            {editingAddressId ? "Сохранить изменения" : "Сохранить адрес"}
+          </Button>
         </div>
       </div>
     </div>

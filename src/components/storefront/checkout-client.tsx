@@ -1,28 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, Clock3, MapPin, ShoppingBag } from "lucide-react";
+import { ArrowUp, Calendar, MapPin, ShoppingBag } from "lucide-react";
 import { useCart } from "@/components/providers/cart-provider";
 import { Button } from "@/components/ui/button";
+import {
+  LIFT_SERVICE_FEE,
+  getDefaultDeliveryDate,
+  getDeliveryDateAvailability,
+} from "@/lib/delivery-rules";
 import { formatCurrency } from "@/lib/utils";
-
-type TimeSlot = {
-  id: string;
-  title: string;
-  startTime: string;
-  endTime: string;
-  maxOrders: number;
-  reserved?: number;
-  available?: boolean;
-  reason?: string | null;
-  distanceLimitKm?: number;
-};
 
 export function CheckoutClient({
   user,
   addresses,
-  initialSlots,
 }: {
   user: { id: string; name: string } | null;
   addresses: Array<{
@@ -34,42 +26,20 @@ export function CheckoutClient({
     latitude?: string | null;
     longitude?: string | null;
   }>;
-  initialSlots: TimeSlot[];
 }) {
   const router = useRouter();
   const { items, subtotal, clear, updateQuantity, removeItem, hydrated } = useCart();
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [slots, setSlots] = useState(initialSlots);
+  const minDeliveryDate = getDefaultDeliveryDate();
+  const [date, setDate] = useState(() => minDeliveryDate);
   const [addressId, setAddressId] = useState(addresses[0]?.id ?? "");
-  const [slotId, setSlotId] = useState(
-    initialSlots.find((slot) => slot.available !== false)?.id ?? "",
-  );
+  const [needsLift, setNeedsLift] = useState(false);
   const [comment, setComment] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    if (!addressId) {
-      return;
-    }
-
-    startTransition(async () => {
-      const response = await fetch(
-        `/api/time-slots/available?date=${date}&addressId=${addressId}`,
-      );
-      const result = await response.json();
-      setSlots(result);
-      const firstAvailable = result.find((slot: TimeSlot) => slot.available !== false);
-      setSlotId((current) =>
-        result.some((slot: TimeSlot) => slot.id === current && slot.available !== false)
-          ? current
-          : (firstAvailable?.id ?? ""),
-      );
-    });
-  }, [addressId, date]);
-
-  const total = useMemo(() => subtotal + 250, [subtotal]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const deliveryAvailability = getDeliveryDateAvailability(date);
+  const liftFee = needsLift ? LIFT_SERVICE_FEE : 0;
+  const total = useMemo(() => subtotal + liftFee, [liftFee, subtotal]);
 
   async function submitOrder() {
     setError("");
@@ -90,18 +60,19 @@ export function CheckoutClient({
       return;
     }
 
-    if (!slotId) {
-      setError("Выберите доступный временной интервал после адреса доставки.");
+    if (!deliveryAvailability.available) {
+      setError(deliveryAvailability.reason ?? "Выберите другую дату доставки.");
       return;
     }
 
+    setIsSubmitting(true);
     const response = await fetch("/api/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         addressId,
         deliveryDate: date,
-        deliveryTimeSlotId: slotId,
+        needsLift,
         customerComment: comment,
         items: items.map((item) => ({
           productId: item.productId,
@@ -109,6 +80,7 @@ export function CheckoutClient({
         })),
       }),
     });
+    setIsSubmitting(false);
 
     const result = await response.json();
 
@@ -186,8 +158,8 @@ export function CheckoutClient({
           <div className="space-y-2">
             <h2 className="text-xl font-semibold">Оформление заказа</h2>
             <p className="text-sm text-[var(--muted)]">
-              Сумма по весовым товарам предварительная. После сборки администратор
-              уточнит итог.
+              Сумма по весовым товарам предварительная. Доставим в течение дня,
+              после сборки администратор уточнит итог.
             </p>
           </div>
 
@@ -229,52 +201,37 @@ export function CheckoutClient({
             <input
               type="date"
               value={date}
+              min={minDeliveryDate}
               onChange={(event) => setDate(event.target.value)}
               className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
             />
+            {!deliveryAvailability.available ? (
+              <span className="block rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                {deliveryAvailability.reason}
+              </span>
+            ) : null}
           </label>
 
-          <label className="space-y-2 text-sm font-medium">
-            <span className="flex items-center gap-2">
-              <Clock3 size={16} />
-              Временной интервал
+          <div className="rounded-2xl bg-white/75 px-4 py-3 text-sm text-[var(--muted)] ring-1 ring-[var(--line)]">
+            Точное время согласуем при сборке. Заказ приедет в течение дня.
+          </div>
+
+          <label className="flex items-start gap-3 rounded-2xl bg-white/85 p-4 text-sm ring-1 ring-[var(--line)]">
+            <input
+              type="checkbox"
+              checked={needsLift}
+              onChange={(event) => setNeedsLift(event.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              <span className="flex items-center gap-2 font-semibold">
+                <ArrowUp size={16} />
+                Нужен подъём до двери
+              </span>
+              <span className="mt-1 block text-[var(--muted)]">
+                Добавим {formatCurrency(LIFT_SERVICE_FEE)} к заказу.
+              </span>
             </span>
-            <select
-              value={slotId}
-              onChange={(event) => setSlotId(event.target.value)}
-              disabled={!addressId || slots.length === 0}
-              className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
-            >
-              {slots.map((slot) => (
-                <option
-                  key={slot.id}
-                  value={slot.id}
-                  disabled={slot.available === false}
-                >
-                  {slot.title}
-                  {slot.available === false
-                    ? ` — ${slot.reason ?? "недоступен"}`
-                    : ""}
-                </option>
-              ))}
-            </select>
-            {!addressId && (
-              <span className="block rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                Сначала выберите адрес доставки. После этого система покажет только
-                подходящие временные интервалы.
-              </span>
-            )}
-            {addressId && slots.length > 0 && (
-              <span className="block text-xs leading-relaxed text-[var(--muted)]">
-                В одном интервале принимаем заказы в радиусе до 2 км, чтобы курьер
-                успевал без гонок по всему городу.
-              </span>
-            )}
-            {addressId && slots.length === 0 && (
-              <span className="block rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-900">
-                На выбранную дату нет доступных интервалов для этого адреса.
-              </span>
-            )}
           </label>
 
           <label className="space-y-2 text-sm font-medium">
@@ -294,8 +251,8 @@ export function CheckoutClient({
               <span>{formatCurrency(subtotal)}</span>
             </div>
             <div className="mt-2 flex items-center justify-between text-sm text-[var(--muted)]">
-              <span>Доставка</span>
-              <span>{formatCurrency(250)}</span>
+              <span>Подъём</span>
+              <span>{needsLift ? formatCurrency(LIFT_SERVICE_FEE) : "не нужен"}</span>
             </div>
             <div className="mt-4 flex items-center justify-between border-t border-[var(--line)] pt-4 text-lg font-bold">
               <span>Итого</span>
@@ -317,9 +274,14 @@ export function CheckoutClient({
           <Button
             className="w-full"
             onClick={() => submitOrder()}
-            disabled={isPending || !addressId || !slotId || items.length === 0}
+            disabled={
+              isSubmitting ||
+              !addressId ||
+              !deliveryAvailability.available ||
+              items.length === 0
+            }
           >
-            {isPending ? "Проверяем слот..." : "Оформить заказ"}
+            {isSubmitting ? "Оформляем..." : "Оформить заказ"}
           </Button>
         </div>
       </aside>

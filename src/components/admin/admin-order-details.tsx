@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   ArrowLeft,
+  ArrowUp,
   CalendarDays,
   FileText,
   MapPin,
@@ -49,6 +50,8 @@ type AdminOrderDetailsOrder = {
   deliveryDate: string;
   preliminaryTotal: number | string;
   finalTotal: number | string | null;
+  needsLift?: boolean;
+  liftFee?: number | string | null;
   customerComment?: string | null;
   adminComment?: string | null;
   user: { name: string; phone?: string | null; email?: string | null };
@@ -217,6 +220,13 @@ export function AdminOrderDetails({
                 <MapPin size={16} />
                 {getAddressLabel(order)}
               </p>
+              {order.needsLift ? (
+                <p className="flex items-center gap-2 font-semibold text-[var(--accent-strong)]">
+                  <ArrowUp size={16} />
+                  Нужен подъём до двери
+                  {order.liftFee ? ` · ${formatCurrency(order.liftFee)}` : ""}
+                </p>
+              ) : null}
             </div>
             <div className="mt-4">
               <PhoneCallLink phone={order.user.phone} />

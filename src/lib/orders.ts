@@ -15,6 +15,14 @@ import {
 } from "@/lib/constants";
 import { prisma, readWithPrismaRetry } from "@/lib/db";
 import {
+  DEFAULT_DELIVERY_SLOT_CAPACITY,
+  DEFAULT_DELIVERY_SLOT_END,
+  DEFAULT_DELIVERY_SLOT_START,
+  DEFAULT_DELIVERY_SLOT_TITLE,
+  LIFT_SERVICE_FEE,
+  getDeliveryDateAvailability,
+} from "@/lib/delivery-rules";
+import {
   sendPushForNotification,
   sendPushForNotifications,
 } from "@/lib/push-notifications";
@@ -233,17 +241,53 @@ function getTotalsFromExistingItems(
     preliminarySum: number | string | { toString(): string };
     finalSum?: number | string | { toString(): string } | null;
   }>,
+  liftFee: number | string | { toString(): string } | null | undefined = 0,
 ) {
+  const extraFee = DELIVERY_FEE + Number(liftFee ?? 0);
+
   return {
     preliminaryTotal:
       items.reduce((sum, item) => sum + Number(item.preliminarySum), 0) +
-      DELIVERY_FEE,
+      extraFee,
     finalTotal:
       items.reduce(
         (sum, item) => sum + Number(item.finalSum ?? item.preliminarySum),
         0,
-      ) + DELIVERY_FEE,
+      ) + extraFee,
   };
+}
+
+function getLiftFee(needsLift: boolean) {
+  return needsLift ? LIFT_SERVICE_FEE : 0;
+}
+
+function assertCustomerDeliveryDateAvailable(deliveryDate: string) {
+  const availability = getDeliveryDateAvailability(deliveryDate);
+
+  if (!availability.available) {
+    throw new ApiError(availability.reason ?? "Выберите другую дату доставки", 400);
+  }
+}
+
+async function getDefaultDeliveryTimeSlot(
+  client: Prisma.TransactionClient | typeof prisma = prisma,
+) {
+  return client.deliveryTimeSlot.upsert({
+    where: { title: DEFAULT_DELIVERY_SLOT_TITLE },
+    update: {
+      startTime: DEFAULT_DELIVERY_SLOT_START,
+      endTime: DEFAULT_DELIVERY_SLOT_END,
+      maxOrders: DEFAULT_DELIVERY_SLOT_CAPACITY,
+      isActive: true,
+    },
+    create: {
+      title: DEFAULT_DELIVERY_SLOT_TITLE,
+      startTime: DEFAULT_DELIVERY_SLOT_START,
+      endTime: DEFAULT_DELIVERY_SLOT_END,
+      maxOrders: DEFAULT_DELIVERY_SLOT_CAPACITY,
+      isActive: true,
+    },
+  });
 }
 
 async function createNotification(params: {
@@ -336,7 +380,10 @@ async function validateTimeSlotCapacity(
   }
 }
 
-async function buildOrderItems(items: OrderInputLine[]) {
+async function buildOrderItems(
+  items: OrderInputLine[],
+  options: { needsLift?: boolean } = {},
+) {
   const productIds = [...new Set(items.map((item) => item.productId))];
   const products = await prisma.product.findMany({
     where: {
@@ -375,15 +422,18 @@ async function buildOrderItems(items: OrderInputLine[]) {
     };
   });
 
+  const liftFee = getLiftFee(Boolean(options.needsLift));
+  const extraFee = DELIVERY_FEE + liftFee;
   const preliminaryTotal =
-    itemRows.reduce((sum, item) => sum + item.preliminarySum, 0) + DELIVERY_FEE;
+    itemRows.reduce((sum, item) => sum + item.preliminarySum, 0) + extraFee;
   const finalTotal =
-    itemRows.reduce((sum, item) => sum + item.finalSum, 0) + DELIVERY_FEE;
+    itemRows.reduce((sum, item) => sum + item.finalSum, 0) + extraFee;
 
   return {
     itemRows,
     preliminaryTotal,
     finalTotal,
+    liftFee,
   };
 }
 
@@ -735,11 +785,13 @@ export async function getAvailableTimeSlots(
   } = {},
 ) {
   const date = dateStringToDbDate(deliveryDate);
+  const deliveryDateAvailability = getDeliveryDateAvailability(deliveryDate);
   const candidateAddress = filters.addressId
     ? await prisma.address.findFirst({
         where: {
           id: filters.addressId,
           userId: filters.userId,
+          isDeleted: false,
         },
       })
     : null;
@@ -800,6 +852,16 @@ export async function getAvailableTimeSlots(
 
   return slots.map((slot) => {
     const reserved = countsMap.get(slot.id) ?? 0;
+    if (!deliveryDateAvailability.available) {
+      return {
+        ...slot,
+        reserved,
+        available: false,
+        reason: deliveryDateAvailability.reason,
+        distanceLimitKm: MAX_SLOT_DISTANCE_KM,
+      };
+    }
+
     const hasCapacity = reserved < slot.maxOrders;
     const distanceCheck = checkSlotDistance(
       candidateAddress,
@@ -863,9 +925,10 @@ export async function getCustomerOrderById(userId: string, orderId: string) {
 
 export async function createOrderForCustomer(userId: string, input: unknown) {
   const data = createOrderSchema.parse(input);
+  assertCustomerDeliveryDateAvailable(data.deliveryDate);
   const [address, sharedCart] = await Promise.all([
     prisma.address.findFirst({
-      where: { id: data.addressId, userId },
+      where: { id: data.addressId, userId, isDeleted: false },
     }),
     data.sharedCartToken
       ? prisma.sharedCart.findFirst({
@@ -902,16 +965,13 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
     }
   }
 
-  await validateTimeSlotCapacity(
-    data.deliveryDate,
-    data.deliveryTimeSlotId,
-    undefined,
-    address,
-  );
   const orderInputItems = sharedCart
     ? aggregateSharedCartOrderItems(sharedCart.items)
     : data.items;
-  const built = await buildOrderItems(orderInputItems);
+  const deliveryTimeSlot = await getDefaultDeliveryTimeSlot();
+  const built = await buildOrderItems(orderInputItems, {
+    needsLift: data.needsLift,
+  });
 
   const order = await prisma.$transaction(async (tx) => {
     const createdOrder = await tx.order.create({
@@ -922,10 +982,12 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
         sharedCartId: sharedCart?.id,
         sharedCartTitle: sharedCart?.title,
         deliveryDate: dateStringToDbDate(data.deliveryDate),
-        deliveryTimeSlotId: data.deliveryTimeSlotId,
+        deliveryTimeSlotId: deliveryTimeSlot.id,
         status: OrderStatus.NEW,
         preliminaryTotal: built.preliminaryTotal,
         finalTotal: built.finalTotal,
+        needsLift: data.needsLift,
+        liftFee: built.liftFee,
         customerComment: data.customerComment || null,
         editableUntil: new Date(Date.now() + CUSTOMER_ORDER_EDIT_WINDOW_MS),
         items: {
@@ -983,21 +1045,23 @@ export async function updateOrderByCustomer(
     throw new ApiError("Самостоятельное редактирование уже недоступно", 403);
   }
 
+  const existingDeliveryDate = format(existing.deliveryDate, "yyyy-MM-dd");
+  if (data.deliveryDate !== existingDeliveryDate) {
+    assertCustomerDeliveryDateAvailable(data.deliveryDate);
+  }
+
   const address = await prisma.address.findFirst({
-    where: { id: data.addressId, userId },
+    where: { id: data.addressId, userId, isDeleted: false },
   });
 
   if (!address) {
     throw new ApiError("Адрес не найден", 404);
   }
 
-  await validateTimeSlotCapacity(
-    data.deliveryDate,
-    data.deliveryTimeSlotId,
-    orderId,
-    address,
-  );
-  const built = await buildOrderItems(data.items);
+  const deliveryTimeSlot = await getDefaultDeliveryTimeSlot();
+  const built = await buildOrderItems(data.items, {
+    needsLift: data.needsLift,
+  });
 
   const order = await prisma.$transaction(async (tx) => {
     await tx.orderItem.deleteMany({
@@ -1009,10 +1073,12 @@ export async function updateOrderByCustomer(
       data: {
         addressId: data.addressId,
         deliveryDate: dateStringToDbDate(data.deliveryDate),
-        deliveryTimeSlotId: data.deliveryTimeSlotId,
+        deliveryTimeSlotId: deliveryTimeSlot.id,
         customerComment: data.customerComment || null,
         preliminaryTotal: built.preliminaryTotal,
         finalTotal: built.finalTotal,
+        needsLift: data.needsLift,
+        liftFee: built.liftFee,
         status: data.status ?? existing.status,
         items: {
           createMany: {
@@ -1045,6 +1111,7 @@ export async function rescheduleOrderByCustomer(
   input: unknown,
 ) {
   const data = orderRescheduleSchema.parse(input);
+  assertCustomerDeliveryDateAvailable(data.deliveryDate);
   const existing = await prisma.order.findFirst({
     where: { id: orderId, userId },
     include: {
@@ -1068,19 +1135,14 @@ export async function rescheduleOrderByCustomer(
     throw new ApiError("Перенос даты сейчас недоступен", 403);
   }
 
-  await validateTimeSlotCapacity(
-    data.deliveryDate,
-    data.deliveryTimeSlotId,
-    orderId,
-    existing.address,
-  );
+  const deliveryTimeSlot = await getDefaultDeliveryTimeSlot();
 
   const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.order.update({
       where: { id: orderId },
       data: {
         deliveryDate: dateStringToDbDate(data.deliveryDate),
-        deliveryTimeSlotId: data.deliveryTimeSlotId,
+        deliveryTimeSlotId: deliveryTimeSlot.id,
         status: OrderStatus.PENDING_CONFIRMATION,
       },
       include: {
@@ -1211,7 +1273,7 @@ export async function removeUnavailableOrderItemByCustomer(
       };
     }
 
-    const totals = getTotalsFromExistingItems(remainingItems);
+    const totals = getTotalsFromExistingItems(remainingItems, order.liftFee);
 
     await tx.orderItem.delete({
       where: { id: unavailableItem.id },
@@ -1642,8 +1704,10 @@ export async function updateOrderStatusByAdmin(orderId: string, input: unknown) 
 
 export async function updateOrderItemsByAdmin(orderId: string, input: unknown) {
   const data = orderItemsSchema.parse(input);
-  await getAdminOrder(orderId);
-  const built = await buildOrderItems(data.items);
+  const order = await getAdminOrder(orderId);
+  const built = await buildOrderItems(data.items, {
+    needsLift: order.needsLift,
+  });
 
   return prisma.$transaction(async (tx) => {
     await tx.orderItem.deleteMany({

@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
+import { ArrowUp, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  LIFT_SERVICE_FEE,
+  getDefaultDeliveryDate,
+  getDeliveryDateAvailability,
+} from "@/lib/delivery-rules";
+import { formatCurrency } from "@/lib/utils";
 
 type AddressOption = {
   id: string;
@@ -21,13 +27,6 @@ type EditableOrderItem = {
   quantity: number;
 };
 
-type TimeSlot = {
-  id: string;
-  title: string;
-  available?: boolean;
-  reason?: string | null;
-};
-
 type CustomerOrderActionsProps = {
   order: {
     id: string;
@@ -36,6 +35,7 @@ type CustomerOrderActionsProps = {
     addressId: string;
     deliveryDate: string;
     deliveryTimeSlotId: string;
+    needsLift: boolean;
     customerComment: string;
     items: EditableOrderItem[];
   };
@@ -62,16 +62,15 @@ export function CustomerOrderActions({
   const [isOpen, setIsOpen] = useState(false);
   const [addressId, setAddressId] = useState(order.addressId);
   const [deliveryDate, setDeliveryDate] = useState(order.deliveryDate);
-  const [deliveryTimeSlotId, setDeliveryTimeSlotId] = useState(
-    order.deliveryTimeSlotId,
-  );
+  const [needsLift, setNeedsLift] = useState(order.needsLift);
   const [customerComment, setCustomerComment] = useState(order.customerComment);
   const [items, setItems] = useState(() => getInitialItems(order.items));
-  const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busyAction, setBusyAction] = useState<"save" | "cancel" | "">("");
   const [isPending, startTransition] = useTransition();
+  const minDeliveryDate = getDefaultDeliveryDate();
+  const deliveryAvailability = getDeliveryDateAvailability(deliveryDate);
   const hasUneditableItems = items.some((item) => !item.productId);
 
   function isEditableNow() {
@@ -83,34 +82,10 @@ export function CustomerOrderActions({
     );
   }
 
-  useEffect(() => {
-    if (!isOpen || !addressId) {
-      return;
-    }
-
-    startTransition(async () => {
-      const searchParams = new URLSearchParams({
-        date: deliveryDate,
-        addressId,
-        excludeOrderId: order.id,
-      });
-      const response = await fetch(`/api/time-slots/available?${searchParams}`);
-      const result: TimeSlot[] = await response.json();
-      const firstAvailable = result.find((slot) => slot.available !== false);
-
-      setSlots(result);
-      setDeliveryTimeSlotId((current) =>
-        result.some((slot) => slot.id === current && slot.available !== false)
-          ? current
-          : (firstAvailable?.id ?? ""),
-      );
-    });
-  }, [addressId, deliveryDate, isOpen, order.id]);
-
   function resetForm() {
     setAddressId(order.addressId);
     setDeliveryDate(order.deliveryDate);
-    setDeliveryTimeSlotId(order.deliveryTimeSlotId);
+    setNeedsLift(order.needsLift);
     setCustomerComment(order.customerComment);
     setItems(getInitialItems(order.items));
     setError("");
@@ -138,8 +113,8 @@ export function CustomerOrderActions({
       return;
     }
 
-    if (!deliveryTimeSlotId) {
-      setError("Выберите доступный временной интервал.");
+    if (!deliveryAvailability.available) {
+      setError(deliveryAvailability.reason ?? "Выберите другую дату доставки.");
       return;
     }
 
@@ -160,7 +135,7 @@ export function CustomerOrderActions({
       body: JSON.stringify({
         addressId,
         deliveryDate,
-        deliveryTimeSlotId,
+        needsLift,
         customerComment,
         items: items.map((item) => ({
           productId: item.productId,
@@ -246,7 +221,7 @@ export function CustomerOrderActions({
 
       {isOpen ? (
         <div className="space-y-4 rounded-[1.5rem] bg-white/80 p-4 ring-1 ring-[var(--line)]">
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2">
             <label className="space-y-2 text-sm font-medium">
               <span>Адрес</span>
               <select
@@ -267,37 +242,39 @@ export function CustomerOrderActions({
               <input
                 type="date"
                 value={deliveryDate}
+                min={minDeliveryDate}
                 onChange={(event) => setDeliveryDate(event.target.value)}
                 className="h-11 w-full rounded-2xl bg-white px-3 outline-none ring-1 ring-[var(--line)]"
               />
-            </label>
-
-            <label className="space-y-2 text-sm font-medium">
-              <span>Интервал</span>
-              <select
-                value={deliveryTimeSlotId}
-                onChange={(event) => setDeliveryTimeSlotId(event.target.value)}
-                className="h-11 w-full rounded-2xl bg-white px-3 outline-none ring-1 ring-[var(--line)]"
-              >
-                {slots.length === 0 ? (
-                  <option value={deliveryTimeSlotId}>Текущий интервал</option>
-                ) : (
-                  slots.map((slot) => (
-                    <option
-                      key={slot.id}
-                      value={slot.id}
-                      disabled={slot.available === false}
-                    >
-                      {slot.title}
-                      {slot.available === false
-                        ? ` — ${slot.reason ?? "недоступен"}`
-                        : ""}
-                    </option>
-                  ))
-                )}
-              </select>
+              {!deliveryAvailability.available ? (
+                <span className="block rounded-2xl bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  {deliveryAvailability.reason}
+                </span>
+              ) : null}
             </label>
           </div>
+
+          <div className="rounded-2xl bg-white/80 px-4 py-3 text-sm text-[var(--muted)] ring-1 ring-[var(--line)]">
+            Доставка будет в течение дня. Точное время согласуем при сборке.
+          </div>
+
+          <label className="flex items-start gap-3 rounded-2xl bg-white/80 p-4 text-sm ring-1 ring-[var(--line)]">
+            <input
+              type="checkbox"
+              checked={needsLift}
+              onChange={(event) => setNeedsLift(event.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              <span className="flex items-center gap-2 font-semibold">
+                <ArrowUp size={16} />
+                Нужен подъём до двери
+              </span>
+              <span className="mt-1 block text-[var(--muted)]">
+                {formatCurrency(LIFT_SERVICE_FEE)}
+              </span>
+            </span>
+          </label>
 
           <div className="space-y-2">
             <p className="text-sm font-semibold">Состав заказа</p>
@@ -344,7 +321,11 @@ export function CustomerOrderActions({
 
           <Button
             onClick={saveOrder}
-            disabled={busyAction === "save" || isPending || !deliveryTimeSlotId}
+            disabled={
+              busyAction === "save" ||
+              isPending ||
+              !deliveryAvailability.available
+            }
           >
             {busyAction === "save" ? "Сохраняем..." : "Сохранить изменения"}
           </Button>

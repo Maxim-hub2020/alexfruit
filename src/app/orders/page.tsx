@@ -73,11 +73,16 @@ export default async function OrdersPage() {
                     ) : null}
                   </div>
                   <p className="text-sm text-[var(--muted)]">
-                    Доставка {formatDateInputValue(order.deliveryDate)} · {order.deliveryTimeSlot.title}
+                    Доставка {formatDateInputValue(order.deliveryDate)} · в течение дня
                   </p>
                   <p className="text-sm text-[var(--muted)]">
                     {order.address.city}, {order.address.street}, {order.address.house}
                   </p>
+                  {order.needsLift ? (
+                    <p className="text-sm font-semibold text-[var(--accent-strong)]">
+                      Нужен подъём до двери
+                    </p>
+                  ) : null}
                   <div className="flex flex-wrap gap-2 pt-2">
                     {order.items.map((item) => (
                       <span
@@ -120,6 +125,7 @@ export default async function OrdersPage() {
                   addressId: order.addressId,
                   deliveryDate: formatDateInputValue(order.deliveryDate),
                   deliveryTimeSlotId: order.deliveryTimeSlotId,
+                  needsLift: order.needsLift,
                   customerComment: order.customerComment ?? "",
                   items: order.items.map((item) => ({
                     id: item.id,
@@ -136,7 +142,6 @@ export default async function OrdersPage() {
                   orderId={order.id}
                   notificationId={notification.id}
                   unavailableProductName={getUnavailableProductName(notification)}
-                  addressId={order.address.id}
                   currentDate={formatDateInputValue(order.deliveryDate)}
                   currentSlotTitle={order.deliveryTimeSlot.title}
                 />

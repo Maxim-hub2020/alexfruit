@@ -1,16 +1,13 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-type TimeSlot = {
-  id: string;
-  title: string;
-  available?: boolean;
-  reason?: string | null;
-};
+import {
+  getDefaultDeliveryDate,
+  getDeliveryDateAvailability,
+} from "@/lib/delivery-rules";
 
 function getTomorrowDate(value: string) {
   const date = new Date(`${value}T00:00:00.000`);
@@ -23,55 +20,36 @@ export function RescheduleOrderDelivery({
   orderId,
   notificationId,
   unavailableProductName,
-  addressId,
   currentDate,
   currentSlotTitle,
 }: {
   orderId: string;
   notificationId: string;
   unavailableProductName: string;
-  addressId: string;
   currentDate: string;
   currentSlotTitle: string;
 }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const [date, setDate] = useState(() => getTomorrowDate(currentDate));
-  const [slots, setSlots] = useState<TimeSlot[]>([]);
-  const [slotId, setSlotId] = useState("");
+  const minDeliveryDate = getDefaultDeliveryDate();
+  const [date, setDate] = useState(() => {
+    const tomorrow = getTomorrowDate(currentDate);
+
+    return tomorrow > minDeliveryDate ? tomorrow : minDeliveryDate;
+  });
   const [busyAction, setBusyAction] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    startTransition(async () => {
-      const response = await fetch(
-        `/api/time-slots/available?date=${date}&addressId=${addressId}`,
-      );
-      const result: TimeSlot[] = await response.json();
-      const firstAvailable = result.find((slot) => slot.available !== false);
-
-      setSlots(result);
-      setSlotId((current) =>
-        result.some((slot) => slot.id === current && slot.available !== false)
-          ? current
-          : (firstAvailable?.id ?? ""),
-      );
-    });
-  }, [addressId, date, isOpen]);
+  const deliveryAvailability = getDeliveryDateAvailability(date);
 
   async function submit() {
     setError("");
     setMessage("");
     setBusyAction("reschedule");
 
-    if (!slotId) {
-      setError("Выберите доступный временной интервал.");
+    if (!deliveryAvailability.available) {
+      setError(deliveryAvailability.reason ?? "Выберите другую дату доставки.");
       setBusyAction("");
       return;
     }
@@ -81,7 +59,6 @@ export function RescheduleOrderDelivery({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         deliveryDate: date,
-        deliveryTimeSlotId: slotId,
       }),
     });
     const result = await response.json();
@@ -155,40 +132,27 @@ export function RescheduleOrderDelivery({
       </div>
 
       {isOpen && (
-        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
           <label className="space-y-2 font-medium">
             <span>Новая дата</span>
             <input
               type="date"
               value={date}
+              min={minDeliveryDate}
               onChange={(event) => setDate(event.target.value)}
               className="h-11 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-amber-100"
             />
+            {!deliveryAvailability.available ? (
+              <span className="block rounded-2xl bg-white px-3 py-2 text-xs text-amber-900">
+                {deliveryAvailability.reason}
+              </span>
+            ) : null}
           </label>
 
-          <label className="space-y-2 font-medium">
-            <span>Интервал</span>
-            <select
-              value={slotId}
-              onChange={(event) => setSlotId(event.target.value)}
-              className="h-11 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-amber-100"
-            >
-              {slots.map((slot) => (
-                <option
-                  key={slot.id}
-                  value={slot.id}
-                  disabled={slot.available === false}
-                >
-                  {slot.title}
-                  {slot.available === false
-                    ? ` — ${slot.reason ?? "недоступен"}`
-                    : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <Button onClick={submit} disabled={isPending || !slotId || Boolean(busyAction)}>
+          <Button
+            onClick={submit}
+            disabled={isPending || !deliveryAvailability.available || Boolean(busyAction)}
+          >
             {busyAction === "reschedule" ? "Сохраняем..." : "Сохранить"}
           </Button>
         </div>
