@@ -19,19 +19,30 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL не задан");
 }
 
+const adminPhone = phone;
+const adminPassword = password;
+const adminName = name;
+
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
 
-try {
-  const passwordHash = await bcrypt.hash(password, 10);
+async function main() {
+  const passwordHash = await bcrypt.hash(adminPassword, 10);
   const user = await prisma.user.upsert({
-    where: { phone },
-    update: { name, passwordHash, role: Role.ADMIN },
-    create: { name, phone, passwordHash, role: Role.ADMIN },
+    where: { phone: adminPhone },
+    update: { name: adminName, passwordHash, role: Role.ADMIN },
+    create: { name: adminName, phone: adminPhone, passwordHash, role: Role.ADMIN },
   });
 
   console.log(`Admin ready: ${user.name} ${user.phone}`);
-} finally {
-  await prisma.$disconnect();
 }
+
+main()
+  .finally(async () => {
+    await prisma.$disconnect();
+  })
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
