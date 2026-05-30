@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { MapPin, Navigation, Route, TriangleAlert } from "lucide-react";
 import { StatusPill } from "@/components/ui/status-pill";
-import { getAddressLabel } from "@/lib/utils";
+import { getAddressLabel, getMapAddressLabel } from "@/lib/utils";
 
 type CoordinateValue = number | string | { toString(): string } | null | undefined;
 
@@ -59,7 +59,7 @@ function toCoordinate(value: CoordinateValue) {
 
 function getRoutePoint(order: DeliveryRouteOrder): RoutePoint {
   return {
-    address: getAddressLabel(order.address),
+    address: getMapAddressLabel(order.address),
     courier: order.courier?.name ?? "Без курьера",
     label: order.orderNumber,
     latitude: toCoordinate(order.address.latitude),
@@ -343,7 +343,7 @@ export function YandexRoutePanel({ orders }: { orders: DeliveryRouteOrder[] }) {
                     <p className="mt-2 flex gap-2 text-sm text-[var(--muted)]">
                       <MapPin size={15} className="mt-0.5 shrink-0" />
                       <span>
-                        {point.address} · {point.order.deliveryTimeSlot.title}
+                        {getAddressLabel(point.order.address)} · {point.order.deliveryTimeSlot.title}
                       </span>
                     </p>
                   </div>

@@ -1,4 +1,4 @@
-import { getAddressLabel } from "@/lib/utils";
+import { getMapAddressLabel } from "@/lib/utils";
 
 export type CoordinateValue =
   | number
@@ -44,7 +44,7 @@ export function toCoordinate(value: CoordinateValue) {
 
 export function routePointFromAddress(address: RouteAddress): RouteQueryPoint {
   return {
-    address: getAddressLabel(address),
+    address: getMapAddressLabel(address),
     latitude: toCoordinate(address.latitude),
     longitude: toCoordinate(address.longitude),
   };

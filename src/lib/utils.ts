@@ -31,13 +31,22 @@ export function formatDateInputValue(value: Date | string) {
   return format(date, "yyyy-MM-dd");
 }
 
-export function getAddressLabel(address: {
+type AddressLabelParts = {
   city: string;
   street: string;
   house: string;
   apartment?: string | null;
-}) {
-  return `${address.city}, ${address.street}, ${address.house}${
+};
+
+export function getMapAddressLabel(address: AddressLabelParts) {
+  return [address.city, address.street, address.house]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+export function getAddressLabel(address: AddressLabelParts) {
+  return `${getMapAddressLabel(address)}${
     address.apartment ? `, кв. ${address.apartment}` : ""
   }`;
 }
