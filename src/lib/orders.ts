@@ -1605,7 +1605,6 @@ export async function getAdminOrders(filters: {
       OR: [
         { name: { contains: filters.customer, mode: "insensitive" } },
         { phone: { contains: filters.customer } },
-        { email: { contains: filters.customer, mode: "insensitive" } },
       ],
     };
   }
@@ -2016,7 +2015,6 @@ function buildCourierHistorySearch(query?: string | null): Prisma.OrderWhereInpu
       { orderNumber: { contains: normalizedQuery, mode: "insensitive" } },
       { user: { name: { contains: normalizedQuery, mode: "insensitive" } } },
       { user: { phone: { contains: normalizedQuery } } },
-      { user: { email: { contains: normalizedQuery, mode: "insensitive" } } },
       { address: { city: { contains: normalizedQuery, mode: "insensitive" } } },
       { address: { street: { contains: normalizedQuery, mode: "insensitive" } } },
       { address: { house: { contains: normalizedQuery, mode: "insensitive" } } },

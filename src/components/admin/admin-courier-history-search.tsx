@@ -17,7 +17,6 @@ type CourierOption = {
   id: string;
   name: string;
   phone?: string | null;
-  email?: string | null;
 };
 
 type CourierHistoryTask = {
@@ -27,7 +26,6 @@ type CourierHistoryTask = {
     id: string;
     name: string;
     phone?: string | null;
-    email?: string | null;
     courierProfile?: {
       name: string;
       phone?: string | null;
@@ -42,7 +40,6 @@ type CourierHistoryTask = {
     user: {
       name: string;
       phone?: string | null;
-      email?: string | null;
     };
     address: {
       city: string;

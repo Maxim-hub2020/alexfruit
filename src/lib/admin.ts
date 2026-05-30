@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { format } from "date-fns";
 import { DeliveryTaskStatus, OrderStatus, Prisma, Role } from "@/generated/prisma";
 import { ApiError } from "@/lib/api";
+import { normalizeRussianPhone } from "@/lib/auth";
 import { orderStatusMeta } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { adminCourierSchema } from "@/lib/validators";
@@ -46,7 +47,6 @@ function buildDeliveryHistorySearch(query?: string | null): Prisma.OrderWhereInp
       { orderNumber: { contains: normalizedQuery, mode: "insensitive" } },
       { user: { name: { contains: normalizedQuery, mode: "insensitive" } } },
       { user: { phone: { contains: normalizedQuery } } },
-      { user: { email: { contains: normalizedQuery, mode: "insensitive" } } },
       { address: { city: { contains: normalizedQuery, mode: "insensitive" } } },
       { address: { street: { contains: normalizedQuery, mode: "insensitive" } } },
       { address: { house: { contains: normalizedQuery, mode: "insensitive" } } },
@@ -74,30 +74,24 @@ function getLastDateKeys(days: number) {
 
 export async function createCourier(input: unknown) {
   const data = adminCourierSchema.parse(input);
-  const email = data.email || null;
-  const phone = data.phone || null;
-  const uniqueChecks = [
-    ...(email ? [{ email }] : []),
-    ...(phone ? [{ phone }] : []),
-  ];
+  const phone = normalizeRussianPhone(data.phone);
 
-  const existingUser =
-    uniqueChecks.length > 0
-      ? await prisma.user.findFirst({
-          where: {
-            OR: uniqueChecks,
-          },
-        })
-      : null;
+  if (!/^\+7\d{10}$/.test(phone)) {
+    throw new ApiError("Укажите телефон курьера в формате +7XXXXXXXXXX", 400);
+  }
+
+  const existingUser = await prisma.user.findFirst({
+    where: { phone },
+  });
 
   if (existingUser) {
-    throw new ApiError("Пользователь с такими контактами уже существует", 409);
+    throw new ApiError("Пользователь с таким телефоном уже существует", 409);
   }
 
   return prisma.user.create({
     data: {
       name: data.name,
-      email,
+      email: null,
       phone,
       passwordHash: await bcrypt.hash(data.password, 10),
       role: Role.COURIER,
@@ -112,7 +106,6 @@ export async function createCourier(input: unknown) {
     select: {
       id: true,
       name: true,
-      email: true,
       phone: true,
       role: true,
       createdAt: true,
@@ -196,7 +189,6 @@ export async function getAdminCourierBoard() {
         select: {
           id: true,
           name: true,
-          email: true,
           phone: true,
           createdAt: true,
           assignedOrders: {
@@ -226,7 +218,6 @@ export async function getAdminCourierBoard() {
       courierProfileId: profile.id,
       name: profile.name || profile.user.name,
       phone: profile.phone || profile.user.phone,
-      email: profile.user.email,
       createdAt: profile.user.createdAt,
       ordersCount: orders.length,
       activeOrders: orders.filter((order) => activeOrderStatuses.includes(order.status)).length,
@@ -269,7 +260,6 @@ export async function searchCourierDeliveryHistory(filters: {
           id: true,
           name: true,
           phone: true,
-          email: true,
           courierProfile: {
             select: {
               name: true,
@@ -319,7 +309,6 @@ export async function getAdminAnalytics() {
           select: {
             id: true,
             name: true,
-            email: true,
             phone: true,
             assignedOrders: {
               select: {
@@ -409,7 +398,6 @@ export async function getAdminAnalytics() {
       id: profile.userId,
       name: profile.name || profile.user.name,
       phone: profile.phone || profile.user.phone,
-      email: profile.user.email,
       isActive: profile.isActive,
       assignedOrders: assignedOrders.length,
       activeOrders: assignedOrders.filter((order) => activeOrderStatuses.includes(order.status))

@@ -54,7 +54,7 @@ type AdminOrderDetailsOrder = {
   liftFee?: number | string | null;
   customerComment?: string | null;
   adminComment?: string | null;
-  user: { name: string; phone?: string | null; email?: string | null };
+  user: { name: string; phone?: string | null };
   address: {
     city: string;
     street: string;

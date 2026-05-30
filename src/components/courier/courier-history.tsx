@@ -17,7 +17,6 @@ type CourierHistoryTask = {
     user: {
       name: string;
       phone?: string | null;
-      email?: string | null;
     };
     address: {
       city: string;

@@ -147,7 +147,6 @@ export const assignCourierSchema = z.object({
 });
 
 export const adminCourierSchema = z.object({
-  email: z.string().trim().email().optional().or(z.literal("")),
   phone: z.string().trim().min(10, "Укажите телефон курьера"),
   name: z.string().trim().min(2, "Укажите имя курьера"),
   password: z.string().min(6, "Минимум 6 символов"),

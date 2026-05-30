@@ -32,7 +32,7 @@ export function MainShell({
     <div
       className={cn(
         "relative min-h-screen pb-28 pt-24 md:pt-28",
-        isAdmin && "md:pb-40",
+        (isAdmin || isCourier) && "md:pb-40",
       )}
     >
       <header className="fixed inset-x-0 top-0 z-40 px-3 pt-3">
@@ -53,7 +53,9 @@ export function MainShell({
             </div>
           </Link>
 
-          {!isAdmin ? <DesktopLiquidNav active={active} role={user?.role} /> : null}
+          {!isAdmin && !isCourier ? (
+            <DesktopLiquidNav active={active} role={user?.role} />
+          ) : null}
 
           <div className="flex shrink-0 items-center gap-2">
             {(isAdmin || isCourier) && (
@@ -88,11 +90,14 @@ export function MainShell({
 
       <main>{children}</main>
 
-      {isAdmin ? (
+      {isAdmin || isCourier ? (
         <div className="admin-nav-dock">
           <DesktopLiquidNav
             active={active}
-            className="admin-desktop-liquid-nav"
+            className={cn(
+              "admin-desktop-liquid-nav",
+              isCourier && "courier-desktop-liquid-nav",
+            )}
             role={user?.role}
           />
         </div>

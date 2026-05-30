@@ -46,7 +46,7 @@ export async function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
 }
 
-function normalizeRussianPhone(value: string) {
+export function normalizeRussianPhone(value: string) {
   const digits = value.replace(/\D/g, "");
 
   if (digits.length === 10) {

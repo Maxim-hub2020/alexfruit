@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useDeferredValue, useMemo, useState, useTransition } from "react";
-import { Mail, Phone, Plus, Search, ShieldCheck, Trash2, Truck } from "lucide-react";
+import { Phone, Plus, Search, ShieldCheck, Trash2, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn, formatCurrency, formatDateLabel } from "@/lib/utils";
 
@@ -10,7 +10,6 @@ type CourierRecord = {
   id: string;
   name: string;
   phone?: string | null;
-  email?: string | null;
   createdAt: string | Date;
   ordersCount: number;
   activeOrders: number;
@@ -23,14 +22,12 @@ type CourierRecord = {
 type CourierForm = {
   name: string;
   phone: string;
-  email: string;
   password: string;
 };
 
 const emptyCourierForm: CourierForm = {
   name: "",
   phone: "",
-  email: "",
   password: "",
 };
 
@@ -54,7 +51,7 @@ export function AdminCourierManager({ couriers }: { couriers: CourierRecord[] })
     }
 
     return couriers.filter((courier) =>
-      [courier.name, courier.phone, courier.email]
+      [courier.name, courier.phone]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(normalizedQuery)),
     );
@@ -152,24 +149,16 @@ export function AdminCourierManager({ couriers }: { couriers: CourierRecord[] })
             className="h-11 rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
           />
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <input
-              value={form.phone}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, phone: event.target.value }))
-              }
-              placeholder="+7 900 000-00-00"
-              className="h-11 rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
-            />
-            <input
-              value={form.email}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, email: event.target.value }))
-              }
-              placeholder="Email для связи (необязательно)"
-              className="h-11 rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
-            />
-          </div>
+          <input
+            value={form.phone}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, phone: event.target.value }))
+            }
+            placeholder="+7 900 000-00-00"
+            inputMode="tel"
+            autoComplete="tel"
+            className="h-11 rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
+          />
 
           <input
             type="password"
@@ -248,10 +237,6 @@ export function AdminCourierManager({ couriers }: { couriers: CourierRecord[] })
                     <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-muted)] px-3 py-1">
                       <Phone size={14} />
                       {courier.phone ?? "телефон не указан"}
-                    </span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-muted)] px-3 py-1">
-                      <Mail size={14} />
-                      {courier.email ?? "email не указан"}
                     </span>
                   </div>
 

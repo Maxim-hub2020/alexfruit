@@ -174,7 +174,7 @@ export default async function AdminAnalyticsPage() {
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-[var(--muted)]">
-                      {courier.phone ?? courier.email ?? "контакты не указаны"}
+                      {courier.phone ?? "телефон не указан"}
                     </p>
                   </div>
                   <div className="text-right">
