@@ -7,7 +7,11 @@ import { getAddressLabel } from "@/lib/utils";
 const MM_TO_PT = 72 / 25.4;
 const LABEL_WIDTH = 40 * MM_TO_PT;
 const LABEL_HEIGHT = 50 * MM_TO_PT;
-const LABEL_MARGIN = 6;
+const LABEL_MARGIN = 4.5;
+const BORDER_INSET = 1.8;
+const PRINT_BLACK = rgb(0, 0, 0);
+const SOFT_BLACK = rgb(0.08, 0.09, 0.08);
+const THERMAL_BOLD_OFFSET = 0.13;
 
 type LabelOrder = {
   orderNumber: string;
@@ -28,8 +32,12 @@ type LabelOrder = {
 
 const regularFontCandidates = [
   process.env.LABEL_FONT_PATH,
+  "C:\\Windows\\Fonts\\verdana.ttf",
+  "C:\\Windows\\Fonts\\Verdana.ttf",
   "C:\\Windows\\Fonts\\arial.ttf",
   "C:\\Windows\\Fonts\\Arial.ttf",
+  "/usr/share/fonts/dejavu/DejaVuSansCondensed.ttf",
+  "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed.ttf",
   "/usr/share/fonts/dejavu/DejaVuSans.ttf",
   "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
   "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
@@ -39,8 +47,12 @@ const regularFontCandidates = [
 
 const boldFontCandidates = [
   process.env.LABEL_BOLD_FONT_PATH,
+  "C:\\Windows\\Fonts\\verdanab.ttf",
+  "C:\\Windows\\Fonts\\Verdanab.ttf",
   "C:\\Windows\\Fonts\\arialbd.ttf",
   "C:\\Windows\\Fonts\\Arialbd.ttf",
+  "/usr/share/fonts/dejavu/DejaVuSansCondensed-Bold.ttf",
+  "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
   "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
   "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
   "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
@@ -104,6 +116,44 @@ function truncateLines(lines: string[], maxLines: number) {
   return [...lines.slice(0, maxLines - 1), `${lines[maxLines - 1]}...`];
 }
 
+function drawThermalText({
+  page,
+  text,
+  x,
+  y,
+  font,
+  size,
+  color = PRINT_BLACK,
+  strengthen = false,
+}: {
+  page: PDFPage;
+  text: string;
+  x: number;
+  y: number;
+  font: PDFFont;
+  size: number;
+  color?: ReturnType<typeof rgb>;
+  strengthen?: boolean;
+}) {
+  page.drawText(text, {
+    x,
+    y,
+    size,
+    font,
+    color,
+  });
+
+  if (strengthen) {
+    page.drawText(text, {
+      x: x + THERMAL_BOLD_OFFSET,
+      y,
+      size,
+      font,
+      color,
+    });
+  }
+}
+
 function drawTextBlock({
   page,
   lines,
@@ -112,6 +162,8 @@ function drawTextBlock({
   font,
   size,
   lineHeight,
+  color = PRINT_BLACK,
+  strengthen = false,
 }: {
   page: PDFPage;
   lines: string[];
@@ -120,16 +172,21 @@ function drawTextBlock({
   font: PDFFont;
   size: number;
   lineHeight: number;
+  color?: ReturnType<typeof rgb>;
+  strengthen?: boolean;
 }) {
   let cursorY = y;
 
   for (const line of lines) {
-    page.drawText(line, {
+    drawThermalText({
+      page,
+      text: line,
       x,
       y: cursorY,
       size,
       font,
-      color: rgb(0.06, 0.08, 0.06),
+      color,
+      strengthen,
     });
     cursorY -= lineHeight;
   }
@@ -140,12 +197,10 @@ function drawTextBlock({
 function drawOrderLabelPage({
   pdfDoc,
   order,
-  regularFont,
   boldFont,
 }: {
   pdfDoc: PDFDocument;
   order: LabelOrder;
-  regularFont: PDFFont;
   boldFont: PDFFont;
 }) {
   const page = pdfDoc.addPage([LABEL_WIDTH, LABEL_HEIGHT]);
@@ -155,83 +210,114 @@ function drawOrderLabelPage({
   const slotTitle = order.deliveryTimeSlot?.title ?? "время не указано";
 
   page.drawRectangle({
-    x: 2,
-    y: 2,
-    width: LABEL_WIDTH - 4,
-    height: LABEL_HEIGHT - 4,
-    borderWidth: 0.7,
-    borderColor: rgb(0.14, 0.45, 0.18),
+    x: BORDER_INSET,
+    y: BORDER_INSET,
+    width: LABEL_WIDTH - BORDER_INSET * 2,
+    height: LABEL_HEIGHT - BORDER_INSET * 2,
+    borderWidth: 1.1,
+    borderColor: PRINT_BLACK,
   });
 
-  page.drawText("АЛЕКСФРУТ", {
+  drawThermalText({
+    page,
+    text: "АЛЕКСФРУТ",
     x: LABEL_MARGIN,
-    y: LABEL_HEIGHT - 13,
-    size: 7,
+    y: LABEL_HEIGHT - 13.5,
+    size: 8.6,
     font: boldFont,
-    color: rgb(0.14, 0.45, 0.18),
+    color: PRINT_BLACK,
+    strengthen: true,
   });
-  page.drawText(`Заказ ${order.orderNumber}`, {
+  drawThermalText({
+    page,
+    text: `Заказ ${order.orderNumber}`,
     x: LABEL_MARGIN,
-    y: LABEL_HEIGHT - 21,
-    size: 5.2,
-    font: regularFont,
-    color: rgb(0.35, 0.42, 0.35),
+    y: LABEL_HEIGHT - 24.5,
+    size: 6.7,
+    font: boldFont,
+    color: SOFT_BLACK,
+    strengthen: true,
   });
 
   page.drawLine({
-    start: { x: LABEL_MARGIN, y: LABEL_HEIGHT - 27 },
-    end: { x: LABEL_WIDTH - LABEL_MARGIN, y: LABEL_HEIGHT - 27 },
-    thickness: 0.45,
-    color: rgb(0.78, 0.86, 0.76),
+    start: { x: LABEL_MARGIN, y: LABEL_HEIGHT - 31 },
+    end: { x: LABEL_WIDTH - LABEL_MARGIN, y: LABEL_HEIGHT - 31 },
+    thickness: 0.75,
+    color: PRINT_BLACK,
   });
 
-  page.drawText("КЛИЕНТ", {
+  drawThermalText({
+    page,
+    text: "КЛИЕНТ",
     x: LABEL_MARGIN,
-    y: LABEL_HEIGHT - 38,
-    size: 4.8,
+    y: LABEL_HEIGHT - 42,
+    size: 5.8,
     font: boldFont,
-    color: rgb(0.38, 0.47, 0.39),
+    color: PRINT_BLACK,
+    strengthen: true,
   });
 
-  const nameLines = truncateLines(wrapText(clientName, boldFont, 9.5, contentWidth), 2);
+  const nameSize = 12.1;
+  const nameLines = truncateLines(wrapText(clientName, boldFont, nameSize, contentWidth), 2);
   let cursorY = drawTextBlock({
     page,
     lines: nameLines,
     x: LABEL_MARGIN,
-    y: LABEL_HEIGHT - 49,
+    y: LABEL_HEIGHT - 55,
     font: boldFont,
-    size: 9.5,
-    lineHeight: 10.5,
+    size: nameSize,
+    lineHeight: 13.2,
+    strengthen: true,
   });
 
-  cursorY -= 3;
-  page.drawText("АДРЕС", {
+  cursorY -= 4;
+  drawThermalText({
+    page,
+    text: "АДРЕС",
     x: LABEL_MARGIN,
     y: cursorY,
-    size: 4.8,
+    size: 5.8,
     font: boldFont,
-    color: rgb(0.38, 0.47, 0.39),
+    color: PRINT_BLACK,
+    strengthen: true,
   });
-  cursorY -= 10;
+  cursorY -= 11.5;
 
-  const addressLines = truncateLines(wrapText(address, regularFont, 6.8, contentWidth), 5);
+  const addressSize = 8.7;
+  const addressLineHeight = 9.9;
+  const footerY = 8.5;
+  const maxAddressLines = Math.max(
+    2,
+    Math.min(4, Math.floor((cursorY - footerY - 13) / addressLineHeight)),
+  );
+  const addressLines = truncateLines(wrapText(address, boldFont, addressSize, contentWidth), maxAddressLines);
   cursorY = drawTextBlock({
     page,
     lines: addressLines,
     x: LABEL_MARGIN,
     y: cursorY,
-    font: regularFont,
-    size: 6.8,
-    lineHeight: 7.8,
+    font: boldFont,
+    size: addressSize,
+    lineHeight: addressLineHeight,
+    strengthen: true,
   });
 
-  const footerY = Math.max(8, cursorY - 4);
-  page.drawText(`Окно: ${slotTitle}`, {
+  page.drawLine({
+    start: { x: LABEL_MARGIN, y: footerY + 10 },
+    end: { x: LABEL_WIDTH - LABEL_MARGIN, y: footerY + 10 },
+    thickness: 0.65,
+    color: PRINT_BLACK,
+  });
+
+  drawThermalText({
+    page,
+    text: `Окно: ${slotTitle}`,
     x: LABEL_MARGIN,
     y: footerY,
-    size: 5.3,
+    size: 6.7,
     font: boldFont,
-    color: rgb(0.14, 0.45, 0.18),
+    color: PRINT_BLACK,
+    strengthen: true,
   });
 
   return page;
@@ -241,14 +327,13 @@ export async function createOrdersLabelsPdf(orders: LabelOrder[]) {
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
 
-  const regularFont = await embedFont(pdfDoc, regularFontCandidates);
-  const boldFont = await embedFont(pdfDoc, boldFontCandidates).catch(() => regularFont);
+  const fallbackFont = await embedFont(pdfDoc, regularFontCandidates);
+  const boldFont = await embedFont(pdfDoc, boldFontCandidates).catch(() => fallbackFont);
 
   for (const order of orders) {
     drawOrderLabelPage({
       pdfDoc,
       order,
-      regularFont,
       boldFont,
     });
   }
