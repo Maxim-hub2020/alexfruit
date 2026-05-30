@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, Role } from "../src/generated/prisma";
+import { PrismaClient } from "../src/generated/prisma/client";
+import { Role } from "../src/generated/prisma/enums";
 
 const phone = process.env.ADMIN_PHONE;
 const password = process.env.ADMIN_PASSWORD;
