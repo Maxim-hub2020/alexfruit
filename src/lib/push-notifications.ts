@@ -19,6 +19,33 @@ type PushSubscriptionRecord = {
 let isConfigured = false;
 const PUSH_TIMEOUT_MS = 15_000;
 const PUSH_TTL_SECONDS = 60 * 60;
+const VAPID_PUBLIC_KEY_BYTES = 65;
+
+function decodeBase64Url(value: string) {
+  try {
+    const normalized = value.trim().replace(/\s+/g, "");
+    const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
+    const base64 = `${normalized}${padding}`.replace(/-/g, "+").replace(/_/g, "/");
+
+    return Buffer.from(base64, "base64");
+  } catch {
+    return null;
+  }
+}
+
+function getVapidPublicKeyError(publicKey: string | undefined) {
+  if (!publicKey) {
+    return "NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY is empty";
+  }
+
+  const decoded = decodeBase64Url(publicKey);
+
+  if (!decoded || decoded.length !== VAPID_PUBLIC_KEY_BYTES) {
+    return `NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY must decode to ${VAPID_PUBLIC_KEY_BYTES} bytes`;
+  }
+
+  return null;
+}
 
 function configureWebPush() {
   if (isConfigured) {
@@ -36,9 +63,25 @@ function configureWebPush() {
     return false;
   }
 
-  webPush.setVapidDetails(subject, publicKey, privateKey);
-  isConfigured = true;
-  return true;
+  const publicKeyError = getVapidPublicKeyError(publicKey);
+
+  if (publicKeyError) {
+    console.warn("Push notifications are not configured correctly", {
+      publicKeyError,
+    });
+    return false;
+  }
+
+  try {
+    webPush.setVapidDetails(subject, publicKey, privateKey);
+    isConfigured = true;
+    return true;
+  } catch (error) {
+    console.warn("Push notifications are not configured correctly", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
 }
 
 function getNotificationUrl(notification: PushNotificationRecord) {
@@ -93,64 +136,75 @@ function getPushErrorDetails(error: unknown) {
 }
 
 export function getWebPushPublicKey() {
-  return process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY ?? "";
+  return process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY?.trim() ?? "";
 }
 
 export function isWebPushConfigured() {
+  const publicKey = getWebPushPublicKey();
+
   return Boolean(
-    process.env.NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY && process.env.WEB_PUSH_PRIVATE_KEY,
+    publicKey &&
+      process.env.WEB_PUSH_PRIVATE_KEY &&
+      !getVapidPublicKeyError(publicKey),
   );
 }
 
 export async function sendPushForNotification(notification: PushNotificationRecord) {
-  if (!configureWebPush()) {
-    return;
-  }
+  try {
+    if (!configureWebPush()) {
+      return;
+    }
 
-  const subscriptions = await prisma.pushSubscription.findMany({
-    where: { userId: notification.userId },
-    select: {
-      endpoint: true,
-      p256dh: true,
-      auth: true,
-    },
-  });
+    const subscriptions = await prisma.pushSubscription.findMany({
+      where: { userId: notification.userId },
+      select: {
+        endpoint: true,
+        p256dh: true,
+        auth: true,
+      },
+    });
 
-  if (subscriptions.length === 0) {
-    return;
-  }
+    if (subscriptions.length === 0) {
+      return;
+    }
 
-  const payload = stringifyPushPayload({
-    id: notification.id,
-    type: notification.type,
-    title: notification.title,
-    message: notification.message,
-    orderId: notification.orderId ?? null,
-    url: getNotificationUrl(notification),
-  });
+    const payload = stringifyPushPayload({
+      id: notification.id,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      orderId: notification.orderId ?? null,
+      url: getNotificationUrl(notification),
+    });
 
-  await Promise.allSettled(
-    subscriptions.map(async (subscription) => {
-      try {
-        await webPush.sendNotification(toWebPushSubscription(subscription), payload, {
-          TTL: PUSH_TTL_SECONDS,
-          timeout: PUSH_TIMEOUT_MS,
-        });
-      } catch (error) {
-        if (isExpiredSubscriptionError(error)) {
-          await prisma.pushSubscription.deleteMany({
-            where: { endpoint: subscription.endpoint },
+    await Promise.allSettled(
+      subscriptions.map(async (subscription) => {
+        try {
+          await webPush.sendNotification(toWebPushSubscription(subscription), payload, {
+            TTL: PUSH_TTL_SECONDS,
+            timeout: PUSH_TIMEOUT_MS,
           });
-          return;
-        }
+        } catch (error) {
+          if (isExpiredSubscriptionError(error)) {
+            await prisma.pushSubscription.deleteMany({
+              where: { endpoint: subscription.endpoint },
+            });
+            return;
+          }
 
-        console.warn(
-          "Не удалось отправить push-уведомление",
-          getPushErrorDetails(error),
-        );
-      }
-    }),
-  );
+          console.warn(
+            "Не удалось отправить push-уведомление",
+            getPushErrorDetails(error),
+          );
+        }
+      }),
+    );
+  } catch (error) {
+    console.warn("Push notification dispatch failed", {
+      message: error instanceof Error ? error.message : String(error),
+      notificationId: notification.id,
+    });
+  }
 }
 
 export async function sendPushForNotifications(

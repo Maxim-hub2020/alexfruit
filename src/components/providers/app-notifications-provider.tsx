@@ -37,6 +37,7 @@ const IOS_INSTALL_DISMISSED_KEY = "alexfrut-ios-install-dismissed";
 const POLL_INTERVAL_MS = 12_000;
 const SILENT_PUSH_RETRY_INTERVAL_MS = 60_000;
 const TOAST_LIFETIME_MS = 8_000;
+const VAPID_PUBLIC_KEY_BYTES = 65;
 
 function readLastSeenAt() {
   if (typeof window === "undefined") {
@@ -135,6 +136,63 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
+function getDecodedVapidPublicKey(publicKey: string) {
+  try {
+    const decoded = urlBase64ToUint8Array(publicKey.trim());
+
+    if (decoded.length !== VAPID_PUBLIC_KEY_BYTES) {
+      return {
+        key: null,
+        message:
+          "Ключ push-уведомлений настроен некорректно. Сгенерируйте новую пару VAPID-ключей на сервере.",
+      };
+    }
+
+    return { key: decoded, message: null };
+  } catch {
+    return {
+      key: null,
+      message:
+        "Ключ push-уведомлений настроен некорректно. Сгенерируйте новую пару VAPID-ключей на сервере.",
+    };
+  }
+}
+
+function toUint8Array(value: BufferSource | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof ArrayBuffer) {
+    return new Uint8Array(value);
+  }
+
+  return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+}
+
+function areByteArraysEqual(first: Uint8Array, second: Uint8Array) {
+  if (first.length !== second.length) {
+    return false;
+  }
+
+  for (let index = 0; index < first.length; index += 1) {
+    if (first[index] !== second[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function isSameApplicationServerKey(
+  subscription: PushSubscription,
+  publicKey: Uint8Array,
+) {
+  const subscriptionKey = toUint8Array(subscription.options?.applicationServerKey);
+
+  return !subscriptionKey || areByteArraysEqual(subscriptionKey, publicKey);
+}
+
 function getBrowserErrorMessage(error: unknown) {
   if (error instanceof DOMException) {
     if (error.name === "NotAllowedError") {
@@ -221,6 +279,16 @@ async function ensureWebPushSubscription({
     };
   }
 
+  const decodedPublicKey = getDecodedVapidPublicKey(publicKey);
+
+  if (!decodedPublicKey.key) {
+    return {
+      ok: false,
+      status: "failed",
+      message: decodedPublicKey.message,
+    };
+  }
+
   try {
     await navigator.serviceWorker.register("/sw.js", { scope: "/" });
     const readyRegistration = await navigator.serviceWorker.ready;
@@ -229,7 +297,11 @@ async function ensureWebPushSubscription({
     const existingSubscription = await readyRegistration.pushManager.getSubscription();
 
     if (existingSubscription?.endpoint) {
-      return saveWebPushSubscription(existingSubscription);
+      if (isSameApplicationServerKey(existingSubscription, decodedPublicKey.key)) {
+        return saveWebPushSubscription(existingSubscription);
+      }
+
+      await existingSubscription.unsubscribe().catch(() => undefined);
     }
 
     if (!allowCreate) {
@@ -243,7 +315,7 @@ async function ensureWebPushSubscription({
 
     const subscription = await readyRegistration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
+      applicationServerKey: decodedPublicKey.key,
     });
 
     if (!subscription.endpoint) {

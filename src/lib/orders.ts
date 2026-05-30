@@ -76,6 +76,15 @@ export type StorefrontCollection = {
 const MAX_SLOT_DISTANCE_KM = 2;
 const MIN_ORDER_NUMBER = 1000;
 const MAX_ORDER_NUMBER = 9999;
+export const CUSTOMER_ORDER_EDIT_WINDOW_HOURS = 3;
+const CUSTOMER_ORDER_EDIT_WINDOW_MS =
+  CUSTOMER_ORDER_EDIT_WINDOW_HOURS * 60 * 60 * 1000;
+export const customerEditableOrderStatuses: OrderStatus[] = [
+  OrderStatus.NEW,
+  OrderStatus.PENDING_CONFIRMATION,
+  OrderStatus.CONFIRMED,
+  OrderStatus.ASSEMBLING,
+];
 const unavailableProductTitlePrefixes = [
   "Сейчас нет: ",
   "Нужно выбрать новую дату: ",
@@ -248,22 +257,24 @@ async function createNotification(params: {
     data: params,
   });
 
-  await sendPushForNotification(notification);
+  try {
+    await sendPushForNotification(notification);
+  } catch (error) {
+    console.warn("Push notification failed after notification creation", {
+      message: error instanceof Error ? error.message : String(error),
+      notificationId: notification.id,
+    });
+  }
 
   return notification;
 }
 
-function canCustomerEdit(order: {
+export function canCustomerEdit(order: {
   status: OrderStatus;
   editableUntil: Date;
 }) {
-  const editableStatuses: OrderStatus[] = [
-    OrderStatus.NEW,
-    OrderStatus.PENDING_CONFIRMATION,
-  ];
-
   return (
-    editableStatuses.includes(order.status) &&
+    customerEditableOrderStatuses.includes(order.status) &&
     order.editableUntil.getTime() > Date.now()
   );
 }
@@ -717,7 +728,11 @@ export async function getStorefrontData(userId?: string) {
 
 export async function getAvailableTimeSlots(
   deliveryDate: string,
-  filters: { userId?: string; addressId?: string | null } = {},
+  filters: {
+    userId?: string;
+    addressId?: string | null;
+    excludeOrderId?: string | null;
+  } = {},
 ) {
   const date = dateStringToDbDate(deliveryDate);
   const candidateAddress = filters.addressId
@@ -728,6 +743,16 @@ export async function getAvailableTimeSlots(
         },
       })
     : null;
+  const editableOrder = filters.excludeOrderId
+    ? await prisma.order.findFirst({
+        where: {
+          id: filters.excludeOrderId,
+          userId: filters.userId,
+        },
+        select: { id: true },
+      })
+    : null;
+  const excludeOrderId = editableOrder?.id;
 
   const [slots, counts, existingOrders] = await Promise.all([
     prisma.deliveryTimeSlot.findMany({
@@ -738,6 +763,7 @@ export async function getAvailableTimeSlots(
       by: ["deliveryTimeSlotId"],
       where: {
         deliveryDate: date,
+        id: excludeOrderId ? { not: excludeOrderId } : undefined,
         status: {
           not: OrderStatus.CANCELLED,
         },
@@ -749,6 +775,7 @@ export async function getAvailableTimeSlots(
     prisma.order.findMany({
       where: {
         deliveryDate: date,
+        id: excludeOrderId ? { not: excludeOrderId } : undefined,
         status: {
           not: OrderStatus.CANCELLED,
         },
@@ -900,7 +927,7 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
         preliminaryTotal: built.preliminaryTotal,
         finalTotal: built.finalTotal,
         customerComment: data.customerComment || null,
-        editableUntil: new Date(Date.now() + 60 * 60 * 1000),
+        editableUntil: new Date(Date.now() + CUSTOMER_ORDER_EDIT_WINDOW_MS),
         items: {
           createMany: {
             data: built.itemRows,

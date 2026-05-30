@@ -58,7 +58,7 @@ nano .env
 VAPID-ключи для push-уведомлений можно сгенерировать на сервере после клонирования проекта:
 
 ```bash
-docker run --rm node:22-alpine sh -lc "npm install -g web-push && web-push generate-vapid-keys"
+docker compose -p alexfruit -f docker-compose.prod.yml exec app npm run push:keys
 ```
 
 Полученный `Public Key` вставьте в `NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY`, а `Private Key` — в `WEB_PUSH_PRIVATE_KEY`. В `WEB_PUSH_SUBJECT` укажите HTTPS-адрес сайта, например `https://alexfruit.ru`.

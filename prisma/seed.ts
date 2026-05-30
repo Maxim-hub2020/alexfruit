@@ -288,7 +288,7 @@ async function main() {
           deliveryTimeSlotId: slot.id,
           status: OrderStatus.ASSEMBLING,
           courierId: courier.id,
-          editableUntil: new Date(Date.now() + 30 * 60 * 1000),
+          editableUntil: new Date(Date.now() + 3 * 60 * 60 * 1000),
         },
       });
 
@@ -332,7 +332,7 @@ async function main() {
           customerComment: "Нужны самые спелые ягоды",
           adminComment: "Добавить салфетки",
           courierId: courier.id,
-          editableUntil: new Date(Date.now() + 30 * 60 * 1000),
+          editableUntil: new Date(Date.now() + 3 * 60 * 60 * 1000),
           items: {
             createMany: {
               data: productsForOrder.map((product, index) => ({

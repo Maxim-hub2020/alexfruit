@@ -68,7 +68,7 @@ RATE_LIMIT_MAX_BUCKETS=5000
 
 `DADATA_API_KEY` нужен для автоподсказок адреса DaData в профиле клиента. Ключ используется только на сервере через `/api/geo/suggest`, в браузер он не передаётся.
 
-`NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY` и `WEB_PUSH_SUBJECT` нужны для фоновых push-уведомлений через service worker. Публичный ключ можно отдавать в браузер, приватный ключ должен оставаться только на сервере. Для iPhone `WEB_PUSH_SUBJECT` лучше задавать HTTPS-адресом сайта, а не локальным `mailto`, иначе Apple может отклонять отправку с `BadJwtToken`.
+`NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY` и `WEB_PUSH_SUBJECT` нужны для фоновых push-уведомлений через service worker. Публичный ключ можно отдавать в браузер, приватный ключ должен оставаться только на сервере. Новую пару VAPID-ключей можно получить командой `npm run push:keys`. Для iPhone `WEB_PUSH_SUBJECT` лучше задавать HTTPS-адресом сайта, а не локальным `mailto`, иначе Apple может отклонять отправку с `BadJwtToken`.
 
 ## Защита от частых запросов
 
@@ -81,6 +81,14 @@ RATE_LIMIT_MAX_BUCKETS=5000
 - security headers: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`.
 
 Это снижает риск brute force и перегрузки API, но не заменяет полноценную DDoS-защиту на уровне инфраструктуры. Для продакшена дополнительно ставьте reverse proxy, HTTPS, WAF/CDN и сетевую защиту перед VM.
+
+## Служебные команды
+
+Администратора можно создать без ручного TypeScript в shell:
+
+```bash
+ADMIN_PHONE="+79000000000" ADMIN_PASSWORD="strong-password" ADMIN_NAME="Администратор" npm run admin:create
+```
 
 ## Локальный запуск
 

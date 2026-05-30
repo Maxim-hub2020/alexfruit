@@ -1,10 +1,12 @@
 import { Role } from "@/generated/prisma";
 import { MainShell } from "@/components/layout/main-shell";
+import { CustomerOrderActions } from "@/components/orders/customer-order-actions";
 import { RepeatOrderButton } from "@/components/orders/repeat-order-button";
 import { RescheduleOrderDelivery } from "@/components/orders/reschedule-order-delivery";
 import { StatusPill } from "@/components/ui/status-pill";
-import { formatCurrency, formatDateInputValue } from "@/lib/utils";
-import { getCustomerOrders } from "@/lib/orders";
+import { getUserAddresses } from "@/lib/addresses";
+import { formatCurrency, formatDateInputValue, formatDateTimeLabel } from "@/lib/utils";
+import { canCustomerEdit, getCustomerOrders } from "@/lib/orders";
 import { requirePageUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +31,10 @@ function getUnavailableProductName(notification: {
 
 export default async function OrdersPage() {
   const user = await requirePageUser([Role.CUSTOMER]);
-  const orders = await getCustomerOrders(user.id);
+  const [orders, addresses] = await Promise.all([
+    getCustomerOrders(user.id),
+    getUserAddresses(user.id),
+  ]);
 
   return (
     <MainShell active="orders" user={user}>
@@ -93,18 +98,38 @@ export default async function OrdersPage() {
                   <div className="mt-4 flex gap-2">
                     <RepeatOrderButton orderId={order.id} />
                   </div>
-                  {["NEW", "PENDING_CONFIRMATION"].includes(order.status) ? (
+                  {canCustomerEdit(order) ? (
                     <p className="mt-3 text-xs text-[var(--accent-strong)]">
-                      Самостоятельное редактирование доступно до{" "}
-                      {formatDateInputValue(order.editableUntil)}.
+                      Можно менять или отменить до{" "}
+                      {formatDateTimeLabel(order.editableUntil)}, пока заказ не собран.
                     </p>
                   ) : (
                     <p className="mt-3 text-xs text-[var(--muted)]">
-                      Для изменений после блокировки используйте связь с администратором.
+                      Изменения доступны 3 часа после оформления, пока заказ не собран.
                     </p>
                   )}
                 </div>
               </div>
+              <CustomerOrderActions
+                canManage={canCustomerEdit(order)}
+                addresses={addresses}
+                order={{
+                  id: order.id,
+                  status: order.status,
+                  editableUntil: order.editableUntil.toISOString(),
+                  addressId: order.addressId,
+                  deliveryDate: formatDateInputValue(order.deliveryDate),
+                  deliveryTimeSlotId: order.deliveryTimeSlotId,
+                  customerComment: order.customerComment ?? "",
+                  items: order.items.map((item) => ({
+                    id: item.id,
+                    productId: item.productId,
+                    productName: item.productName,
+                    unit: item.unit,
+                    quantity: Number(item.orderedQuantity),
+                  })),
+                }}
+              />
               {order.notifications.map((notification) => (
                 <RescheduleOrderDelivery
                   key={notification.id}

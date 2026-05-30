@@ -11,6 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "admin:create": "tsx scripts/create-admin.ts",
+    "push:keys": "web-push generate-vapid-keys",
     "local:bootstrap": "powershell -ExecutionPolicy Bypass -File scripts/local-bootstrap.ps1",
     "local:dev": "powershell -ExecutionPolicy Bypass -File scripts/local-dev.ps1",
     "local:stop": "powershell -ExecutionPolicy Bypass -File scripts/local-stop.ps1"

@@ -9,6 +9,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");
     const addressId = searchParams.get("addressId");
+    const excludeOrderId = searchParams.get("excludeOrderId");
 
     if (!date || !addressId) {
       return NextResponse.json([]);
@@ -17,6 +18,7 @@ export async function GET(request: Request) {
     const slots = await getAvailableTimeSlots(date, {
       userId: user.id,
       addressId,
+      excludeOrderId,
     });
 
     return NextResponse.json(slots);
