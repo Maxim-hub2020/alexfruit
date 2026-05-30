@@ -32,7 +32,7 @@ export function MainShell({
     <div
       className={cn(
         "relative min-h-screen pb-28 pt-24 md:pt-28",
-        isAdmin && "md:pt-[10.75rem]",
+        isAdmin && "md:pt-[12rem]",
       )}
     >
       <header className="fixed inset-x-0 top-0 z-40 px-3 pt-3">

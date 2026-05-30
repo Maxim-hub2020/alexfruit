@@ -155,7 +155,7 @@ button:disabled,
 .admin-nav-dock {
   display: flex;
   justify-content: center;
-  margin-top: 0.65rem;
+  margin-top: 1.35rem;
 }
 
 .admin-desktop-liquid-nav {
