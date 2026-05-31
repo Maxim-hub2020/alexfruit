@@ -1,11 +1,13 @@
 import {
   DeliveryTaskStatus,
+  NotificationType,
   OrderStatus,
   Role,
   type Prisma,
 } from "@/generated/prisma";
 import { ApiError } from "@/lib/api";
 import { prisma } from "@/lib/db";
+import { sendPushForNotification } from "@/lib/push-notifications";
 import { courierLocationSchema } from "@/lib/validators";
 
 const activeCourierTaskStatuses: DeliveryTaskStatus[] = [
@@ -27,6 +29,7 @@ const adminCurrentOrderStatuses: OrderStatus[] = [
   OrderStatus.COURIER_ON_THE_WAY,
   OrderStatus.DELIVERY_ISSUE,
 ];
+const ARRIVAL_NOTIFICATION_ETA_MINUTES = 15;
 
 function toNumber(value: Prisma.Decimal | number | string | null | undefined) {
   if (value === null || value === undefined) {
@@ -96,7 +99,7 @@ function getOrderPoint(order: {
 export async function updateCourierLocation(courierId: string, input: unknown) {
   const data = courierLocationSchema.parse(input);
 
-  return prisma.courierLocation.upsert({
+  const location = await prisma.courierLocation.upsert({
     where: { courierId },
     update: {
       latitude: data.latitude,
@@ -110,6 +113,93 @@ export async function updateCourierLocation(courierId: string, input: unknown) {
       accuracy: data.accuracy ?? null,
     },
   });
+
+  await notifyCustomersAboutArrivingCourier(courierId, toLocationDto(location));
+
+  return location;
+}
+
+async function notifyCustomersAboutArrivingCourier(
+  courierId: string,
+  location: ReturnType<typeof toLocationDto>,
+) {
+  try {
+    const tasks = await prisma.deliveryTask.findMany({
+      where: {
+        courierId,
+        status: DeliveryTaskStatus.IN_PROGRESS,
+        arrivalNotificationSent: false,
+        order: {
+          is: {
+            status: OrderStatus.COURIER_ON_THE_WAY,
+          },
+        },
+      },
+      include: {
+        order: {
+          include: {
+            address: true,
+          },
+        },
+      },
+    });
+
+    for (const task of tasks) {
+      const orderPoint = getOrderPoint(task.order);
+
+      if (!orderPoint) {
+        continue;
+      }
+
+      const distanceKm = getDistanceKm(
+        {
+          latitude: location.latitude,
+          longitude: location.longitude,
+        },
+        orderPoint,
+      );
+      const etaMinutes = getApproximateEtaMinutes(distanceKm);
+
+      if (etaMinutes > ARRIVAL_NOTIFICATION_ETA_MINUTES) {
+        continue;
+      }
+
+      const notification = await prisma.$transaction(async (tx) => {
+        const updatedTask = await tx.deliveryTask.updateMany({
+          where: {
+            id: task.id,
+            arrivalNotificationSent: false,
+          },
+          data: {
+            arrivalNotificationSent: true,
+          },
+        });
+
+        if (updatedTask.count === 0) {
+          return null;
+        }
+
+        return tx.notification.create({
+          data: {
+            userId: task.order.userId,
+            orderId: task.orderId,
+            type: NotificationType.COURIER_ARRIVING_SOON,
+            title: "Курьер скоро будет",
+            message: `Курьер по заказу ${task.order.orderNumber} будет примерно через ${etaMinutes} мин.`,
+          },
+        });
+      });
+
+      if (notification) {
+        await sendPushForNotification(notification);
+      }
+    }
+  } catch (error) {
+    console.warn("Courier arrival notification failed", {
+      message: error instanceof Error ? error.message : String(error),
+      courierId,
+    });
+  }
 }
 
 export async function getCourierLocation(courierId: string) {
