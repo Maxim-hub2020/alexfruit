@@ -183,11 +183,12 @@ export default async function CourierPage({
           </div>
         </div>
 
+        {(activeTab === "today" || activeTab === "route") && activeDay === "today" && (
+          <CourierLocationShare hasActiveTasks={activeTasks.length > 0} />
+        )}
+
         {activeTab === "route" && (
           <>
-            {activeDay === "today" && (
-              <CourierLocationShare hasActiveTasks={activeTasks.length > 0} />
-            )}
             <CourierDayRoute
               tasks={activeTasks}
               routePdfUrl={`/api/courier/route-pdf?date=${selectedDateKey}`}

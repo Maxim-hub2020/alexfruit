@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Clock, LocateFixed, MapPin, RefreshCcw } from "lucide-react";
+import { COURIER_LOCATION_REFRESH_INTERVAL_MS } from "@/lib/location-refresh";
 
 type CourierLocationResponse = {
   available: boolean;
@@ -73,26 +74,39 @@ export function CustomerCourierLocation({ orderId }: { orderId: string }) {
   useEffect(() => {
     let isMounted = true;
 
-    fetchCourierLocation(orderId)
-      .then((payload) => {
-        if (isMounted) {
-          setData(payload);
-          setError("");
-        }
-      })
-      .catch((fetchError: Error) => {
-        if (isMounted) {
-          setError(fetchError.message);
-        }
-      })
-      .finally(() => {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      });
+    function loadLocation(showSpinner: boolean) {
+      if (showSpinner) {
+        setIsLoading(true);
+      }
+
+      fetchCourierLocation(orderId)
+        .then((payload) => {
+          if (isMounted) {
+            setData(payload);
+            setError("");
+          }
+        })
+        .catch((fetchError: Error) => {
+          if (isMounted) {
+            setError(fetchError.message);
+          }
+        })
+        .finally(() => {
+          if (isMounted) {
+            setIsLoading(false);
+          }
+        });
+    }
+
+    loadLocation(true);
+    const intervalId = window.setInterval(
+      () => loadLocation(false),
+      COURIER_LOCATION_REFRESH_INTERVAL_MS,
+    );
 
     return () => {
       isMounted = false;
+      window.clearInterval(intervalId);
     };
   }, [orderId]);
 

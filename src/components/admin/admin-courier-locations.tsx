@@ -1,6 +1,10 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Clock, MapPin, Navigation, RadioTower, TriangleAlert } from "lucide-react";
 import { StatusPill } from "@/components/ui/status-pill";
+import { COURIER_LOCATION_REFRESH_INTERVAL_MS } from "@/lib/location-refresh";
 import { buildYandexMapWidgetUrl, type RouteQueryPoint } from "@/lib/yandex-routes";
 import { formatDateTimeLabel, getAddressLabel } from "@/lib/utils";
 
@@ -54,8 +58,45 @@ export function AdminCourierLocations({
 }: {
   couriers: AdminCourierLocation[];
 }) {
-  const couriersWithLocation = couriers.filter((courier) => courier.location);
-  const mapUrl = getCourierMapUrl(couriers);
+  const [liveCouriers, setLiveCouriers] = useState(couriers);
+  const couriersWithLocation = liveCouriers.filter((courier) => courier.location);
+  const mapUrl = getCourierMapUrl(liveCouriers);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function refreshLocations() {
+      const response = await fetch("/api/admin/couriers/locations", {
+        cache: "no-store",
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (response.ok && isMounted && Array.isArray(payload?.couriers)) {
+        setLiveCouriers(payload.couriers);
+      }
+    }
+
+    const intervalId = window.setInterval(
+      () => {
+        refreshLocations().catch(() => null);
+      },
+      COURIER_LOCATION_REFRESH_INTERVAL_MS,
+    );
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshLocations().catch(() => null);
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [couriers]);
 
   return (
     <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
@@ -66,11 +107,11 @@ export function AdminCourierLocations({
               Курьеры онлайн
             </p>
             <h2 className="mt-1 text-2xl font-semibold">
-              {couriersWithLocation.length}/{couriers.length} на карте
+              {couriersWithLocation.length}/{liveCouriers.length} на карте
             </h2>
           </div>
           <div className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--line)]">
-            Обновляется после включения GPS
+            Автообновление раз в 20 минут
           </div>
         </div>
 
@@ -96,13 +137,13 @@ export function AdminCourierLocations({
           </div>
         </div>
 
-        {couriers.length === 0 ? (
+        {liveCouriers.length === 0 ? (
           <div className="mt-5 rounded-[1.5rem] bg-white/80 p-5 text-sm text-[var(--muted)]">
             Активных курьеров пока нет.
           </div>
         ) : (
           <div className="mt-5 space-y-3">
-            {couriers.map((courier) => (
+            {liveCouriers.map((courier) => (
               <article key={courier.id} className="rounded-[1.5rem] bg-white/86 p-4 ring-1 ring-[var(--line)]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -139,7 +180,7 @@ export function AdminCourierLocations({
                   </p>
                 ) : (
                   <p className="mt-3 text-xs text-[var(--muted)]">
-                    Курьер ещё не включил передачу геолокации.
+                    Координаты ещё не поступали или временно недоступны.
                   </p>
                 )}
 
