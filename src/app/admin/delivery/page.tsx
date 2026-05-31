@@ -2,6 +2,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { FileText, MapPin } from "lucide-react";
 import { Role } from "@/generated/prisma";
+import { AdminCourierLocations } from "@/components/admin/admin-courier-locations";
 import { AdminDatePdfActions } from "@/components/admin/admin-date-pdf-actions";
 import { YandexRoutePanel } from "@/components/admin/yandex-route-panel";
 import { MainShell } from "@/components/layout/main-shell";
@@ -9,6 +10,7 @@ import { PhoneCallLink } from "@/components/ui/phone-call-link";
 import { StatusPill } from "@/components/ui/status-pill";
 import { requirePageUser } from "@/lib/auth";
 import { canPrintOrderLabelStatus } from "@/lib/constants";
+import { getAdminCourierLocations } from "@/lib/courier-locations";
 import { getDeliveryBoard } from "@/lib/orders";
 
 export const dynamic = "force-dynamic";
@@ -22,9 +24,12 @@ export default async function AdminDeliveryPage({
   const params = await searchParams;
   const selectedDate =
     typeof params.date === "string" ? params.date : format(new Date(), "yyyy-MM-dd");
-  const orders = await getDeliveryBoard({
-    date: selectedDate,
-  });
+  const [orders, courierLocations] = await Promise.all([
+    getDeliveryBoard({
+      date: selectedDate,
+    }),
+    getAdminCourierLocations(),
+  ]);
   const labelsUrl = `/api/admin/orders/labels?date=${encodeURIComponent(selectedDate)}`;
   const labelsCount = orders.filter((order) =>
     canPrintOrderLabelStatus(order.status),
@@ -59,6 +64,7 @@ export default async function AdminDeliveryPage({
         />
 
         <YandexRoutePanel orders={orders} />
+        <AdminCourierLocations couriers={courierLocations} />
 
         <div className="grid gap-4 xl:grid-cols-2">
           {orders.map((order) => (

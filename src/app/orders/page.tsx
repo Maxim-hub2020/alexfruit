@@ -1,5 +1,6 @@
-import { Role } from "@/generated/prisma";
+import { OrderStatus, Role } from "@/generated/prisma";
 import { MainShell } from "@/components/layout/main-shell";
+import { CustomerCourierLocation } from "@/components/orders/customer-courier-location";
 import { CustomerOrderActions } from "@/components/orders/customer-order-actions";
 import { RepeatOrderButton } from "@/components/orders/repeat-order-button";
 import { RescheduleOrderDelivery } from "@/components/orders/reschedule-order-delivery";
@@ -14,6 +15,12 @@ export const dynamic = "force-dynamic";
 const unavailableProductTitlePrefixes = [
   "Сейчас нет: ",
   "Нужно выбрать новую дату: ",
+];
+
+const courierMapOrderStatuses: OrderStatus[] = [
+  OrderStatus.HANDED_TO_COURIER,
+  OrderStatus.COURIER_ON_THE_WAY,
+  OrderStatus.DELIVERY_ISSUE,
 ];
 
 function getUnavailableProductName(notification: {
@@ -136,6 +143,9 @@ export default async function OrdersPage() {
                   })),
                 }}
               />
+              {courierMapOrderStatuses.includes(order.status) ? (
+                <CustomerCourierLocation orderId={order.id} />
+              ) : null}
               {order.notifications.map((notification) => (
                 <RescheduleOrderDelivery
                   key={notification.id}

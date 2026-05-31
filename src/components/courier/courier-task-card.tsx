@@ -71,6 +71,9 @@ export function CourierTaskCard({
           )}
         </div>
         <div className="flex flex-wrap gap-2">
+          {task.status !== "IN_PROGRESS" ? (
+            <Button onClick={() => updateStatus("IN_PROGRESS")}>Выехал</Button>
+          ) : null}
           <Button onClick={() => updateStatus("DELIVERED")}>Доставлено</Button>
           <Button variant="danger" onClick={() => reportProblem()}>
             Проблема

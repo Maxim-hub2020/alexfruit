@@ -81,6 +81,7 @@ model User {
   orders          Order[]           @relation("CustomerOrders")
   assignedOrders  Order[]           @relation("CourierOrders")
   deliveryTasks   DeliveryTask[]    @relation("CourierTasks")
+  courierLocation CourierLocation?
   notifications   Notification[]
   pushSubscriptions PushSubscription[]
   ownedSharedCarts SharedCart[]      @relation("SharedCartOwner")
@@ -291,6 +292,19 @@ model DeliveryTask {
   courier        User               @relation("CourierTasks", fields: [courierId], references: [id], onDelete: Cascade)
 
   @@index([courierId, status])
+}
+
+model CourierLocation {
+  id        String   @id @default(cuid())
+  courierId String   @unique
+  latitude  Decimal  @db.Decimal(9, 6)
+  longitude Decimal  @db.Decimal(9, 6)
+  accuracy  Decimal? @db.Decimal(8, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  courier   User     @relation(fields: [courierId], references: [id], onDelete: Cascade)
+
+  @@index([updatedAt])
 }
 
 model Notification {

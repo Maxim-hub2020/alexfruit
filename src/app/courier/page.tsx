@@ -3,6 +3,7 @@ import { Role } from "@/generated/prisma";
 import { MainShell } from "@/components/layout/main-shell";
 import { CourierDayRoute } from "@/components/courier/courier-day-route";
 import { CourierHistory } from "@/components/courier/courier-history";
+import { CourierLocationShare } from "@/components/courier/courier-location-share";
 import { CourierRouteArchive } from "@/components/courier/courier-route-archive";
 import { CourierTaskCard } from "@/components/courier/courier-task-card";
 import { requirePageUser } from "@/lib/auth";
@@ -82,6 +83,7 @@ export default async function CourierPage({
 
         {activeTab === "route" && (
           <>
+            <CourierLocationShare hasActiveTasks={activeTasks.length > 0} />
             <CourierDayRoute
               tasks={activeTasks}
               routePdfUrl={`/api/courier/route-pdf?date=${todayKey}`}
