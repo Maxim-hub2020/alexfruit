@@ -39,11 +39,11 @@ const adminNavItems = [
 ] as const;
 
 const courierNavItems = [
-  { key: "courier-today", href: "/courier?tab=today", label: "Заказы", icon: PackageCheck },
-  { key: "courier-route", href: "/courier?tab=route", label: "Маршрут", icon: Route },
+  { key: "courier-today", href: "/courier?tab=today&day=today", label: "Заказы", icon: PackageCheck },
+  { key: "courier-route", href: "/courier?tab=route&day=today", label: "Маршрут", icon: Route },
   { key: "courier-history", href: "/courier?tab=history", label: "История", icon: ClipboardList },
   { key: "courier-archive", href: "/courier?tab=archive", label: "Архив", icon: Archive },
-  { key: "profile", href: "/profile", label: "Профиль", icon: UserRound },
+  { key: "courier-profile", href: "/courier/profile", label: "Профиль", icon: UserRound },
 ] as const;
 
 function getNavItems(role?: string | null) {

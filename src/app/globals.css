@@ -152,6 +152,50 @@ button:disabled,
   pointer-events: none;
 }
 
+@media (max-width: 767px) {
+  .mobile-header-compact {
+    pointer-events: none;
+    transform: translateY(-0.15rem);
+  }
+
+  .mobile-header-compact .liquid-app-header {
+    width: 4.9rem;
+    min-height: 4.9rem;
+    padding: 0.42rem;
+    border-radius: 1.65rem;
+    cursor: pointer;
+    pointer-events: auto;
+    transform: translateZ(0);
+    transition:
+      width 240ms ease,
+      min-height 240ms ease,
+      padding 240ms ease,
+      border-radius 240ms ease,
+      box-shadow 240ms ease;
+  }
+
+  .mobile-header-compact .liquid-app-header > a {
+    pointer-events: auto;
+  }
+
+  .mobile-header-compact .liquid-app-header > a > div:not(:first-child),
+  .mobile-header-compact .liquid-app-header > div:not(:first-child) {
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transform: translateY(-0.3rem) scale(0.96);
+    transition:
+      opacity 160ms ease,
+      max-width 160ms ease,
+      transform 160ms ease;
+  }
+
+  .mobile-header-compact .liquid-app-header::before {
+    inset-inline: 0.82rem;
+  }
+}
+
 .admin-nav-dock {
   position: fixed;
   inset-inline: 0;

@@ -70,7 +70,7 @@ export function CatalogExplorer({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("all");
+  const [category, setCategory] = useState<string | null>(null);
   const [heroIndex, setHeroIndex] = useState(0);
   const [isDatePending, startDateTransition] = useTransition();
   const deferredQuery = useDeferredValue(query);
@@ -85,12 +85,25 @@ export function CatalogExplorer({
     const highlighted = products.filter((product) => product.isNew || product.isPromo);
     return (highlighted.length > 0 ? highlighted : products).slice(0, 4);
   }, [products]);
+  const selectedCategory = useMemo(
+    () => categories.find((item) => item.slug === category) ?? null,
+    [categories, category],
+  );
+  const categoryProductCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    for (const product of products) {
+      counts.set(product.category.slug, (counts.get(product.category.slug) ?? 0) + 1);
+    }
+
+    return counts;
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase();
 
     return products.filter((product) => {
-      const matchesCategory = category === "all" || product.category.slug === category;
+      const matchesCategory = !category || product.category.slug === category;
       const matchesQuery =
         normalizedQuery.length === 0 ||
         product.name.toLowerCase().includes(normalizedQuery) ||
@@ -99,6 +112,7 @@ export function CatalogExplorer({
       return matchesCategory && matchesQuery;
     });
   }, [category, deferredQuery, products]);
+  const isCategoryLanding = !category && deferredQuery.trim().length === 0;
 
   function showPreviousHero() {
     if (heroProducts.length === 0) {
@@ -183,16 +197,16 @@ export function CatalogExplorer({
         <div className="flex gap-6 overflow-x-auto border-b border-[var(--line)] pb-2">
           <button
             type="button"
-            onClick={() => setCategory("all")}
+            onClick={() => setCategory(null)}
             className={cn(
               "group flex min-w-[4.8rem] flex-col items-center gap-2 border-b-2 px-1 pb-3 text-sm font-semibold transition",
-              category === "all"
+              !category
                 ? "border-[var(--accent)] text-[var(--accent-strong)]"
                 : "border-transparent text-[var(--muted)]",
             )}
           >
             <Sparkles size={30} className="transition group-hover:text-[var(--accent-strong)]" />
-            Все
+            Категории
           </button>
           {categories.map((item) => {
             const Icon = categoryIcons[item.slug as keyof typeof categoryIcons] ?? CircleDot;
@@ -218,32 +232,86 @@ export function CatalogExplorer({
         </div>
       </section>
 
-      <section className="mt-7">
-        <div className="mb-4 flex items-end justify-between gap-4">
-          <div>
-            <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">
-              Товары
+      {isCategoryLanding ? (
+        <section className="mt-7">
+          <div className="mb-4 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">
+                Категории
+              </p>
+              <h2 className="mt-1 font-serif text-4xl font-semibold">
+                Выберите раздел
+              </h2>
+            </div>
+            <p className="hidden text-sm text-[var(--muted)] sm:block">
+              {categories.length} разделов
             </p>
-            <h2 className="mt-1 font-serif text-4xl font-semibold">Выберите свежие позиции</h2>
           </div>
-          <p className="hidden text-sm text-[var(--muted)] sm:block">
-            {filteredProducts.length} товаров на дату
-          </p>
-        </div>
 
-        {filteredProducts.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {filteredProducts.map((product) => (
-              <ProductCard key={product.id} product={product} variant="catalog" />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-[1.5rem] bg-[var(--surface-muted)] p-8 text-center text-[var(--muted)]">
-            По этому запросу товаров пока нет.
-          </div>
-        )}
-      </section>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {categories.map((item) => {
+              const Icon = categoryIcons[item.slug as keyof typeof categoryIcons] ?? CircleDot;
+              const productsCount = categoryProductCounts.get(item.slug) ?? 0;
 
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setCategory(item.slug)}
+                  className="group rounded-[2rem] bg-[var(--surface-muted)] p-5 text-left ring-1 ring-[var(--line)] transition hover:-translate-y-1 hover:bg-white hover:shadow-[0_18px_48px_rgba(61,93,74,0.12)]"
+                >
+                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-[var(--accent-strong)] ring-1 ring-[var(--line)] transition group-hover:bg-[var(--accent-soft)]">
+                    <Icon size={28} />
+                  </span>
+                  <span className="mt-5 block text-xl font-semibold">{item.name}</span>
+                  <span className="mt-2 block text-sm text-[var(--muted)]">
+                    {productsCount} товаров
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : (
+        <section className="mt-7">
+          <div className="mb-4 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">
+                Товары
+              </p>
+              <h2 className="mt-1 font-serif text-4xl font-semibold">
+                {selectedCategory ? selectedCategory.name : "Результаты поиска"}
+              </h2>
+            </div>
+            <div className="hidden items-center gap-3 sm:flex">
+              <button
+                type="button"
+                onClick={() => setCategory(null)}
+                className="rounded-2xl bg-[var(--surface-muted)] px-4 py-2 text-sm font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--line)]"
+              >
+                К категориям
+              </button>
+              <p className="text-sm text-[var(--muted)]">
+                {filteredProducts.length} товаров на дату
+              </p>
+            </div>
+          </div>
+
+          {filteredProducts.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {filteredProducts.map((product) => (
+                <ProductCard key={product.id} product={product} variant="catalog" />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[1.5rem] bg-[var(--surface-muted)] p-8 text-center text-[var(--muted)]">
+              По этому запросу товаров пока нет.
+            </div>
+          )}
+        </section>
+      )}
+
+      {!isCategoryLanding && (
       <section className="mt-8">
         <div className="mb-4">
           <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">
@@ -378,6 +446,7 @@ export function CatalogExplorer({
         </aside>
         </div>
       </section>
+      )}
     </div>
   );
 }

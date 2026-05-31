@@ -16,10 +16,20 @@ type RateLimitBucket = {
 };
 
 const routeRules = [
-  { prefix: "/profile", roles: ["CUSTOMER", "ADMIN", "COURIER"] },
+  { prefix: "/profile", roles: ["CUSTOMER", "ADMIN"] },
   { prefix: "/orders", roles: ["CUSTOMER", "ADMIN"] },
   { prefix: "/admin", roles: ["ADMIN"] },
   { prefix: "/courier", roles: ["COURIER"] },
+] as const;
+
+const courierBlockedPagePrefixes = [
+  "/",
+  "/catalog",
+  "/cart",
+  "/orders",
+  "/profile",
+  "/register",
+  "/shared-cart",
 ] as const;
 
 const rateLimitStore = new Map<string, RateLimitBucket>();
@@ -74,6 +84,16 @@ function getHomeForRole(role: string) {
   }
 
   return "/";
+}
+
+function isCourierBlockedPage(pathname: string) {
+  return courierBlockedPagePrefixes.some((prefix) => {
+    if (prefix === "/") {
+      return pathname === "/";
+    }
+
+    return pathname === prefix || pathname.startsWith(`${prefix}/`);
+  });
 }
 
 function getClientIp(request: NextRequest) {
@@ -190,6 +210,7 @@ function finalizeResponse(
 
 export async function proxy(request: NextRequest) {
   const rateLimit = checkRateLimit(request);
+  const pathname = request.nextUrl.pathname;
 
   if (!rateLimit.allowed) {
     return buildTooManyRequestsResponse(
@@ -201,10 +222,10 @@ export async function proxy(request: NextRequest) {
   }
 
   const rule = routeRules.find(({ prefix }) =>
-    request.nextUrl.pathname.startsWith(prefix),
+    pathname.startsWith(prefix),
   );
 
-  if (!rule) {
+  if (!rule && !isCourierBlockedPage(pathname)) {
     return finalizeResponse(
       NextResponse.next(),
       rateLimit.policy,
@@ -216,6 +237,15 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
 
   if (!token) {
+    if (!rule) {
+      return finalizeResponse(
+        NextResponse.next(),
+        rateLimit.policy,
+        rateLimit.bucket,
+        rateLimit.now,
+      );
+    }
+
     return finalizeResponse(
       NextResponse.redirect(new URL("/login", request.url)),
       rateLimit.policy,
@@ -228,7 +258,16 @@ export async function proxy(request: NextRequest) {
     const { payload } = await jwtVerify(token, getSecret());
     const role = String(payload.role ?? "");
 
-    if (!rule.roles.some((allowedRole) => allowedRole === role)) {
+    if (role === "COURIER" && isCourierBlockedPage(pathname)) {
+      return finalizeResponse(
+        NextResponse.redirect(new URL(getHomeForRole(role), request.url)),
+        rateLimit.policy,
+        rateLimit.bucket,
+        rateLimit.now,
+      );
+    }
+
+    if (rule && !rule.roles.some((allowedRole) => allowedRole === role)) {
       return finalizeResponse(
         NextResponse.redirect(new URL(getHomeForRole(role), request.url)),
         rateLimit.policy,
@@ -244,6 +283,15 @@ export async function proxy(request: NextRequest) {
       rateLimit.now,
     );
   } catch {
+    if (!rule) {
+      return finalizeResponse(
+        NextResponse.next(),
+        rateLimit.policy,
+        rateLimit.bucket,
+        rateLimit.now,
+      );
+    }
+
     return finalizeResponse(
       NextResponse.redirect(new URL("/login", request.url)),
       rateLimit.policy,
