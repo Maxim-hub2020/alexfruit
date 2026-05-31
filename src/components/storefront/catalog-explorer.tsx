@@ -193,7 +193,7 @@ export function CatalogExplorer({
         </div>
       </div>
 
-      <section className="mt-7">
+      <section className="hidden">
         <div className="flex gap-6 overflow-x-auto border-b border-[var(--line)] pb-2">
           <button
             type="button"
@@ -248,7 +248,7 @@ export function CatalogExplorer({
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {categories.map((item) => {
               const Icon = categoryIcons[item.slug as keyof typeof categoryIcons] ?? CircleDot;
               const productsCount = categoryProductCounts.get(item.slug) ?? 0;
@@ -258,13 +258,15 @@ export function CatalogExplorer({
                   key={item.id}
                   type="button"
                   onClick={() => setCategory(item.slug)}
-                  className="group rounded-[2rem] bg-[var(--surface-muted)] p-5 text-left ring-1 ring-[var(--line)] transition hover:-translate-y-1 hover:bg-white hover:shadow-[0_18px_48px_rgba(61,93,74,0.12)]"
+                  className="group rounded-[1.35rem] bg-[var(--surface-muted)] p-3 text-left ring-1 ring-[var(--line)] transition hover:-translate-y-1 hover:bg-white hover:shadow-[0_18px_48px_rgba(61,93,74,0.12)] sm:p-4"
                 >
-                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-[var(--accent-strong)] ring-1 ring-[var(--line)] transition group-hover:bg-[var(--accent-soft)]">
-                    <Icon size={28} />
+                  <span className="flex h-10 w-10 items-center justify-center rounded-[1rem] bg-white text-[var(--accent-strong)] ring-1 ring-[var(--line)] transition group-hover:bg-[var(--accent-soft)] sm:h-12 sm:w-12">
+                    <Icon size={24} />
                   </span>
-                  <span className="mt-5 block text-xl font-semibold">{item.name}</span>
-                  <span className="mt-2 block text-sm text-[var(--muted)]">
+                  <span className="mt-3 block text-base font-semibold leading-tight sm:text-lg">
+                    {item.name}
+                  </span>
+                  <span className="mt-1 block text-xs text-[var(--muted)] sm:text-sm">
                     {productsCount} товаров
                   </span>
                 </button>

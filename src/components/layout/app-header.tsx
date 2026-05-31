@@ -52,12 +52,8 @@ export function AppHeader({
       const currentScrollY = globalThis.scrollY;
       const scrollDelta = currentScrollY - lastScrollYRef.current;
 
-      if (currentScrollY < 28) {
-        setCompact(false);
-      } else if (currentScrollY > 96 && scrollDelta > 8) {
+      if (currentScrollY > 96 && scrollDelta > 8) {
         setCompact(true);
-      } else if (scrollDelta < -14) {
-        setCompact(false);
       }
 
       lastScrollYRef.current = currentScrollY;
@@ -91,10 +87,13 @@ export function AppHeader({
         "fixed inset-x-0 top-0 z-40 px-3 pt-3 transition-all duration-300 ease-out",
         isCompact && "mobile-header-compact",
       )}
-      onClickCapture={expandCompactHeader}
     >
       <div className="liquid-app-header section-shell flex items-center justify-between gap-3 px-3 py-3 md:px-4">
-        <Link href={homeHref} className="flex min-w-0 items-center gap-3">
+        <Link
+          href={homeHref}
+          onClick={expandCompactHeader}
+          className="flex min-w-0 items-center gap-3"
+        >
           <BrandLogo priority />
           <div className="min-w-0 md:hidden">
             <p className="truncate font-serif text-lg font-semibold leading-tight">{APP_NAME}</p>
