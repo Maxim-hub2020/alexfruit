@@ -95,6 +95,10 @@ export type StorefrontCollection = {
 const MAX_SLOT_DISTANCE_KM = 2;
 const MIN_ORDER_NUMBER = 1000;
 const MAX_ORDER_NUMBER = 9999;
+const ORDER_TRANSACTION_OPTIONS = {
+  maxWait: 10_000,
+  timeout: 20_000,
+} as const;
 export const CUSTOMER_ORDER_EDIT_WINDOW_HOURS = 3;
 const CUSTOMER_ORDER_EDIT_WINDOW_MS =
   CUSTOMER_ORDER_EDIT_WINDOW_HOURS * 60 * 60 * 1000;
@@ -1041,6 +1045,7 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
     needsLift: data.needsLift,
   });
   const orderDeliveryDate = dateStringToDbDate(data.deliveryDate);
+  const orderNumber = await createOrderNumber();
 
   const order = await prisma.$transaction(async (tx) => {
     await reserveDailyInventoryForLines(tx, data.deliveryDate, orderInputItems);
@@ -1048,7 +1053,7 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
 
     const createdOrder = await tx.order.create({
       data: {
-        orderNumber: await createOrderNumber(),
+        orderNumber,
         userId,
         addressId: data.addressId,
         sharedCartId: sharedCart?.id,
@@ -1096,7 +1101,7 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
     }
 
     return createdOrder;
-  });
+  }, ORDER_TRANSACTION_OPTIONS);
 
   await createNotification({
     userId,
@@ -1184,7 +1189,7 @@ export async function updateOrderByCustomer(
         deliveryTimeSlot: true,
       },
     });
-  });
+  }, ORDER_TRANSACTION_OPTIONS);
 
   await createNotification({
     userId,
@@ -1279,7 +1284,7 @@ export async function rescheduleOrderByCustomer(
     });
 
     return { order: updated, notification };
-  });
+  }, ORDER_TRANSACTION_OPTIONS);
 
   await sendPushForNotification(result.notification);
 
@@ -1425,7 +1430,7 @@ export async function removeUnavailableOrderItemByCustomer(
       orderCancelled: false,
       pushNotification,
     };
-  });
+  }, ORDER_TRANSACTION_OPTIONS);
 
   await sendPushForNotification(result.pushNotification);
 
@@ -1534,7 +1539,7 @@ export async function markOrderItemUnavailable(orderItemId: string) {
     }
 
     return [];
-  });
+  }, ORDER_TRANSACTION_OPTIONS);
 
   await sendPushForNotifications(pushNotifications);
 
@@ -1572,7 +1577,7 @@ export async function cancelOrderByCustomer(userId: string, orderId: string) {
         status: OrderStatus.CANCELLED,
       },
     });
-  });
+  }, ORDER_TRANSACTION_OPTIONS);
 
   await createNotification({
     userId,
@@ -1784,7 +1789,7 @@ export async function updateOrderByAdmin(orderId: string, input: unknown) {
         status: data.status,
       },
     });
-  });
+  }, ORDER_TRANSACTION_OPTIONS);
 }
 
 export async function deleteOrderByAdmin(orderId: string) {
@@ -1808,7 +1813,7 @@ export async function deleteOrderByAdmin(orderId: string) {
     await tx.order.delete({
       where: { id: orderId },
     });
-  });
+  }, ORDER_TRANSACTION_OPTIONS);
 
   return { ok: true };
 }
@@ -1857,7 +1862,7 @@ export async function updateOrderStatusByAdmin(orderId: string, input: unknown) 
           data.adminComment === undefined ? undefined : data.adminComment || null,
       },
     });
-  });
+  }, ORDER_TRANSACTION_OPTIONS);
 
   const notificationTypeMap: Partial<Record<OrderStatus, NotificationType>> = {
     [OrderStatus.CONFIRMED]: NotificationType.ORDER_CONFIRMED,
@@ -1939,7 +1944,7 @@ export async function updateOrderItemsByAdmin(orderId: string, input: unknown) {
         items: true,
       },
     });
-  });
+  }, ORDER_TRANSACTION_OPTIONS);
 }
 
 export async function assignCourierToOrder(orderId: string, input: unknown) {
@@ -1956,7 +1961,7 @@ export async function assignCourierToOrder(orderId: string, input: unknown) {
         where: { id: orderId },
         data: { courierId: null },
       });
-    });
+    }, ORDER_TRANSACTION_OPTIONS);
   }
 
   const courier = await prisma.user.findFirst({
@@ -2238,7 +2243,7 @@ export async function updateCourierTaskStatus(
         status: nextOrderStatus,
       },
     });
-  });
+  }, ORDER_TRANSACTION_OPTIONS);
 }
 
 export async function reportCourierProblem(
