@@ -4,6 +4,7 @@ import "./globals.css";
 import { AppNotificationsProvider } from "@/components/providers/app-notifications-provider";
 import { CartProvider } from "@/components/providers/cart-provider";
 import { MobileSplashScreen } from "@/components/providers/mobile-splash-screen";
+import { PreloadResources } from "@/components/providers/preload-resources";
 import { PressFeedbackProvider } from "@/components/providers/press-feedback-provider";
 
 const manrope = Manrope({
@@ -44,6 +45,25 @@ export const viewport: Viewport = {
   themeColor: "#2f8f4f",
 };
 
+const serviceWorkerBootScript = `(() => {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+
+  const register = () => {
+    navigator.serviceWorker
+      .register("/sw.js", { scope: "/" })
+      .then((registration) => registration.update().catch(() => {}))
+      .catch(() => {});
+  };
+
+  if (document.readyState === "complete") {
+    register();
+  } else {
+    window.addEventListener("load", register, { once: true });
+  }
+})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -57,7 +77,9 @@ export default function RootLayout({
       className={`${manrope.variable} ${cormorant.variable} h-full antialiased`}
     >
       <body className="min-h-full text-[var(--foreground)]">
+        <PreloadResources />
         <MobileSplashScreen />
+        <script dangerouslySetInnerHTML={{ __html: serviceWorkerBootScript }} />
         <PressFeedbackProvider>
           <CartProvider>
             <AppNotificationsProvider>{children}</AppNotificationsProvider>
