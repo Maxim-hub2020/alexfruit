@@ -1,5 +1,4 @@
 import { access, readFile } from "node:fs/promises";
-import path from "node:path";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, PDFPage, PDFFont, rgb } from "pdf-lib";
 import { APP_NAME, unitLabels } from "@/lib/constants";
@@ -52,6 +51,16 @@ type StaffPdfOrder = {
   }>;
 };
 
+type ProcurementPdfItem = {
+  productName: string;
+  categoryName: string;
+  unit: string;
+  orderedQuantity: PrintableValue;
+  reservedQuantity: PrintableValue;
+  toBuyQuantity: PrintableValue;
+  ordersCount: number;
+};
+
 function sortOrdersByRoute(orders: StaffPdfOrder[]) {
   return orders.toSorted((first, second) => {
     const firstRouteOrder = first.deliveryTask?.routeOrder ?? 999;
@@ -76,7 +85,6 @@ const regularFontCandidates = [
   "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
   "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
   "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-  path.join(process.cwd(), "node_modules/next/dist/compiled/@vercel/og/Geist-Regular.ttf"),
 ].filter(Boolean) as string[];
 
 const boldFontCandidates = [
@@ -530,6 +538,179 @@ export async function createDeliveryPdf(orders: StaffPdfOrder[], date: string) {
 
     y -= 18;
   });
+
+  return pdfDoc.save();
+}
+
+export async function createProcurementPdf(
+  items: ProcurementPdfItem[],
+  date: string,
+  ordersCount: number,
+) {
+  const { pdfDoc, regularFont, boldFont } = await createBasePdf();
+  let pageNumber = 1;
+  let page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+  let y = drawHeader({
+    page,
+    title: "Лист закупки снабженца",
+    date,
+    count: ordersCount,
+    regularFont,
+    boldFont,
+  });
+
+  drawFooter(page, pageNumber, regularFont);
+
+  function nextPage() {
+    pageNumber += 1;
+    page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+    y = drawHeader({
+      page,
+      title: "Лист закупки снабженца",
+      date,
+      count: ordersCount,
+      regularFont,
+      boldFont,
+    });
+    drawFooter(page, pageNumber, regularFont);
+  }
+
+  function ensureSpace(height: number) {
+    if (y - height < 56) {
+      nextPage();
+    }
+  }
+
+  y = drawWrappedText({
+    page,
+    text:
+      "Сводный список по всем заказам выбранной даты. Одинаковые товары объединены в одну позицию, чтобы закупка шла общим котлом, а не по каждому заказу отдельно.",
+    x: PAGE_MARGIN,
+    y,
+    maxWidth: CONTENT_WIDTH,
+    font: regularFont,
+    size: 10,
+    lineHeight: 13,
+    color: rgb(0.38, 0.45, 0.38),
+  });
+  y -= 14;
+
+  if (items.length === 0) {
+    drawWrappedText({
+      page,
+      text: "На выбранную дату пока нет товарных позиций для закупочного листа.",
+      x: PAGE_MARGIN,
+      y,
+      maxWidth: CONTENT_WIDTH,
+      font: boldFont,
+      size: 13,
+      lineHeight: 16,
+      color: rgb(0.1, 0.29, 0.12),
+    });
+
+    return pdfDoc.save();
+  }
+
+  let currentCategory = "";
+
+  for (const [index, item] of items.entries()) {
+    const categoryChanged = item.categoryName !== currentCategory;
+
+    ensureSpace(categoryChanged ? 80 : 54);
+
+    if (categoryChanged) {
+      currentCategory = item.categoryName;
+      page.drawRectangle({
+        x: PAGE_MARGIN,
+        y: y - 24,
+        width: CONTENT_WIDTH,
+        height: 28,
+        color: rgb(0.93, 0.97, 0.91),
+        borderColor: rgb(0.78, 0.86, 0.76),
+        borderWidth: 0.5,
+      });
+      drawText(page, currentCategory, PAGE_MARGIN + 12, y - 15, boldFont, 11, rgb(0.1, 0.29, 0.12));
+      y -= 42;
+
+      drawText(page, "Товар", PAGE_MARGIN, y, boldFont, 9, rgb(0.38, 0.45, 0.38));
+      drawText(page, "Купить", PAGE_MARGIN + 272, y, boldFont, 9, rgb(0.38, 0.45, 0.38));
+      drawText(page, "Заказано", PAGE_MARGIN + 365, y, boldFont, 9, rgb(0.38, 0.45, 0.38));
+      drawText(page, "Резерв", PAGE_MARGIN + 455, y, boldFont, 9, rgb(0.38, 0.45, 0.38));
+      drawText(page, "Заказов", PAGE_MARGIN + 512, y, boldFont, 9, rgb(0.38, 0.45, 0.38));
+      y -= 8;
+      page.drawLine({
+        start: { x: PAGE_MARGIN, y },
+        end: { x: A4_WIDTH - PAGE_MARGIN, y },
+        thickness: 0.4,
+        color: rgb(0.82, 0.88, 0.8),
+      });
+      y -= 16;
+    }
+
+    const rowTop = y;
+    const needsPurchase = valueToNumber(item.toBuyQuantity) > 0;
+    const rowColor = index % 2 === 0 ? rgb(0.99, 1, 0.98) : rgb(1, 1, 1);
+
+    page.drawRectangle({
+      x: PAGE_MARGIN - 4,
+      y: rowTop - 24,
+      width: CONTENT_WIDTH + 8,
+      height: 34,
+      color: rowColor,
+      borderColor: rgb(0.9, 0.94, 0.88),
+      borderWidth: 0.3,
+    });
+
+    y = drawWrappedText({
+      page,
+      text: item.productName,
+      x: PAGE_MARGIN,
+      y,
+      maxWidth: 252,
+      font: needsPurchase ? boldFont : regularFont,
+      size: 10,
+      lineHeight: 12,
+      color: needsPurchase ? rgb(0.08, 0.1, 0.08) : rgb(0.48, 0.54, 0.48),
+    });
+    drawText(
+      page,
+      formatQuantity(item.toBuyQuantity, item.unit),
+      PAGE_MARGIN + 272,
+      rowTop,
+      boldFont,
+      10,
+      needsPurchase ? rgb(0.14, 0.45, 0.18) : rgb(0.48, 0.54, 0.48),
+    );
+    drawText(
+      page,
+      formatQuantity(item.orderedQuantity, item.unit),
+      PAGE_MARGIN + 365,
+      rowTop,
+      regularFont,
+      9,
+      rgb(0.28, 0.34, 0.28),
+    );
+    drawText(
+      page,
+      formatQuantity(item.reservedQuantity, item.unit),
+      PAGE_MARGIN + 455,
+      rowTop,
+      regularFont,
+      9,
+      rgb(0.28, 0.34, 0.28),
+    );
+    drawText(
+      page,
+      String(item.ordersCount),
+      PAGE_MARGIN + 522,
+      rowTop,
+      regularFont,
+      9,
+      rgb(0.28, 0.34, 0.28),
+    );
+
+    y = Math.min(y, rowTop - 28);
+  }
 
   return pdfDoc.save();
 }

@@ -1,5 +1,4 @@
 import { access, readFile } from "node:fs/promises";
-import path from "node:path";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, PDFPage, PDFFont, rgb } from "pdf-lib";
 import { getAddressLabel } from "@/lib/utils";
@@ -43,7 +42,6 @@ const regularFontCandidates = [
   "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
   "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
   "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-  path.join(process.cwd(), "node_modules/next/dist/compiled/@vercel/og/Geist-Regular.ttf"),
 ].filter(Boolean) as string[];
 
 const boldFontCandidates = [

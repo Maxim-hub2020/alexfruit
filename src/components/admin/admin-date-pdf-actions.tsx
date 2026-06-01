@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useTransition } from "react";
-import { CalendarDays, FileText, PackageCheck, Truck } from "lucide-react";
+import { CalendarDays, FileText, PackageCheck, ShoppingBasket, Truck } from "lucide-react";
 
 type AdminDatePdfActionsProps = {
   basePath: string;
@@ -17,6 +17,7 @@ type AdminDatePdfActionsProps = {
   labelsUrl?: string;
   assemblyUrl?: string;
   deliveryUrl?: string;
+  procurementUrl?: string;
   emptyText?: string;
   labelsEmptyText?: string;
   requireDate?: boolean;
@@ -64,6 +65,7 @@ export function AdminDatePdfActions({
   labelsUrl,
   assemblyUrl,
   deliveryUrl,
+  procurementUrl,
   emptyText = "Нет заказов на выбранную дату",
   labelsEmptyText = "Этикетки доступны только для подтверждённых заказов.",
   requireDate = true,
@@ -125,6 +127,11 @@ export function AdminDatePdfActions({
           <PdfActionLink href={deliveryUrl} enabled={canGenerate} variant="light">
             <Truck size={16} />
             PDF для доставщика
+          </PdfActionLink>
+
+          <PdfActionLink href={procurementUrl} enabled={canGenerate} variant="light">
+            <ShoppingBasket size={16} />
+            PDF для закупки
           </PdfActionLink>
 
           {!canGenerate && (

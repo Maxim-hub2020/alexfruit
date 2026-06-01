@@ -2652,6 +2652,110 @@ export async function getOrdersForStaffPdf(filters: {
   });
 }
 
+export type ProcurementPdfItem = {
+  productName: string;
+  categoryName: string;
+  unit: string;
+  orderedQuantity: number;
+  reservedQuantity: number;
+  toBuyQuantity: number;
+  ordersCount: number;
+};
+
+function decimalToNumber(value: number | string | { toString(): string }) {
+  const numeric = Number(value);
+
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+export async function getProcurementItemsForPdf(filters: { date: string }) {
+  const orders = await prisma.order.findMany({
+    where: {
+      deliveryDate: dateStringToDbDate(filters.date),
+      status: {
+        not: OrderStatus.CANCELLED,
+      },
+    },
+    include: {
+      items: {
+        include: {
+          product: {
+            include: {
+              category: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ deliveryTimeSlot: { startTime: "asc" } }, { createdAt: "asc" }],
+  });
+
+  const groupedItems = new Map<
+    string,
+    {
+      productName: string;
+      categoryName: string;
+      unit: string;
+      orderedQuantity: number;
+      reservedQuantity: number;
+      toBuyQuantity: number;
+      orderIds: Set<string>;
+    }
+  >();
+
+  for (const order of orders) {
+    for (const item of order.items) {
+      const orderedQuantity = decimalToNumber(item.orderedQuantity);
+      const reservedQuantity = Math.min(
+        orderedQuantity,
+        Math.max(0, decimalToNumber(item.reservedQuantity)),
+      );
+      const toBuyQuantity = Math.max(orderedQuantity - reservedQuantity, 0);
+      const productName = item.product?.name ?? item.productName;
+      const categoryName = item.product?.category?.name ?? "Без категории";
+      const key = item.productId ?? `${productName}:${item.unit}`;
+      const current =
+        groupedItems.get(key) ??
+        {
+          productName,
+          categoryName,
+          unit: item.unit,
+          orderedQuantity: 0,
+          reservedQuantity: 0,
+          toBuyQuantity: 0,
+          orderIds: new Set<string>(),
+        };
+
+      current.orderedQuantity += orderedQuantity;
+      current.reservedQuantity += reservedQuantity;
+      current.toBuyQuantity += toBuyQuantity;
+      current.orderIds.add(order.id);
+      groupedItems.set(key, current);
+    }
+  }
+
+  const items = Array.from(groupedItems.values())
+    .map((item) => ({
+      productName: item.productName,
+      categoryName: item.categoryName,
+      unit: item.unit,
+      orderedQuantity: item.orderedQuantity,
+      reservedQuantity: item.reservedQuantity,
+      toBuyQuantity: item.toBuyQuantity,
+      ordersCount: item.orderIds.size,
+    }))
+    .toSorted(
+      (first, second) =>
+        first.categoryName.localeCompare(second.categoryName, "ru") ||
+        first.productName.localeCompare(second.productName, "ru"),
+    );
+
+  return {
+    ordersCount: orders.length,
+    items,
+  };
+}
+
 const activeCourierTaskStatuses: DeliveryTaskStatus[] = [
   DeliveryTaskStatus.ASSIGNED,
   DeliveryTaskStatus.IN_PROGRESS,

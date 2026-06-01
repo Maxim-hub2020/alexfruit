@@ -55,6 +55,9 @@ export default async function AdminOrdersPage({
   const deliveryPdfUrl = selectedDate
     ? `/api/admin/orders/delivery-pdf?date=${encodeURIComponent(selectedDate)}`
     : "";
+  const procurementPdfUrl = selectedDate
+    ? `/api/admin/orders/procurement-pdf?date=${encodeURIComponent(selectedDate)}`
+    : "";
 
   return (
     <MainShell active="admin-orders" user={user}>
@@ -78,6 +81,7 @@ export default async function AdminOrdersPage({
           labelsUrl={labelsUrl}
           assemblyUrl={assemblyUrl}
           deliveryUrl={deliveryPdfUrl}
+          procurementUrl={procurementPdfUrl}
           emptyText="Нет заказов для документов на выбранную дату."
           labelsEmptyText="Этикетки появятся после подтверждения заказа администратором."
         />
