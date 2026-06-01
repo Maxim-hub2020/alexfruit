@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import type { DragEvent } from "react";
 import { useState } from "react";
 import { Route, Sparkles, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,11 @@ type RebalanceProposal = {
   }>;
 };
 
+type DraggedRouteOrder = {
+  orderId: string;
+  courierId: string;
+};
+
 function formatEta(minutes: number) {
   if (minutes < 60) {
     return `${minutes} мин`;
@@ -46,11 +52,15 @@ function formatEta(minutes: number) {
   return rest > 0 ? `${hours} ч ${rest} мин` : `${hours} ч`;
 }
 
-async function requestRebalance(date: string, commit: boolean) {
+async function requestRebalance(
+  date: string,
+  commit: boolean,
+  assignments?: Array<{ orderId: string; courierId: string; routeOrder: number }>,
+) {
   const response = await fetch("/api/admin/delivery/rebalance", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ date, commit }),
+    body: JSON.stringify({ date, commit, assignments }),
   });
   const payload = await response.json();
 
@@ -70,6 +80,9 @@ export function AdminRouteRebalancePanel({
 }) {
   const router = useRouter();
   const [proposal, setProposal] = useState<RebalanceProposal | null>(null);
+  const [draggedOrder, setDraggedOrder] = useState<DraggedRouteOrder | null>(null);
+  const [dropCourierId, setDropCourierId] = useState<string | null>(null);
+  const [hasManualChanges, setHasManualChanges] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState("");
@@ -82,6 +95,7 @@ export function AdminRouteRebalancePanel({
 
     try {
       setProposal(await requestRebalance(date, false));
+      setHasManualChanges(false);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Не удалось пересчитать маршруты");
     } finally {
@@ -95,7 +109,16 @@ export function AdminRouteRebalancePanel({
     setMessage("");
 
     try {
-      setProposal(await requestRebalance(date, true));
+      const assignments = proposal?.routes.flatMap((route) =>
+        route.orders.map((order, index) => ({
+          orderId: order.orderId,
+          courierId: route.courierId,
+          routeOrder: index + 1,
+        })),
+      );
+
+      await requestRebalance(date, true, assignments);
+      setHasManualChanges(false);
       setMessage("Маршруты перераспределены и сохранены.");
       router.refresh();
     } catch (caught) {
@@ -103,6 +126,71 @@ export function AdminRouteRebalancePanel({
     } finally {
       setIsApplying(false);
     }
+  }
+
+  function startRouteDrag(
+    event: DragEvent<HTMLElement>,
+    orderId: string,
+    courierId: string,
+  ) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", orderId);
+    setDraggedOrder({ orderId, courierId });
+  }
+
+  function allowRouteDrop(event: DragEvent<HTMLElement>, courierId: string) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDropCourierId(courierId);
+  }
+
+  function dropRouteOrder(event: DragEvent<HTMLElement>, targetCourierId: string) {
+    event.preventDefault();
+
+    if (!draggedOrder || !proposal) {
+      setDropCourierId(null);
+      return;
+    }
+
+    const dragged = proposal.routes
+      .flatMap((currentRoute) => currentRoute.orders)
+      .find((order) => order.orderId === draggedOrder.orderId);
+
+    if (!dragged) {
+      setDraggedOrder(null);
+      setDropCourierId(null);
+      return;
+    }
+
+    setProposal({
+      ...proposal,
+      routes: proposal.routes.map((route) => {
+        const routeWithoutDraggedOrder = route.orders.filter(
+          (order) => order.orderId !== draggedOrder.orderId,
+        );
+        const nextOrders =
+          route.courierId === targetCourierId
+            ? [...routeWithoutDraggedOrder, dragged]
+            : routeWithoutDraggedOrder;
+
+        return {
+          ...route,
+          ordersCount: nextOrders.length,
+          orders: nextOrders.map((order, index) => ({
+            ...order,
+            routeOrder: index + 1,
+          })),
+        };
+      }),
+    });
+    setHasManualChanges(true);
+    setDraggedOrder(null);
+    setDropCourierId(null);
+  }
+
+  function endRouteDrag() {
+    setDraggedOrder(null);
+    setDropCourierId(null);
   }
 
   return (
@@ -167,7 +255,17 @@ export function AdminRouteRebalancePanel({
           ) : (
             <div className="grid gap-4 xl:grid-cols-2">
               {proposal.routes.map((route) => (
-                <article key={route.courierId} className="rounded-[1.8rem] bg-white/86 p-4 ring-1 ring-[var(--line)]">
+                <article
+                  key={route.courierId}
+                  onDragOver={(event) => allowRouteDrop(event, route.courierId)}
+                  onDragLeave={() => setDropCourierId(null)}
+                  onDrop={(event) => dropRouteOrder(event, route.courierId)}
+                  className={cn(
+                    "rounded-[1.8rem] bg-white/86 p-4 ring-1 ring-[var(--line)] transition",
+                    dropCourierId === route.courierId &&
+                      "bg-lime-50/90 ring-2 ring-lime-300",
+                  )}
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm uppercase tracking-[0.16em] text-[var(--muted)]">
@@ -191,9 +289,15 @@ export function AdminRouteRebalancePanel({
                       return (
                         <div
                           key={order.orderId}
+                          draggable
+                          onDragStart={(event) =>
+                            startRouteDrag(event, order.orderId, route.courierId)
+                          }
+                          onDragEnd={endRouteDrag}
                           className={cn(
-                            "rounded-[1.25rem] bg-[var(--surface-muted)] p-3 text-sm",
+                            "cursor-grab rounded-[1.25rem] bg-[var(--surface-muted)] p-3 text-sm active:cursor-grabbing",
                             change && "bg-lime-50 ring-1 ring-lime-100",
+                            draggedOrder?.orderId === order.orderId && "opacity-55",
                           )}
                         >
                           <div className="flex items-center gap-2">
@@ -216,7 +320,7 @@ export function AdminRouteRebalancePanel({
                     })}
                     {route.orders.length === 0 ? (
                       <div className="rounded-[1.25rem] bg-[var(--surface-muted)] p-3 text-sm text-[var(--muted)]">
-                        Нет заказов на эту дату.
+                        Перетащите сюда заказ, если курьер должен выйти на линию.
                       </div>
                     ) : null}
                   </div>
@@ -227,7 +331,9 @@ export function AdminRouteRebalancePanel({
 
           <div className="flex flex-col gap-3 rounded-[1.7rem] bg-white/82 p-4 ring-1 ring-[var(--line)] sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-[var(--muted)]">
-              Подтверждение сохранит курьеров и порядок точек для выбранной даты.
+              {hasManualChanges
+                ? "Ручные перемещения будут сохранены как новый маршрут выбранной даты."
+                : "Подтверждение сохранит курьеров и порядок точек для выбранной даты."}
             </p>
             <Button onClick={apply} disabled={isApplying || proposal.routes.length === 0}>
               {isApplying ? "Сохраняем..." : "Подтвердить распределение"}

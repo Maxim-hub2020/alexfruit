@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { DragEvent } from "react";
+import { useMemo, useState, useTransition } from "react";
 import {
   ArrowRight,
   ArrowUp,
@@ -22,6 +24,7 @@ const kanbanLanes = [
     key: "new",
     label: "Новый",
     hint: "Принять и уточнить",
+    targetStatus: "NEW",
     statuses: ["NEW", "PENDING_CONFIRMATION"],
     accent: "from-emerald-50 via-white to-white ring-emerald-100",
   },
@@ -29,6 +32,7 @@ const kanbanLanes = [
     key: "confirmed",
     label: "Подтверждён",
     hint: "Готовится к сборке",
+    targetStatus: "CONFIRMED",
     statuses: ["CONFIRMED", "ASSEMBLING", "ASSEMBLED"],
     accent: "from-lime-50 via-white to-white ring-lime-100",
   },
@@ -36,6 +40,7 @@ const kanbanLanes = [
     key: "delivery",
     label: "В доставке",
     hint: "Курьер и завершение",
+    targetStatus: "HANDED_TO_COURIER",
     statuses: [
       "HANDED_TO_COURIER",
       "COURIER_ON_THE_WAY",
@@ -90,14 +95,34 @@ function getFlowProgress(status: string) {
   return 33;
 }
 
-function OrderMiniCard({ order, dense = false }: { order: AdminOrder; dense?: boolean }) {
+function OrderMiniCard({
+  order,
+  dense = false,
+  draggable = false,
+  isDragging = false,
+  onDragStart,
+  onDragEnd,
+}: {
+  order: AdminOrder;
+  dense?: boolean;
+  draggable?: boolean;
+  isDragging?: boolean;
+  onDragStart?: (event: DragEvent<HTMLAnchorElement>) => void;
+  onDragEnd?: () => void;
+}) {
   const preorderCount = order.items.filter((item) => item.isPreorder).length;
 
   return (
     <Link
       href={`/admin/orders/${order.id}`}
+      draggable={draggable}
+      aria-grabbed={isDragging}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       className={cn(
         "group block rounded-[1.6rem] bg-white/92 p-4 shadow-sm ring-1 ring-[var(--line)] transition hover:-translate-y-0.5 hover:shadow-xl",
+        draggable && "cursor-grab active:cursor-grabbing",
+        isDragging && "opacity-55",
         dense ? "space-y-3" : "space-y-4",
         !order.courier && "bg-amber-50/90 ring-amber-200",
       )}
@@ -216,13 +241,97 @@ function OrderStageProgress({ status }: { status: string }) {
 }
 
 export function AdminOrderManager({ orders }: { orders: AdminOrder[] }) {
+  const router = useRouter();
   const [viewMode, setViewMode] = useState<"list" | "kanban">("kanban");
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
+  const [draggedOrderId, setDraggedOrderId] = useState<string | null>(null);
+  const [activeLaneKey, setActiveLaneKey] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [, startTransition] = useTransition();
+
+  const localOrders = useMemo(
+    () =>
+      orders.map((order) =>
+        statusOverrides[order.id]
+          ? { ...order, status: statusOverrides[order.id] }
+          : order,
+      ),
+    [orders, statusOverrides],
+  );
   const ordersByLane = useMemo(() => {
     return kanbanLanes.map((lane) => ({
       ...lane,
-      orders: orders.filter((order) => lane.statuses.includes(order.status as never)),
+      orders: localOrders.filter((order) => lane.statuses.includes(order.status as never)),
     }));
-  }, [orders]);
+  }, [localOrders]);
+
+  function startKanbanDrag(event: DragEvent<HTMLAnchorElement>, orderId: string) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", orderId);
+    setDraggedOrderId(orderId);
+    setError("");
+  }
+
+  function allowKanbanDrop(event: DragEvent<HTMLElement>, laneKey: string) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setActiveLaneKey(laneKey);
+  }
+
+  async function moveOrderToStatus(orderId: string, status: string) {
+    const currentOrder = localOrders.find((order) => order.id === orderId);
+
+    if (!currentOrder || currentOrder.status === status) {
+      return;
+    }
+
+    if (status === "HANDED_TO_COURIER" && !currentOrder.courier) {
+      setError("Сначала назначьте курьера, потом переносите заказ в доставку.");
+      return;
+    }
+
+    setStatusOverrides((current) => ({ ...current, [orderId]: status }));
+
+    const response = await fetch(`/api/admin/orders/${orderId}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      setStatusOverrides((current) => {
+        const next = { ...current };
+        delete next[orderId];
+        return next;
+      });
+      setError(payload?.error ?? "Не удалось изменить статус заказа");
+      return;
+    }
+
+    startTransition(() => {
+      router.refresh();
+    });
+  }
+
+  function dropKanbanOrder(event: DragEvent<HTMLElement>, targetStatus: string) {
+    event.preventDefault();
+    const orderId = draggedOrderId ?? event.dataTransfer.getData("text/plain");
+
+    setDraggedOrderId(null);
+    setActiveLaneKey(null);
+
+    if (!orderId) {
+      return;
+    }
+
+    void moveOrderToStatus(orderId, targetStatus);
+  }
+
+  function endKanbanDrag() {
+    setDraggedOrderId(null);
+    setActiveLaneKey(null);
+  }
 
   return (
     <section className="space-y-4">
@@ -233,7 +342,7 @@ export function AdminOrderManager({ orders }: { orders: AdminOrder[] }) {
           </p>
           <h2 className="mt-1 text-2xl font-semibold">Заказы по этапам</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            {orders.length} заказов. Изменения внутри карточки заказа.
+            {localOrders.length} заказов. Карточки можно перетаскивать между этапами.
           </p>
         </div>
 
@@ -267,14 +376,24 @@ export function AdminOrderManager({ orders }: { orders: AdminOrder[] }) {
         </div>
       </div>
 
+      {error ? (
+        <div className="rounded-[1.5rem] bg-rose-50 p-4 text-sm text-rose-900 ring-1 ring-rose-100">
+          {error}
+        </div>
+      ) : null}
+
       {viewMode === "kanban" ? (
         <div className="grid gap-4 xl:grid-cols-3">
           {ordersByLane.map((lane) => (
             <section
               key={lane.key}
+              onDragOver={(event) => allowKanbanDrop(event, lane.key)}
+              onDragLeave={() => setActiveLaneKey(null)}
+              onDrop={(event) => dropKanbanOrder(event, lane.targetStatus)}
               className={cn(
-                "min-h-44 rounded-[2rem] bg-gradient-to-br p-4 ring-1",
+                "min-h-44 rounded-[2rem] bg-gradient-to-br p-4 ring-1 transition",
                 lane.accent,
+                activeLaneKey === lane.key && "scale-[1.01] ring-2 ring-[var(--accent)]",
               )}
             >
               <div className="mb-4 flex items-center justify-between gap-3">
@@ -289,11 +408,19 @@ export function AdminOrderManager({ orders }: { orders: AdminOrder[] }) {
 
               <div className="space-y-3">
                 {lane.orders.map((order) => (
-                  <OrderMiniCard key={order.id} order={order} dense />
+                  <OrderMiniCard
+                    key={order.id}
+                    order={order}
+                    dense
+                    draggable
+                    isDragging={draggedOrderId === order.id}
+                    onDragStart={(event) => startKanbanDrag(event, order.id)}
+                    onDragEnd={endKanbanDrag}
+                  />
                 ))}
                 {lane.orders.length === 0 ? (
                   <div className="rounded-[1.5rem] bg-white/60 p-5 text-center text-sm text-[var(--muted)]">
-                    Нет заказов
+                    Перетащите сюда заказ
                   </div>
                 ) : null}
               </div>
@@ -302,13 +429,13 @@ export function AdminOrderManager({ orders }: { orders: AdminOrder[] }) {
         </div>
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
-          {orders.map((order) => (
+          {localOrders.map((order) => (
             <div key={order.id} className="space-y-3">
               <OrderMiniCard order={order} />
               <OrderStageProgress status={order.status} />
             </div>
           ))}
-          {orders.length === 0 ? (
+          {localOrders.length === 0 ? (
             <div className="glass-panel rounded-[2rem] p-8 text-center text-[var(--muted)] xl:col-span-2">
               Заказов по текущим фильтрам нет
             </div>

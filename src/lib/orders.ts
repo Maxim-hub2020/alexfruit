@@ -128,9 +128,12 @@ const ROSTOV_CENTER = {
   latitude: 47.2221,
   longitude: 39.7203,
 };
-const COURIER_LOAD_WEIGHT = 4;
+const COURIER_LOAD_WEIGHT = 0.75;
+const COURIER_OVERLOAD_WEIGHT = 3.5;
+const COURIER_TARGET_ROUTE_ORDERS = 8;
+const COURIER_EMPTY_ROUTE_START_PENALTY = 12;
 const COURIER_MISSING_COORDINATE_PENALTY = 7;
-const SAME_STREET_BONUS = 3;
+const SAME_STREET_BONUS = 6;
 const ROUTE_AVERAGE_SPEED_KMH = 24;
 const ROUTE_STOP_SERVICE_MINUTES = 12;
 const unavailableProductTitlePrefixes = [
@@ -327,14 +330,26 @@ function scoreCourierForAddress(
   }>,
 ) {
   const candidatePoint = getAddressPoint(candidateAddress);
-  const loadScore = assignedOrders.length * COURIER_LOAD_WEIGHT;
+  const loadScore =
+    assignedOrders.length * COURIER_LOAD_WEIGHT +
+    Math.max(0, assignedOrders.length - COURIER_TARGET_ROUTE_ORDERS) *
+      COURIER_OVERLOAD_WEIGHT;
 
   if (!candidatePoint) {
-    return loadScore + COURIER_MISSING_COORDINATE_PENALTY;
+    const sameAreaBonus = assignedOrders.some((order) =>
+      hasSameDeliveryArea(candidateAddress, order.address),
+    )
+      ? SAME_STREET_BONUS
+      : 0;
+
+    return loadScore + COURIER_MISSING_COORDINATE_PENALTY - sameAreaBonus;
   }
 
   if (assignedOrders.length === 0) {
-    return loadScore + getDistanceKm(ROSTOV_CENTER, candidatePoint);
+    return (
+      COURIER_EMPTY_ROUTE_START_PENALTY +
+      getDistanceKm(ROSTOV_CENTER, candidatePoint)
+    );
   }
 
   let nearestDistance = Number.POSITIVE_INFINITY;
@@ -342,6 +357,10 @@ function scoreCourierForAddress(
   let sameAreaBonus = 0;
 
   for (const order of assignedOrders) {
+    if (hasSameDeliveryArea(candidateAddress, order.address)) {
+      sameAreaBonus = SAME_STREET_BONUS;
+    }
+
     const point = getAddressPoint(order.address);
 
     if (!point) {
@@ -350,10 +369,6 @@ function scoreCourierForAddress(
     }
 
     nearestDistance = Math.min(nearestDistance, getDistanceKm(candidatePoint, point));
-
-    if (hasSameDeliveryArea(candidateAddress, order.address)) {
-      sameAreaBonus = SAME_STREET_BONUS;
-    }
   }
 
   const distanceScore = Number.isFinite(nearestDistance)
@@ -2391,6 +2406,12 @@ type DistributionOrder = Prisma.OrderGetPayload<{
   };
 }>;
 
+type RouteDistributionAssignment = {
+  orderId: string;
+  courierId: string;
+  routeOrder: number;
+};
+
 function getDistributionAddressLabel(order: DistributionOrder) {
   return `${order.address.city}, ${order.address.street}, ${order.address.house}${
     order.address.apartment ? `, кв. ${order.address.apartment}` : ""
@@ -2541,7 +2562,95 @@ export async function previewCourierRedistribution(deliveryDate: string) {
   return buildRouteDistributionPlan(deliveryDate, orders, couriers);
 }
 
-export async function applyCourierRedistribution(deliveryDate: string) {
+async function applyManualCourierRedistribution(
+  deliveryDate: string,
+  assignments: RouteDistributionAssignment[],
+) {
+  const date = dateStringToDbDate(deliveryDate);
+  const normalizedAssignments = assignments
+    .filter((assignment) => assignment.orderId && assignment.courierId)
+    .map((assignment, index) => ({
+      ...assignment,
+      routeOrder:
+        Number.isInteger(assignment.routeOrder) && assignment.routeOrder > 0
+          ? assignment.routeOrder
+          : index + 1,
+    }));
+  const orderIds = [...new Set(normalizedAssignments.map((assignment) => assignment.orderId))];
+  const courierIds = [...new Set(normalizedAssignments.map((assignment) => assignment.courierId))];
+
+  if (orderIds.length === 0) {
+    throw new ApiError("Нет заказов для сохранения маршрута", 400);
+  }
+
+  const [orders, couriers] = await Promise.all([
+    prisma.order.findMany({
+      where: {
+        id: { in: orderIds },
+        deliveryDate: date,
+        status: {
+          in: routeAssignableOrderStatuses,
+        },
+      },
+      select: { id: true },
+    }),
+    prisma.courier.findMany({
+      where: {
+        userId: { in: courierIds },
+        isActive: true,
+        user: {
+          role: Role.COURIER,
+        },
+      },
+      select: { userId: true },
+    }),
+  ]);
+  const allowedOrderIds = new Set(orders.map((order) => order.id));
+  const allowedCourierIds = new Set(couriers.map((courier) => courier.userId));
+
+  if (allowedOrderIds.size !== orderIds.length) {
+    throw new ApiError("В маршруте есть заказ не из выбранной даты", 400);
+  }
+
+  if (allowedCourierIds.size !== courierIds.length) {
+    throw new ApiError("В маршруте есть неактивный курьер", 400);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const assignment of normalizedAssignments) {
+      await tx.order.update({
+        where: { id: assignment.orderId },
+        data: { courierId: assignment.courierId },
+      });
+
+      await tx.deliveryTask.upsert({
+        where: { orderId: assignment.orderId },
+        update: {
+          courierId: assignment.courierId,
+          status: DeliveryTaskStatus.ASSIGNED,
+          routeOrder: assignment.routeOrder,
+        },
+        create: {
+          orderId: assignment.orderId,
+          courierId: assignment.courierId,
+          status: DeliveryTaskStatus.ASSIGNED,
+          routeOrder: assignment.routeOrder,
+        },
+      });
+    }
+  }, ORDER_TRANSACTION_OPTIONS);
+
+  return previewCourierRedistribution(deliveryDate);
+}
+
+export async function applyCourierRedistribution(
+  deliveryDate: string,
+  assignments?: RouteDistributionAssignment[],
+) {
+  if (assignments && assignments.length > 0) {
+    return applyManualCourierRedistribution(deliveryDate, assignments);
+  }
+
   const proposal = await previewCourierRedistribution(deliveryDate);
 
   await prisma.$transaction(async (tx) => {

@@ -7,6 +7,42 @@ import {
   previewCourierRedistribution,
 } from "@/lib/orders";
 
+function getManualAssignments(value: unknown) {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value
+    .map((item) => {
+      if (typeof item !== "object" || item === null) {
+        return null;
+      }
+
+      const details = item as {
+        orderId?: unknown;
+        courierId?: unknown;
+        routeOrder?: unknown;
+      };
+      const orderId = typeof details.orderId === "string" ? details.orderId.trim() : "";
+      const courierId =
+        typeof details.courierId === "string" ? details.courierId.trim() : "";
+      const routeOrder = Number(details.routeOrder);
+
+      if (!orderId || !courierId) {
+        return null;
+      }
+
+      return {
+        orderId,
+        courierId,
+        routeOrder: Number.isInteger(routeOrder) && routeOrder > 0 ? routeOrder : 1,
+      };
+    })
+    .filter((item): item is { orderId: string; courierId: string; routeOrder: number } =>
+      Boolean(item),
+    );
+}
+
 export async function POST(request: Request) {
   try {
     await requireApiUser([Role.ADMIN]);
@@ -21,8 +57,9 @@ export async function POST(request: Request) {
       );
     }
 
+    const assignments = getManualAssignments(body.assignments);
     const proposal = body.commit
-      ? await applyCourierRedistribution(date)
+      ? await applyCourierRedistribution(date, assignments)
       : await previewCourierRedistribution(date);
 
     return NextResponse.json(proposal);
