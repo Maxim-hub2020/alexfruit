@@ -1,6 +1,5 @@
-const STATIC_CACHE = "alexfrut-static-v3";
+const STATIC_CACHE = "alexfrut-static-v4";
 const PRECACHE_ASSETS = [
-  "/splash/alexfrut-intro.mp4",
   "/brand/alexfrut-logo-icon.png",
   "/brand/alexfrut-logo-square.png",
   "/apple-touch-icon.png",
@@ -9,55 +8,6 @@ const PRECACHE_ASSETS = [
 async function precacheStaticAssets() {
   const cache = await caches.open(STATIC_CACHE);
   await cache.addAll(PRECACHE_ASSETS);
-}
-
-async function createPartialResponse(request, cachedResponse) {
-  const range = request.headers.get("range");
-  const contentType = cachedResponse.headers.get("content-type") || "video/mp4";
-
-  if (!range) {
-    return cachedResponse;
-  }
-
-  const match = /^bytes=(\d*)-(\d*)$/.exec(range);
-
-  if (!match) {
-    return cachedResponse;
-  }
-
-  const blob = await cachedResponse.blob();
-  const size = blob.size;
-  let start = match[1] ? Number(match[1]) : 0;
-  let end = match[2] ? Number(match[2]) : size - 1;
-
-  if (!match[1] && match[2]) {
-    const suffixLength = Number(match[2]);
-    start = Math.max(size - suffixLength, 0);
-    end = size - 1;
-  }
-
-  if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= size) {
-    return new Response(null, {
-      status: 416,
-      headers: {
-        "Content-Range": `bytes */${size}`,
-      },
-    });
-  }
-
-  end = Math.min(end, size - 1);
-  const body = blob.slice(start, end + 1, contentType);
-
-  return new Response(body, {
-    status: 206,
-    statusText: "Partial Content",
-    headers: {
-      "Accept-Ranges": "bytes",
-      "Content-Length": String(end - start + 1),
-      "Content-Range": `bytes ${start}-${end}/${size}`,
-      "Content-Type": contentType,
-    },
-  });
 }
 
 self.addEventListener("install", (event) => {
@@ -105,12 +55,12 @@ self.addEventListener("fetch", (event) => {
       const cachedResponse = await cache.match(url.pathname);
 
       if (cachedResponse) {
-        return createPartialResponse(request, cachedResponse);
+        return cachedResponse;
       }
 
       const response = await fetch(request);
 
-      if (response.ok && !request.headers.has("range")) {
+      if (response.ok) {
         cache.put(url.pathname, response.clone()).catch(() => undefined);
       }
 

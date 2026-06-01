@@ -1,8 +1,9 @@
+/* eslint-disable @next/next/no-img-element -- Launch splash needs the preloaded raw icon before the app hydrates. */
+
 const splashBootScript = `(() => {
   const splash = document.getElementById("mobile-splash-screen");
-  const video = document.getElementById("mobile-splash-video");
 
-  if (!splash || !(video instanceof HTMLVideoElement)) {
+  if (!splash) {
     return;
   }
 
@@ -14,10 +15,6 @@ const splashBootScript = `(() => {
     return;
   }
 
-  const startedAt = Date.now();
-  const minVisibleMs = 900;
-  let pageReady = document.readyState === "complete";
-  let videoDone = false;
   let hidden = false;
 
   const hide = () => {
@@ -26,69 +23,17 @@ const splashBootScript = `(() => {
     }
 
     hidden = true;
-    const remainingMs = Math.max(0, minVisibleMs - (Date.now() - startedAt));
-
-    window.setTimeout(() => {
+    window.requestAnimationFrame(() => {
       splash.classList.add("is-hiding");
-      window.setTimeout(() => splash.remove(), 520);
-    }, remainingMs);
-  };
-
-  const maybeHide = () => {
-    if (pageReady && videoDone) {
-      hide();
-    }
-  };
-
-  const markPageReady = () => {
-    pageReady = true;
-    maybeHide();
-  };
-
-  const markVideoDone = () => {
-    videoDone = true;
-    maybeHide();
-  };
-
-  const markVideoReady = () => {
-    splash.classList.add("is-video-ready");
-  };
-
-  if (!pageReady) {
-    window.addEventListener("load", markPageReady, { once: true });
-  }
-
-  if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-    markVideoReady();
-  } else {
-    video.addEventListener("loadeddata", markVideoReady, { once: true });
-  }
-
-  if (video.ended) {
-    markVideoDone();
-  } else {
-    video.addEventListener("ended", markVideoDone, { once: true });
-    video.addEventListener("error", () => window.setTimeout(markVideoDone, 650), {
-      once: true,
+      window.setTimeout(() => splash.remove(), 260);
     });
-  }
+  };
 
-  const playPromise = video.play();
-
-  if (playPromise && typeof playPromise.catch === "function") {
-    playPromise.catch(() => {
-      video.muted = true;
-      video.play().catch(() => {
-        window.setTimeout(markVideoDone, 3500);
-      });
-    });
-  }
-
-  window.setTimeout(() => {
-    pageReady = true;
-    videoDone = true;
+  if (document.readyState === "complete") {
     hide();
-  }, 14000);
+  } else {
+    window.addEventListener("load", hide, { once: true });
+  }
 })();`;
 
 export function MobileSplashScreen() {
@@ -99,15 +44,12 @@ export function MobileSplashScreen() {
         className="mobile-splash-screen"
         aria-hidden="true"
       >
-        <video
-          id="mobile-splash-video"
-          className="mobile-splash-screen__video"
-          src="/splash/alexfrut-intro.mp4"
-          poster="/brand/alexfrut-logo-square.png"
-          autoPlay
-          muted
-          playsInline
-          preload="auto"
+        <img
+          className="mobile-splash-screen__logo"
+          src="/brand/alexfrut-logo-icon.png"
+          alt=""
+          decoding="sync"
+          loading="eager"
         />
       </div>
       <script dangerouslySetInnerHTML={{ __html: splashBootScript }} />
