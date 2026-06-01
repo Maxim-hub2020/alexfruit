@@ -107,3 +107,38 @@ jobs:
             docker image prune -f
             docker compose -p alexfruit -f docker-compose.prod.yml ps
           '
+
+      - name: Notify Telegram
+        if: always()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          JOB_STATUS: ${{ job.status }}
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets are not configured, skipping notification."
+            exit 0
+          fi
+
+          SHORT_SHA="$(printf '%s' "$COMMIT_SHA" | cut -c1-7)"
+
+          if [ "$JOB_STATUS" = "success" ]; then
+            TITLE="АлексФрут: деплой успешно завершён"
+          else
+            TITLE="АлексФрут: деплой завершился со статусом $JOB_STATUS"
+          fi
+
+          TEXT="$(cat <<EOF
+          $TITLE
+          Коммит: $SHORT_SHA
+          Лог: $RUN_URL
+          EOF
+          )"
+
+          curl -fsS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${TEXT}" \
+            --data-urlencode "disable_web_page_preview=true"
