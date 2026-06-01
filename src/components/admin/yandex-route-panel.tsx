@@ -73,10 +73,6 @@ function getRoutePoint(order: DeliveryRouteOrder): RoutePoint {
 }
 
 function getPointQuery(point: RouteQueryPoint) {
-  if (point.latitude !== null && point.longitude !== null) {
-    return `${point.latitude},${point.longitude}`;
-  }
-
   return point.address;
 }
 

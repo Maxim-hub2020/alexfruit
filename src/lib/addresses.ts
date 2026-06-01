@@ -26,7 +26,44 @@ function serializeAddress(address: Awaited<ReturnType<typeof prisma.address.find
   };
 }
 
+async function normalizeDefaultAddressForUser(userId: string) {
+  const defaultAddresses = await prisma.address.findMany({
+    where: { userId, isDeleted: false, isDefault: true },
+    select: { id: true },
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "asc" }],
+  });
+
+  if (defaultAddresses.length <= 1) {
+    return;
+  }
+
+  const [primaryAddress, ...duplicateAddresses] = defaultAddresses;
+
+  await prisma.$transaction([
+    prisma.address.updateMany({
+      where: {
+        userId,
+        isDeleted: false,
+        id: {
+          in: duplicateAddresses.map((address) => address.id),
+        },
+      },
+      data: { isDefault: false },
+    }),
+    prisma.customerProfile.upsert({
+      where: { userId },
+      update: { defaultAddressId: primaryAddress.id },
+      create: {
+        userId,
+        defaultAddressId: primaryAddress.id,
+      },
+    }),
+  ]);
+}
+
 export async function getUserAddresses(userId: string) {
+  await normalizeDefaultAddressForUser(userId);
+
   const addresses = await prisma.address.findMany({
     where: { userId, isDeleted: false },
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],

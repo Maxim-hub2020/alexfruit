@@ -67,8 +67,8 @@ export function CourierDayRoute({
             </h2>
             <p className="mt-2 text-sm text-[var(--muted)]">
               {routeTasks.length} точек в списке, координаты есть у{" "}
-              {pointsWithCoordinates.length}. Стартовая точка — Ростов-на-Дону,
-              дальше Яндекс построит маршрут по адресам в порядке сборки.
+              {pointsWithCoordinates.length}. Яндекс построит маршрут только по
+              адресам заказов в порядке сборки.
             </p>
           </div>
         </div>
