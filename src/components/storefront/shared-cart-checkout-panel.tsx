@@ -38,6 +38,7 @@ export function SharedCartCheckoutPanel({
   const router = useRouter();
   const minDeliveryDate = getDefaultDeliveryDate();
   const [date, setDate] = useState(() => minDeliveryDate);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [addressId, setAddressId] = useState(addresses[0]?.id ?? "");
   const [needsLift, setNeedsLift] = useState(false);
   const [comment, setComment] = useState("");
@@ -114,6 +115,40 @@ export function SharedCartCheckoutPanel({
 
   return (
     <div className="space-y-4 rounded-[1.7rem] bg-white/86 p-4 ring-1 ring-[var(--line)]">
+      {!isCheckoutOpen ? (
+        <>
+          <div>
+            <p className="flex items-center gap-2 text-sm font-semibold text-[var(--accent-strong)]">
+              <ShoppingBag size={16} />
+              Общая корзина
+            </p>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              Проверьте общий список. Адрес, дату и комментарий выберем на этапе
+              оформления.
+            </p>
+          </div>
+
+          <div className="rounded-[1.5rem] bg-[var(--surface-muted)] p-4 text-sm">
+            <div className="flex items-center justify-between text-[var(--muted)]">
+              <span>Позиций</span>
+              <span>{itemsCount}</span>
+            </div>
+            <div className="mt-3 flex items-center justify-between border-t border-[var(--line)] pt-3 text-base font-bold">
+              <span>Товары</span>
+              <span>{formatCurrency(subtotal)}</span>
+            </div>
+          </div>
+
+          <Button
+            className="w-full"
+            onClick={() => setIsCheckoutOpen(true)}
+            disabled={itemsCount === 0}
+          >
+            Перейти к оформлению общей корзины
+          </Button>
+        </>
+      ) : (
+        <>
       <div>
         <p className="flex items-center gap-2 text-sm font-semibold text-[var(--accent-strong)]">
           <ShoppingBag size={16} />
@@ -225,6 +260,8 @@ export function SharedCartCheckoutPanel({
       >
         {isSubmitting ? "Оформляем..." : "Оформить общий заказ"}
       </Button>
+        </>
+      )}
     </div>
   );
 }

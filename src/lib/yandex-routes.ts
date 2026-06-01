@@ -27,12 +27,6 @@ export const ROSTOV_CENTER = {
   longitude: 39.7203,
 };
 
-const ROUTE_START_POINT: RouteQueryPoint = {
-  address: "Ростов-на-Дону",
-  latitude: ROSTOV_CENTER.latitude,
-  longitude: ROSTOV_CENTER.longitude,
-};
-
 export function toCoordinate(value: CoordinateValue) {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -58,10 +52,7 @@ function getPointQuery(point: RouteQueryPoint) {
   return point.address;
 }
 
-export function buildYandexRouteUrl(
-  points: RouteQueryPoint[],
-  options: { includeStart?: boolean } = {},
-) {
+export function buildYandexRouteUrl(points: RouteQueryPoint[]) {
   const url = new URL("https://yandex.ru/maps/");
 
   if (points.length === 0) {
@@ -69,14 +60,14 @@ export function buildYandexRouteUrl(
     return url.toString();
   }
 
-  const routePoints =
-    options.includeStart || points.length === 1
-      ? [ROUTE_START_POINT, ...points]
-      : points;
+  if (points.length === 1) {
+    url.searchParams.set("text", getPointQuery(points[0]));
+    return url.toString();
+  }
 
   url.searchParams.set("mode", "routes");
   url.searchParams.set("rtt", "auto");
-  url.searchParams.set("rtext", routePoints.map(getPointQuery).join("~"));
+  url.searchParams.set("rtext", points.map(getPointQuery).join("~"));
   return url.toString();
 }
 

@@ -49,11 +49,6 @@ const ROSTOV_CENTER = {
   longitude: 39.7203,
 };
 
-const ROUTE_START_POINT: RouteQueryPoint = {
-  address: "Ростов-на-Дону",
-  latitude: ROSTOV_CENTER.latitude,
-  longitude: ROSTOV_CENTER.longitude,
-};
 const ROUTE_AVERAGE_SPEED_KMH = 24;
 const ROUTE_STOP_SERVICE_MINUTES = 12;
 
@@ -93,12 +88,14 @@ function buildYandexRouteUrl(points: RoutePoint[]) {
     return url.toString();
   }
 
-  const routePoints =
-    points.length === 1 ? [ROUTE_START_POINT, ...points] : points;
+  if (points.length === 1) {
+    url.searchParams.set("text", getPointQuery(points[0]));
+    return url.toString();
+  }
 
   url.searchParams.set("mode", "routes");
   url.searchParams.set("rtt", "auto");
-  url.searchParams.set("rtext", routePoints.map(getPointQuery).join("~"));
+  url.searchParams.set("rtext", points.map(getPointQuery).join("~"));
   return url.toString();
 }
 
@@ -180,11 +177,9 @@ function getRouteDistance(points: RouteQueryPoint[]) {
 }
 
 function getRoutePointCosts(points: RoutePoint[]): RoutePointCost[] {
-  const routePoints = [ROUTE_START_POINT, ...points];
-
   return points.map((point, index) => {
-    const previousPoint = routePoints[index];
-    const distance = getDistanceKm(previousPoint, point);
+    const previousPoint = points[index - 1];
+    const distance = previousPoint ? getDistanceKm(previousPoint, point) : null;
     const needsReview = distance === null;
 
     return {
@@ -273,9 +268,7 @@ export function YandexRoutePanel({
   const groupedRoutes = getGroupedRoutes(routePoints);
   const slotSummary = getSlotSummary(routePoints);
   const busiestSlot = slotSummary[0];
-  const distancePoints =
-    routePoints.length === 1 ? [ROUTE_START_POINT, ...routePoints] : routePoints;
-  const routeDistance = getRouteDistance(distancePoints);
+  const routeDistance = getRouteDistance(routePoints);
   const totalRouteCost = groupedRoutes.reduce(
     (sum, group) => sum + getRouteCostSummary(group.points).total,
     0,
@@ -390,7 +383,7 @@ export function YandexRoutePanel({
         <div className="grid gap-4 lg:grid-cols-2">
           {groupedRoutes.map((group) => {
             const costSummary = getRouteCostSummary(group.points);
-            const groupDistance = getRouteDistance([ROUTE_START_POINT, ...group.points]);
+            const groupDistance = getRouteDistance(group.points);
             const groupEta = getRouteEtaMinutes(
               groupDistance.distance,
               group.points.length,

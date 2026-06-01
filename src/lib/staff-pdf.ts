@@ -542,7 +542,6 @@ export async function createCourierRoutePdf(
   const routeOrders = sortOrdersByRoute(orders);
   const routeUrl = buildYandexRouteUrl(
     routeOrders.map((order) => routePointFromAddress(order.address)),
-    { includeStart: true },
   );
   const { pdfDoc, regularFont, boldFont } = await createBasePdf();
   let pageNumber = 1;

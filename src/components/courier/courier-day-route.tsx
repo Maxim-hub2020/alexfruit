@@ -46,7 +46,7 @@ export function CourierDayRoute({
       );
     });
   const routePoints = routeTasks.map((task) => routePointFromAddress(task.order.address));
-  const routeUrl = buildYandexRouteUrl(routePoints, { includeStart: true });
+  const routeUrl = buildYandexRouteUrl(routePoints);
   const pointsWithCoordinates = routePoints.filter(
     (point) => point.latitude !== null && point.longitude !== null,
   );

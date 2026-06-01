@@ -131,7 +131,7 @@ export function CourierRouteArchive({
         {groupedTasks.map(([dateKey, dayTasks]) => {
           const routeTasks = sortRouteTasks(dayTasks);
           const routePoints = routeTasks.map((task) => routePointFromAddress(task.order.address));
-          const routeUrl = buildYandexRouteUrl(routePoints, { includeStart: true });
+          const routeUrl = buildYandexRouteUrl(routePoints);
 
           return (
             <article key={dateKey} className="rounded-[1.7rem] bg-white/82 p-4 ring-1 ring-[var(--line)]">
