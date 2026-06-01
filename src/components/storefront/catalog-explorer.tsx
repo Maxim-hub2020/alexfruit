@@ -253,7 +253,7 @@ export function CatalogExplorer({
                 К категориям
               </button>
               <p className="text-sm text-[var(--muted)]">
-                {filteredProducts.length} товаров на дату
+                {filteredProducts.length} товаров
               </p>
             </div>
           </div>
@@ -333,7 +333,7 @@ export function CatalogExplorer({
                       за {unitLabels[activeHero?.unit ?? ""] ?? activeHero?.unit}
                     </p>
                   </div>
-                  {activeHero && (
+                  {activeHero ? (
                     <AddToCartButton
                       productId={activeHero.id}
                       name={activeHero.name}
@@ -341,9 +341,14 @@ export function CatalogExplorer({
                       unit={activeHero.unit}
                       imageUrl={activeHero.imageUrl}
                       variant="compact"
-                      maxQuantity={activeHero.availableQuantity}
+                      maxQuantity={
+                        activeHero.isAvailableForDate === false
+                          ? null
+                          : activeHero.availableQuantity
+                      }
+                      isPreorder={activeHero.isAvailableForDate === false}
                     />
-                  )}
+                  ) : null}
                 </div>
               </div>
             </div>

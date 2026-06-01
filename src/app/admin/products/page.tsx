@@ -21,7 +21,7 @@ export default async function AdminProductsPage() {
 
   return (
     <MainShell active="admin-products" user={user}>
-      <section className="section-shell space-y-6 py-8">
+      <section className="mx-auto w-[min(1540px,calc(100%-2rem))] space-y-6 py-8">
         <div className="glass-panel rounded-[2.2rem] p-6">
           <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">Каталог</p>
           <h1 className="mt-3 font-serif text-5xl font-semibold">Товары, цены и категории</h1>

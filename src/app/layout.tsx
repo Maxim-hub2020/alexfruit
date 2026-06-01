@@ -3,6 +3,7 @@ import { Cormorant_Garamond, Manrope } from "next/font/google";
 import "./globals.css";
 import { AppNotificationsProvider } from "@/components/providers/app-notifications-provider";
 import { CartProvider } from "@/components/providers/cart-provider";
+import { MobileSplashScreen } from "@/components/providers/mobile-splash-screen";
 import { PressFeedbackProvider } from "@/components/providers/press-feedback-provider";
 
 const manrope = Manrope({
@@ -56,6 +57,7 @@ export default function RootLayout({
       className={`${manrope.variable} ${cormorant.variable} h-full antialiased`}
     >
       <body className="min-h-full text-[var(--foreground)]">
+        <MobileSplashScreen />
         <PressFeedbackProvider>
           <CartProvider>
             <AppNotificationsProvider>{children}</AppNotificationsProvider>

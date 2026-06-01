@@ -11,14 +11,12 @@ export async function GET(request: Request) {
       include: { category: true },
       orderBy: { createdAt: "desc" },
     });
-    const availableProducts = await addDailyAvailabilityToProducts(
+    const productsWithAvailability = await addDailyAvailabilityToProducts(
       products,
       url.searchParams.get("date"),
     );
 
-    return NextResponse.json(
-      availableProducts.filter((product) => product.isAvailableForDate),
-    );
+    return NextResponse.json(productsWithAvailability);
   } catch (error) {
     return jsonError(error);
   }

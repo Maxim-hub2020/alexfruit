@@ -6,6 +6,7 @@ import {
   Prisma,
   ProblemType,
   Role,
+  StockStatus,
 } from "@/generated/prisma";
 import { ApiError } from "@/lib/api";
 import {
@@ -26,6 +27,7 @@ import {
   addDailyAvailabilityToProducts,
   completeDailyInventoryForLines,
   getInventoryDateFromOrder,
+  type InventoryReservation,
   orderToInventoryLines,
   releaseDailyInventoryForLines,
   reserveDailyInventoryForLines,
@@ -696,7 +698,10 @@ async function validateTimeSlotCapacity(
 
 async function buildOrderItems(
   items: OrderInputLine[],
-  options: { needsLift?: boolean } = {},
+  options: {
+    needsLift?: boolean;
+    inventoryReservations?: Map<string, InventoryReservation>;
+  } = {},
 ) {
   const productIds = [...new Set(items.map((item) => item.productId))];
   const products = await prisma.product.findMany({
@@ -723,6 +728,11 @@ async function buildOrderItems(
     const preliminarySum = price * item.quantity;
     const finalQuantity = item.actualQuantity ?? item.quantity;
     const finalSum = price * finalQuantity;
+    const inventoryReservation = options.inventoryReservations?.get(product.id);
+    const reservedQuantity = inventoryReservation?.reservedQuantity ?? 0;
+    const isPreorder =
+      product.stockStatus === StockStatus.OUT_OF_STOCK ||
+      Boolean(inventoryReservation?.isPreorder);
 
     return {
       productId: product.id,
@@ -731,6 +741,8 @@ async function buildOrderItems(
       unit: product.unit,
       orderedQuantity: item.quantity,
       actualQuantity: item.actualQuantity ?? null,
+      reservedQuantity,
+      isPreorder,
       preliminarySum,
       finalSum,
     };
@@ -1082,7 +1094,25 @@ export async function getStorefrontData(userId?: string, deliveryDate?: string |
   const availableProducts = productsWithAvailability.filter(
     (product) => product.isAvailableForDate,
   );
+  const pickHighlightedProducts = (
+    predicate: (product: (typeof productsWithAvailability)[number]) => boolean,
+  ) => {
+    const matchedProducts = productsWithAvailability.filter(predicate);
+    const matchedAvailableProducts = matchedProducts.filter(
+      (product) => product.isAvailableForDate,
+    );
+    const matchedPreorderProducts = matchedProducts.filter(
+      (product) => !product.isAvailableForDate,
+    );
+
+    return [...matchedAvailableProducts, ...matchedPreorderProducts].slice(0, 6);
+  };
   const highlights = {
+    popular: pickHighlightedProducts((product) => product.isHit),
+    seasonal: pickHighlightedProducts((product) => product.isNew),
+    promo: pickHighlightedProducts((product) => product.isPromo),
+  };
+  const availableHighlights = {
     popular: availableProducts.filter((product) => product.isHit).slice(0, 6),
     seasonal: availableProducts.filter((product) => product.isNew).slice(0, 6),
     promo: availableProducts.filter((product) => product.isPromo).slice(0, 6),
@@ -1090,10 +1120,10 @@ export async function getStorefrontData(userId?: string, deliveryDate?: string |
 
   return {
     categories,
-    products: availableProducts,
+    products: productsWithAvailability,
     timeSlots,
     highlights,
-    collections: await buildStorefrontCollections(userId, availableProducts, highlights),
+    collections: await buildStorefrontCollections(userId, availableProducts, availableHighlights),
   };
 }
 
@@ -1290,14 +1320,19 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
     ? aggregateSharedCartOrderItems(sharedCart.items)
     : data.items;
   const deliveryTimeSlot = await getDefaultDeliveryTimeSlot();
-  const built = await buildOrderItems(orderInputItems, {
-    needsLift: data.needsLift,
-  });
   const orderDeliveryDate = dateStringToDbDate(data.deliveryDate);
   const orderNumber = await createOrderNumber();
 
   const order = await prisma.$transaction(async (tx) => {
-    await reserveDailyInventoryForLines(tx, data.deliveryDate, orderInputItems);
+    const inventoryReservations = await reserveDailyInventoryForLines(
+      tx,
+      data.deliveryDate,
+      orderInputItems,
+    );
+    const built = await buildOrderItems(orderInputItems, {
+      needsLift: data.needsLift,
+      inventoryReservations,
+    });
     const courierAssignment = await getAutomaticCourierAssignment(
       tx,
       orderDeliveryDate,
@@ -1403,9 +1438,6 @@ export async function updateOrderByCustomer(
   }
 
   const deliveryTimeSlot = await getDefaultDeliveryTimeSlot();
-  const built = await buildOrderItems(data.items, {
-    needsLift: data.needsLift,
-  });
 
   const order = await prisma.$transaction(async (tx) => {
     await releaseDailyInventoryForLines(
@@ -1413,7 +1445,15 @@ export async function updateOrderByCustomer(
       getInventoryDateFromOrder(existing),
       orderToInventoryLines(existing),
     );
-    await reserveDailyInventoryForLines(tx, data.deliveryDate, data.items);
+    const inventoryReservations = await reserveDailyInventoryForLines(
+      tx,
+      data.deliveryDate,
+      data.items,
+    );
+    const built = await buildOrderItems(data.items, {
+      needsLift: data.needsLift,
+      inventoryReservations,
+    });
 
     await tx.orderItem.deleteMany({
       where: { orderId },
@@ -1495,10 +1535,26 @@ export async function rescheduleOrderByCustomer(
       getInventoryDateFromOrder(existing),
       orderToInventoryLines(existing),
     );
-    await reserveDailyInventoryForLines(
+    const inventoryReservations = await reserveDailyInventoryForLines(
       tx,
       data.deliveryDate,
       orderToInventoryLines(existing),
+    );
+
+    await Promise.all(
+      existing.items.map((item) => {
+        const inventoryReservation = item.productId
+          ? inventoryReservations.get(item.productId)
+          : null;
+
+        return tx.orderItem.update({
+          where: { id: item.id },
+          data: {
+            reservedQuantity: inventoryReservation?.reservedQuantity ?? 0,
+            isPreorder: item.isPreorder || Boolean(inventoryReservation?.isPreorder),
+          },
+        });
+      }),
     );
 
     const updated = await tx.order.update({
@@ -2023,10 +2079,27 @@ export async function updateOrderByAdmin(orderId: string, input: unknown) {
         getInventoryDateFromOrder(existing),
         orderToInventoryLines(existing),
       );
-      await reserveDailyInventoryForLines(
+      const inventoryReservations = await reserveDailyInventoryForLines(
         tx,
         nextDeliveryDate,
         orderToInventoryLines(existing),
+      );
+
+      await Promise.all(
+        existing.items.map((item) => {
+          const inventoryReservation = item.productId
+            ? inventoryReservations.get(item.productId)
+            : null;
+          const reservedQuantity = inventoryReservation?.reservedQuantity ?? 0;
+
+          return tx.orderItem.update({
+            where: { id: item.id },
+            data: {
+              reservedQuantity,
+              isPreorder: item.isPreorder || Boolean(inventoryReservation?.isPreorder),
+            },
+          });
+        }),
       );
     }
 
@@ -2147,9 +2220,6 @@ export async function updateOrderStatusByAdmin(orderId: string, input: unknown) 
 export async function updateOrderItemsByAdmin(orderId: string, input: unknown) {
   const data = orderItemsSchema.parse(input);
   const order = await getAdminOrder(orderId);
-  const built = await buildOrderItems(data.items, {
-    needsLift: order.needsLift,
-  });
 
   return prisma.$transaction(async (tx) => {
     await undoDailyInventoryForLines(
@@ -2159,17 +2229,23 @@ export async function updateOrderItemsByAdmin(orderId: string, input: unknown) {
       order.status,
     );
 
-    if (order.status === OrderStatus.DELIVERED) {
-      await completeDailyInventoryForLines(
+    let inventoryReservations: Map<string, InventoryReservation> | undefined;
+
+    if (order.status !== OrderStatus.DELIVERED && order.status !== OrderStatus.CANCELLED) {
+      inventoryReservations = await reserveDailyInventoryForLines(
         tx,
         getInventoryDateFromOrder(order),
-        built.itemRows.map((item) => ({
-          productId: item.productId,
-          quantity: item.orderedQuantity,
-        })),
+        data.items,
       );
-    } else if (order.status !== OrderStatus.CANCELLED) {
-      await reserveDailyInventoryForLines(
+    }
+
+    const built = await buildOrderItems(data.items, {
+      needsLift: order.needsLift,
+      inventoryReservations,
+    });
+
+    if (order.status === OrderStatus.DELIVERED) {
+      await completeDailyInventoryForLines(
         tx,
         getInventoryDateFromOrder(order),
         built.itemRows.map((item) => ({

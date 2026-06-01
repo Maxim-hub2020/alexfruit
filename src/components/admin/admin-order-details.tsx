@@ -72,6 +72,7 @@ type AdminOrderDetailsOrder = {
     price: number | string;
     orderedQuantity: number | string;
     actualQuantity?: number | string | null;
+    isPreorder?: boolean;
     preliminarySum: number | string;
     finalSum?: number | string | null;
   }>;
@@ -355,6 +356,11 @@ export function AdminOrderDetails({
                 <p className="text-sm text-[var(--muted)]">
                   {formatCurrency(item.price)} · {item.unit}
                 </p>
+                {item.isPreorder ? (
+                  <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+                    Под заказ для снабжения
+                  </span>
+                ) : null}
               </div>
               <div>
                 <p className="text-xs text-[var(--muted)]">Количество</p>

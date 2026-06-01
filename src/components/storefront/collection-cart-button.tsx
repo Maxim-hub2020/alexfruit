@@ -25,6 +25,7 @@ function mergeCartItems(currentItems: CartLine[], collectionItems: CartLine[]) {
     merged.set(item.productId, {
       ...current,
       quantity: current.quantity + item.quantity,
+      isPreorder: current.isPreorder || item.isPreorder,
     });
   }
 

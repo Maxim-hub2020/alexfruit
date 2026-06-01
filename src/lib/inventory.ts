@@ -1,5 +1,4 @@
 import { getDefaultDeliveryDate } from "@/lib/delivery-rules";
-import { ApiError } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { dateStringToDbDate } from "@/lib/utils";
 import { OrderStatus, Prisma, StockStatus } from "@/generated/prisma";
@@ -7,6 +6,13 @@ import { OrderStatus, Prisma, StockStatus } from "@/generated/prisma";
 export type InventoryLine = {
   productId?: string | null;
   quantity: number | string | { toString(): string };
+};
+
+export type InventoryReservation = {
+  productId: string;
+  requestedQuantity: number;
+  reservedQuantity: number;
+  isPreorder: boolean;
 };
 
 type InventoryClient = Prisma.TransactionClient | typeof prisma;
@@ -197,29 +203,51 @@ export async function reserveDailyInventoryForLines(
     [...quantities.keys()],
   );
 
+  const reservations = new Map<string, InventoryReservation>();
+
   for (const [productId, quantity] of quantities) {
     const row = inventoryByProductId.get(productId);
 
     if (!row) {
+      reservations.set(productId, {
+        productId,
+        requestedQuantity: quantity,
+        reservedQuantity: 0,
+        isPreorder: false,
+      });
+      continue;
+    }
+
+    const availableQuantity = getInventoryAvailableQuantity(row);
+    const quantityToReserve = Math.min(quantity, availableQuantity);
+
+    if (quantityToReserve <= 0) {
+      reservations.set(productId, {
+        productId,
+        requestedQuantity: quantity,
+        reservedQuantity: 0,
+        isPreorder: true,
+      });
       continue;
     }
 
     const updatedRows = await client.$executeRaw`
       UPDATE "DailyInventory"
-      SET "quantityReserved" = "quantityReserved" + ${quantity},
+      SET "quantityReserved" = "quantityReserved" + ${quantityToReserve},
           "updatedAt" = CURRENT_TIMESTAMP
       WHERE "id" = ${row.id}
-        AND ("quantityStart" - "quantityReserved" - "quantitySold") >= ${quantity}
+        AND ("quantityStart" - "quantityReserved" - "quantitySold") >= ${quantityToReserve}
     `;
 
-    if (updatedRows === 0) {
-      const availableQuantity = getInventoryAvailableQuantity(row);
-      throw new ApiError(
-        `Товара осталось меньше, чем в корзине: доступно ${availableQuantity}. Обновите количество и попробуйте снова.`,
-        409,
-      );
-    }
+    reservations.set(productId, {
+      productId,
+      requestedQuantity: quantity,
+      reservedQuantity: updatedRows === 0 ? 0 : quantityToReserve,
+      isPreorder: updatedRows === 0 || quantityToReserve < quantity,
+    });
   }
+
+  return reservations;
 }
 
 export async function releaseDailyInventoryForLines(
@@ -304,11 +332,12 @@ export function orderToInventoryLines(order: {
   items: Array<{
     productId?: string | null;
     orderedQuantity: number | string | { toString(): string };
+    reservedQuantity?: number | string | { toString(): string };
   }>;
 }) {
   return order.items.map((item) => ({
     productId: item.productId,
-    quantity: item.orderedQuantity,
+    quantity: item.reservedQuantity ?? item.orderedQuantity,
   }));
 }
 

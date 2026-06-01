@@ -253,6 +253,8 @@ model OrderItem {
   unit            ProductUnit
   orderedQuantity Decimal     @db.Decimal(10, 2)
   actualQuantity  Decimal?    @db.Decimal(10, 2)
+  reservedQuantity Decimal    @default(0) @db.Decimal(10, 2)
+  isPreorder      Boolean     @default(false)
   preliminarySum  Decimal     @db.Decimal(10, 2)
   finalSum        Decimal?    @db.Decimal(10, 2)
   order           Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)

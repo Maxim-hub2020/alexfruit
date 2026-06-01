@@ -97,6 +97,7 @@ export default async function OrdersPage() {
                         className="rounded-full bg-white/90 px-3 py-1 text-xs font-medium"
                       >
                         {item.productName} · {Number(item.orderedQuantity)}
+                        {item.isPreorder ? " · под заказ" : ""}
                       </span>
                     ))}
                   </div>

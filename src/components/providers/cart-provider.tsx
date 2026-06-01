@@ -15,6 +15,7 @@ export type CartLine = {
   unit: string;
   imageUrl?: string | null;
   quantity: number;
+  isPreorder?: boolean;
 };
 
 type CartContextValue = {

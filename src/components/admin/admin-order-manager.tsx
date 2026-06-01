@@ -59,7 +59,12 @@ type AdminOrder = {
   user: { name: string; phone?: string | null };
   address: { city: string; street: string; house: string; apartment?: string | null };
   deliveryTimeSlot: { title: string };
-  items: Array<{ id: string; productName: string; orderedQuantity: number | string }>;
+  items: Array<{
+    id: string;
+    productName: string;
+    orderedQuantity: number | string;
+    isPreorder?: boolean;
+  }>;
   courier?: { id: string; name: string } | null;
 };
 
@@ -86,6 +91,8 @@ function getFlowProgress(status: string) {
 }
 
 function OrderMiniCard({ order, dense = false }: { order: AdminOrder; dense?: boolean }) {
+  const preorderCount = order.items.filter((item) => item.isPreorder).length;
+
   return (
     <Link
       href={`/admin/orders/${order.id}`}
@@ -148,6 +155,11 @@ function OrderMiniCard({ order, dense = false }: { order: AdminOrder; dense?: bo
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Package size={15} />
           <span>{order.items.length} поз.</span>
+          {preorderCount > 0 ? (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+              {preorderCount} под заказ
+            </span>
+          ) : null}
         </div>
         <div className="text-right">
           <p className="text-sm font-bold">

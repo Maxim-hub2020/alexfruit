@@ -211,6 +211,7 @@ export function AdminCatalogManager({
     createEmptyProductForm(categories[0]?.id ?? ""),
   );
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [isProductEditorOpen, setIsProductEditorOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [feedback, setFeedback] = useState<CatalogFeedback | null>(null);
@@ -246,11 +247,20 @@ export function AdminCatalogManager({
     const fallbackCategoryId = nextCategoryId ?? productForm.categoryId ?? categories[0]?.id ?? "";
     setSelectedProductId(null);
     setProductForm(createEmptyProductForm(fallbackCategoryId));
+    setIsProductEditorOpen(false);
+  }
+
+  function openNewProductEditor() {
+    setFeedback(null);
+    setSelectedProductId(null);
+    setProductForm(createEmptyProductForm(productForm.categoryId || categories[0]?.id || ""));
+    setIsProductEditorOpen(true);
   }
 
   function beginEditing(product: ProductRecord) {
     setFeedback(null);
     setSelectedProductId(product.id);
+    setIsProductEditorOpen(true);
     setProductForm({
       categoryId: product.categoryId,
       name: product.name,
@@ -356,9 +366,19 @@ export function AdminCatalogManager({
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
-      <div className="space-y-5">
-        <section className="glass-panel rounded-[2rem] p-5">
+    <div className="space-y-6">
+      {isProductEditorOpen ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#173226]/42 px-3 py-4 backdrop-blur-sm md:py-8">
+          <button
+            type="button"
+            aria-label="Закрыть редактор товара"
+            className="absolute inset-0 cursor-default"
+            onClick={() => resetEditor()}
+          />
+          <section
+            id="admin-product-editor"
+            className="glass-panel relative z-[1] max-h-[calc(100vh-2rem)] w-[min(100%,54rem)] overflow-y-auto rounded-[2rem] p-5"
+          >
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">
@@ -530,9 +550,11 @@ export function AdminCatalogManager({
               )}
             </div>
           </div>
-        </section>
+          </section>
+        </div>
+      ) : null}
 
-        <section className="glass-panel rounded-[2rem] p-5">
+      <section className="glass-panel rounded-[2rem] p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">
@@ -575,8 +597,7 @@ export function AdminCatalogManager({
               </span>
             ))}
           </div>
-        </section>
-      </div>
+      </section>
 
       <section className="glass-panel rounded-[2rem] p-5">
         <div className="flex flex-col gap-4">
@@ -593,6 +614,10 @@ export function AdminCatalogManager({
             </div>
 
             <div className="flex flex-col gap-3 md:flex-row">
+              <Button className="gap-2" onClick={openNewProductEditor}>
+                <Plus size={16} />
+                Добавить товар
+              </Button>
               <label className="relative">
                 <Search
                   size={16}

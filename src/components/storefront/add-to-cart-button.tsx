@@ -16,6 +16,7 @@ type AddToCartButtonProps = {
   maxQuantity?: number | null;
   disabled?: boolean;
   disabledLabel?: string;
+  isPreorder?: boolean;
 };
 
 export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonProps) {
@@ -28,8 +29,8 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
     props.maxQuantity === null || props.maxQuantity === undefined
       ? null
       : Math.max(0, props.maxQuantity);
-  const reachedLimit = maxQuantity !== null && quantity >= maxQuantity;
-  const isDisabled = Boolean(props.disabled) || maxQuantity === 0;
+  const reachedLimit = !props.isPreorder && maxQuantity !== null && quantity >= maxQuantity;
+  const isDisabled = Boolean(props.disabled);
 
   useEffect(() => {
     return () => {
@@ -57,7 +58,14 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
       return;
     }
 
-    addItem(props);
+    addItem({
+      productId: props.productId,
+      name: props.name,
+      price: props.price,
+      unit: props.unit,
+      imageUrl: props.imageUrl,
+      isPreorder: props.isPreorder,
+    });
     triggerAddedState();
   }
 

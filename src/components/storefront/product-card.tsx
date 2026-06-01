@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Flame, Sparkles, Tag } from "lucide-react";
+import { Clock3, Flame, Sparkles, Tag } from "lucide-react";
 import { AddToCartButton } from "@/components/storefront/add-to-cart-button";
 import { stockStatusLabels, unitLabels } from "@/lib/constants";
 import { formatCurrency } from "@/lib/utils";
@@ -44,15 +44,24 @@ function ProductBadges({ product }: { product: ProductCardProps["product"] }) {
           Акция
         </span>
       )}
+      {product.isAvailableForDate === false && (
+        <span className="rounded-full bg-amber-100/95 px-3 py-1 text-xs font-semibold text-amber-900 shadow-sm">
+          <Clock3 className="mr-1 inline-block" size={12} />
+          Под заказ
+        </span>
+      )}
     </div>
   );
 }
 
 export function ProductCard({ product, variant = "default" }: ProductCardProps) {
   const isAvailableForDate = product.isAvailableForDate !== false;
+  const isPreorder = !isAvailableForDate;
   const availabilityLabel =
-    product.hasDailyInventory && product.availableQuantity !== null
-      ? `Сегодня доступно: ${product.availableQuantity}`
+    isPreorder
+      ? "Под заказ"
+      : product.hasDailyInventory && product.availableQuantity !== null
+      ? `В наличии: ${product.availableQuantity}`
       : stockStatusLabels[product.stockStatus] ?? product.stockStatus;
 
   if (variant === "catalog") {
@@ -93,21 +102,16 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
             <span className="text-xs font-semibold text-[var(--accent-strong)]">
               {availabilityLabel}
             </span>
-            {isAvailableForDate ? (
-              <AddToCartButton
-                productId={product.id}
-                name={product.name}
-                price={Number(product.price)}
-                unit={product.unit}
-                imageUrl={product.imageUrl}
-                variant="compact"
-                maxQuantity={product.availableQuantity}
-              />
-            ) : (
-              <span className="rounded-2xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">
-                Нет на дату
-              </span>
-            )}
+            <AddToCartButton
+              productId={product.id}
+              name={product.name}
+              price={Number(product.price)}
+              unit={product.unit}
+              imageUrl={product.imageUrl}
+              variant="compact"
+              maxQuantity={isPreorder ? null : product.availableQuantity}
+              isPreorder={isPreorder}
+            />
           </div>
         </div>
       </article>
@@ -152,20 +156,16 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
           </p>
         </div>
 
-        {isAvailableForDate ? (
-          <AddToCartButton
-            productId={product.id}
-            name={product.name}
-            price={Number(product.price)}
-            unit={product.unit}
-            imageUrl={product.imageUrl}
-            maxQuantity={product.availableQuantity}
-          />
-        ) : (
-          <div className="rounded-2xl bg-slate-100 px-4 py-3 text-center text-sm font-semibold text-slate-600">
-            Нет на выбранную дату
-          </div>
-        )}
+        <AddToCartButton
+          productId={product.id}
+          name={product.name}
+          price={Number(product.price)}
+          unit={product.unit}
+          imageUrl={product.imageUrl}
+          maxQuantity={isPreorder ? null : product.availableQuantity}
+          isPreorder={isPreorder}
+          disabledLabel={isPreorder ? "Добавить под заказ" : undefined}
+        />
       </div>
     </article>
   );

@@ -119,7 +119,14 @@ export function CheckoutClient({
                   className="flex items-center justify-between gap-4 rounded-[1.5rem] bg-white/90 p-4"
                 >
                   <div>
-                    <p className="font-semibold">{item.name}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold">{item.name}</p>
+                      {item.isPreorder ? (
+                        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">
+                          Под заказ
+                        </span>
+                      ) : null}
+                    </div>
                     <p className="text-sm text-[var(--muted)]">
                       {formatCurrency(item.price)} за {item.unit}
                     </p>
