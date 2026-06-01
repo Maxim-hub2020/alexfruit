@@ -108,6 +108,29 @@ export const customerEditableOrderStatuses: OrderStatus[] = [
   OrderStatus.CONFIRMED,
   OrderStatus.ASSEMBLING,
 ];
+const routeAssignableOrderStatuses: OrderStatus[] = [
+  OrderStatus.NEW,
+  OrderStatus.PENDING_CONFIRMATION,
+  OrderStatus.CONFIRMED,
+  OrderStatus.ASSEMBLING,
+  OrderStatus.ASSEMBLED,
+  OrderStatus.HANDED_TO_COURIER,
+  OrderStatus.COURIER_ON_THE_WAY,
+  OrderStatus.DELIVERY_ISSUE,
+];
+const routeFinalOrderStatuses: OrderStatus[] = [
+  OrderStatus.DELIVERED,
+  OrderStatus.CANCELLED,
+];
+const ROSTOV_CENTER = {
+  latitude: 47.2221,
+  longitude: 39.7203,
+};
+const COURIER_LOAD_WEIGHT = 4;
+const COURIER_MISSING_COORDINATE_PENALTY = 7;
+const SAME_STREET_BONUS = 3;
+const ROUTE_AVERAGE_SPEED_KMH = 24;
+const ROUTE_STOP_SERVICE_MINUTES = 12;
 const unavailableProductTitlePrefixes = [
   "Сейчас нет: ",
   "Нужно выбрать новую дату: ",
@@ -188,6 +211,215 @@ function getDistanceKm(
   return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function normalizeRouteText(value?: string | null) {
+  return value?.trim().toLowerCase().replace(/\s+/g, " ") ?? "";
+}
+
+function hasSameDeliveryArea(
+  candidateAddress: AddressWithCoordinates & {
+    city?: string | null;
+    street?: string | null;
+  },
+  existingAddress: AddressWithCoordinates & {
+    city?: string | null;
+    street?: string | null;
+  },
+) {
+  const candidateCity = normalizeRouteText(candidateAddress.city);
+  const existingCity = normalizeRouteText(existingAddress.city);
+  const candidateStreet = normalizeRouteText(candidateAddress.street);
+  const existingStreet = normalizeRouteText(existingAddress.street);
+
+  return Boolean(
+    candidateCity &&
+      candidateStreet &&
+      candidateCity === existingCity &&
+      candidateStreet === existingStreet,
+  );
+}
+
+function sortRouteItemsByDistance<
+  T extends {
+    createdAt: Date;
+    address: AddressWithCoordinates;
+    deliveryTask?: { routeOrder?: number | null } | null;
+  },
+>(items: T[]) {
+  const remaining = [...items].sort((first, second) => {
+    const firstOrder = first.deliveryTask?.routeOrder ?? Number.MAX_SAFE_INTEGER;
+    const secondOrder = second.deliveryTask?.routeOrder ?? Number.MAX_SAFE_INTEGER;
+
+    return firstOrder - secondOrder || first.createdAt.getTime() - second.createdAt.getTime();
+  });
+  const sorted: T[] = [];
+  let currentPoint = ROSTOV_CENTER;
+
+  while (remaining.length > 0) {
+    let bestIndex = 0;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    remaining.forEach((item, index) => {
+      const point = getAddressPoint(item.address);
+
+      if (!point) {
+        return;
+      }
+
+      const distance = getDistanceKm(currentPoint, point);
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+      }
+    });
+
+    if (!Number.isFinite(bestDistance)) {
+      sorted.push(...remaining);
+      break;
+    }
+
+    const [nextItem] = remaining.splice(bestIndex, 1);
+    sorted.push(nextItem);
+    currentPoint = getAddressPoint(nextItem.address) ?? currentPoint;
+  }
+
+  return sorted;
+}
+
+function getRouteDistanceForItems(items: Array<{ address: AddressWithCoordinates }>) {
+  let currentPoint = ROSTOV_CENTER;
+  let knownSegments = 0;
+  const distanceKm = items.reduce((sum, item) => {
+    const point = getAddressPoint(item.address);
+
+    if (!point) {
+      return sum;
+    }
+
+    knownSegments += 1;
+    const distance = getDistanceKm(currentPoint, point);
+    currentPoint = point;
+    return sum + distance;
+  }, 0);
+
+  return { distanceKm, knownSegments };
+}
+
+function getRouteEtaMinutes(distanceKm: number, stopsCount: number) {
+  return Math.round(
+    (distanceKm / ROUTE_AVERAGE_SPEED_KMH) * 60 +
+      stopsCount * ROUTE_STOP_SERVICE_MINUTES,
+  );
+}
+
+function scoreCourierForAddress(
+  candidateAddress: AddressWithCoordinates & {
+    city?: string | null;
+    street?: string | null;
+  },
+  assignedOrders: Array<{
+    address: AddressWithCoordinates & {
+      city?: string | null;
+      street?: string | null;
+    };
+  }>,
+) {
+  const candidatePoint = getAddressPoint(candidateAddress);
+  const loadScore = assignedOrders.length * COURIER_LOAD_WEIGHT;
+
+  if (!candidatePoint) {
+    return loadScore + COURIER_MISSING_COORDINATE_PENALTY;
+  }
+
+  if (assignedOrders.length === 0) {
+    return loadScore + getDistanceKm(ROSTOV_CENTER, candidatePoint);
+  }
+
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  let missingCoordinates = 0;
+  let sameAreaBonus = 0;
+
+  for (const order of assignedOrders) {
+    const point = getAddressPoint(order.address);
+
+    if (!point) {
+      missingCoordinates += 1;
+      continue;
+    }
+
+    nearestDistance = Math.min(nearestDistance, getDistanceKm(candidatePoint, point));
+
+    if (hasSameDeliveryArea(candidateAddress, order.address)) {
+      sameAreaBonus = SAME_STREET_BONUS;
+    }
+  }
+
+  const distanceScore = Number.isFinite(nearestDistance)
+    ? nearestDistance
+    : COURIER_MISSING_COORDINATE_PENALTY;
+
+  return (
+    loadScore +
+    distanceScore +
+    missingCoordinates * COURIER_MISSING_COORDINATE_PENALTY -
+    sameAreaBonus
+  );
+}
+
+async function reorderCourierRoute(
+  client: OrderWriteClient,
+  courierId: string,
+  deliveryDate: Date,
+) {
+  const tasks = await client.deliveryTask.findMany({
+    where: {
+      courierId,
+      status: {
+        in: [
+          DeliveryTaskStatus.ASSIGNED,
+          DeliveryTaskStatus.IN_PROGRESS,
+          DeliveryTaskStatus.ISSUE,
+        ],
+      },
+      order: {
+        deliveryDate,
+        status: {
+          notIn: routeFinalOrderStatuses,
+        },
+      },
+    },
+    include: {
+      order: {
+        include: {
+          address: true,
+          deliveryTask: {
+            select: {
+              routeOrder: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  const sortedTasks = sortRouteItemsByDistance(
+    tasks.map((task) => ({
+      id: task.id,
+      createdAt: task.order.createdAt,
+      address: task.order.address,
+      deliveryTask: task.order.deliveryTask,
+    })),
+  );
+
+  await Promise.all(
+    sortedTasks.map((task, index) =>
+      client.deliveryTask.update({
+        where: { id: task.id },
+        data: { routeOrder: index + 1 },
+      }),
+    ),
+  );
+}
+
 function checkSlotDistance(
   candidateAddress: AddressWithCoordinates | null,
   existingOrders: Array<{
@@ -254,6 +486,10 @@ function getUnavailableProductName(notification: {
 async function getAutomaticCourierAssignment(
   client: OrderWriteClient,
   deliveryDate: Date,
+  address: AddressWithCoordinates & {
+    city?: string | null;
+    street?: string | null;
+  },
 ) {
   const couriers = await client.courier.findMany({
     where: {
@@ -271,11 +507,18 @@ async function getAutomaticCourierAssignment(
             where: {
               deliveryDate,
               status: {
-                not: OrderStatus.CANCELLED,
+                in: routeAssignableOrderStatuses,
               },
             },
             select: {
               id: true,
+              createdAt: true,
+              address: true,
+              deliveryTask: {
+                select: {
+                  routeOrder: true,
+                },
+              },
             },
           },
         },
@@ -284,12 +527,18 @@ async function getAutomaticCourierAssignment(
     orderBy: [{ name: "asc" }],
   });
 
-  const courier = couriers.toSorted((first, second) => {
-    const loadDiff =
-      first.user.assignedOrders.length - second.user.assignedOrders.length;
+  const courier = couriers
+    .map((item) => ({
+      ...item,
+      score: scoreCourierForAddress(address, item.user.assignedOrders),
+    }))
+    .toSorted((first, second) => {
+      const scoreDiff = first.score - second.score;
+      const loadDiff =
+        first.user.assignedOrders.length - second.user.assignedOrders.length;
 
-    return loadDiff || first.name.localeCompare(second.name);
-  })[0];
+      return scoreDiff || loadDiff || first.name.localeCompare(second.name);
+    })[0];
 
   if (!courier) {
     return null;
@@ -1049,7 +1298,11 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
 
   const order = await prisma.$transaction(async (tx) => {
     await reserveDailyInventoryForLines(tx, data.deliveryDate, orderInputItems);
-    const courierAssignment = await getAutomaticCourierAssignment(tx, orderDeliveryDate);
+    const courierAssignment = await getAutomaticCourierAssignment(
+      tx,
+      orderDeliveryDate,
+      address,
+    );
 
     const createdOrder = await tx.order.create({
       data: {
@@ -1091,6 +1344,7 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
           routeOrder: courierAssignment.routeOrder,
         },
       });
+      await reorderCourierRoute(tx, courierAssignment.courierId, orderDeliveryDate);
     }
 
     if (sharedCart) {
@@ -1947,9 +2201,14 @@ export async function updateOrderItemsByAdmin(orderId: string, input: unknown) {
   }, ORDER_TRANSACTION_OPTIONS);
 }
 
-export async function assignCourierToOrder(orderId: string, input: unknown) {
+export async function assignCourierToOrder(
+  orderId: string,
+  input: unknown,
+  options: { adminUserId?: string } = {},
+) {
   const data = assignCourierSchema.parse(input);
   const order = await getAdminOrder(orderId);
+  const previousCourierId = order.courierId;
 
   if (!data.courierId) {
     return prisma.$transaction(async (tx) => {
@@ -1957,22 +2216,36 @@ export async function assignCourierToOrder(orderId: string, input: unknown) {
         where: { orderId },
       });
 
-      return tx.order.update({
+      const updatedOrder = await tx.order.update({
         where: { id: orderId },
         data: { courierId: null },
       });
+
+      if (previousCourierId) {
+        await reorderCourierRoute(tx, previousCourierId, order.deliveryDate);
+      }
+
+      return updatedOrder;
     }, ORDER_TRANSACTION_OPTIONS);
   }
 
   const courier = await prisma.user.findFirst({
     where: {
       id: data.courierId,
-      role: Role.COURIER,
-      courierProfile: {
-        is: {
-          isActive: true,
+      OR: [
+        {
+          role: Role.COURIER,
+          courierProfile: {
+            is: {
+              isActive: true,
+            },
+          },
         },
-      },
+        {
+          id: options.adminUserId ?? "__no_admin_self__",
+          role: Role.ADMIN,
+        },
+      ],
     },
   });
 
@@ -1980,45 +2253,260 @@ export async function assignCourierToOrder(orderId: string, input: unknown) {
     throw new ApiError("Курьер не найден", 404);
   }
 
-  const routeOrder =
-    (await prisma.order.count({
-      where: {
-        id: { not: orderId },
+  return prisma.$transaction(async (tx) => {
+    const routeOrder =
+      (await tx.order.count({
+        where: {
+          id: { not: orderId },
+          courierId: courier.id,
+          deliveryDate: order.deliveryDate,
+          status: {
+            in: routeAssignableOrderStatuses,
+          },
+        },
+      })) + 1;
+
+    const updatedOrder = await tx.order.update({
+      where: { id: orderId },
+      data: {
         courierId: courier.id,
-        deliveryDate: order.deliveryDate,
+        status:
+          order.status === OrderStatus.ASSEMBLED
+            ? OrderStatus.HANDED_TO_COURIER
+            : order.status,
+      },
+    });
+
+    await tx.deliveryTask.upsert({
+      where: { orderId },
+      update: {
+        courierId: courier.id,
+        status: DeliveryTaskStatus.ASSIGNED,
+        routeOrder,
+      },
+      create: {
+        orderId,
+        courierId: courier.id,
+        status: DeliveryTaskStatus.ASSIGNED,
+        routeOrder,
+      },
+    });
+
+    if (previousCourierId && previousCourierId !== courier.id) {
+      await reorderCourierRoute(tx, previousCourierId, order.deliveryDate);
+    }
+
+    await reorderCourierRoute(tx, courier.id, order.deliveryDate);
+
+    return updatedOrder;
+  }, ORDER_TRANSACTION_OPTIONS);
+}
+
+type DistributionOrder = Prisma.OrderGetPayload<{
+  include: {
+    user: true;
+    courier: true;
+    address: true;
+    deliveryTask: {
+      select: {
+        routeOrder: true;
+      };
+    };
+  };
+}>;
+
+function getDistributionAddressLabel(order: DistributionOrder) {
+  return `${order.address.city}, ${order.address.street}, ${order.address.house}${
+    order.address.apartment ? `, кв. ${order.address.apartment}` : ""
+  }`;
+}
+
+function buildRouteDistributionPlan(
+  deliveryDate: string,
+  orders: DistributionOrder[],
+  couriers: Array<{ userId: string; name: string; user: { name: string } }>,
+) {
+  const routeStates = couriers.map((courier) => ({
+    courierId: courier.userId,
+    courierName: courier.name || courier.user.name,
+    orders: [] as DistributionOrder[],
+  }));
+
+  if (routeStates.length === 0) {
+    return {
+      date: deliveryDate,
+      changes: [],
+      routes: [],
+      unassignedCount: orders.filter((order) => !order.courierId).length,
+    };
+  }
+
+  const orderedQueue = [...orders].sort((first, second) => {
+    const firstRouteOrder = first.deliveryTask?.routeOrder ?? Number.MAX_SAFE_INTEGER;
+    const secondRouteOrder = second.deliveryTask?.routeOrder ?? Number.MAX_SAFE_INTEGER;
+
+    return (
+      firstRouteOrder - secondRouteOrder ||
+      first.createdAt.getTime() - second.createdAt.getTime()
+    );
+  });
+
+  for (const order of orderedQueue) {
+    const bestRoute = routeStates
+      .map((route) => ({
+        route,
+        score: scoreCourierForAddress(order.address, route.orders),
+      }))
+      .toSorted((first, second) => {
+        const scoreDiff = first.score - second.score;
+        const loadDiff = first.route.orders.length - second.route.orders.length;
+
+        return (
+          scoreDiff ||
+          loadDiff ||
+          first.route.courierName.localeCompare(second.route.courierName)
+        );
+      })[0];
+
+    bestRoute.route.orders.push(order);
+  }
+
+  const routes = routeStates.map((route) => {
+    const routeOrders = sortRouteItemsByDistance(route.orders);
+    const routeDistance = getRouteDistanceForItems(routeOrders);
+
+    return {
+      courierId: route.courierId,
+      courierName: route.courierName,
+      ordersCount: routeOrders.length,
+      distanceKm: routeDistance.distanceKm,
+      knownSegments: routeDistance.knownSegments,
+      etaMinutes: getRouteEtaMinutes(routeDistance.distanceKm, routeOrders.length),
+      orders: routeOrders.map((order, index) => ({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        customerName: order.user.name,
+        address: getDistributionAddressLabel(order),
+        routeOrder: index + 1,
+        currentCourierId: order.courierId,
+        currentCourierName: order.courier?.name ?? null,
+      })),
+    };
+  });
+
+  const changes = routes.flatMap((route) =>
+    route.orders
+      .filter((order) => order.currentCourierId !== route.courierId)
+      .map((order) => ({
+        orderId: order.orderId,
+        orderNumber: order.orderNumber,
+        customerName: order.customerName,
+        address: order.address,
+        currentCourierId: order.currentCourierId,
+        currentCourierName: order.currentCourierName,
+        suggestedCourierId: route.courierId,
+        suggestedCourierName: route.courierName,
+        routeOrder: order.routeOrder,
+      })),
+  );
+
+  return {
+    date: deliveryDate,
+    changes,
+    routes,
+    unassignedCount: routes.flatMap((route) => route.orders).filter(
+      (order) => !order.currentCourierId,
+    ).length,
+  };
+}
+
+export async function previewCourierRedistribution(deliveryDate: string) {
+  const date = dateStringToDbDate(deliveryDate);
+  const [orders, couriers] = await Promise.all([
+    prisma.order.findMany({
+      where: {
+        deliveryDate: date,
         status: {
-          not: OrderStatus.CANCELLED,
+          in: routeAssignableOrderStatuses,
         },
       },
-    })) + 1;
+      include: {
+        user: true,
+        courier: true,
+        address: true,
+        deliveryTask: {
+          select: {
+            routeOrder: true,
+          },
+        },
+      },
+      orderBy: [{ deliveryTimeSlot: { startTime: "asc" } }, { createdAt: "asc" }],
+    }),
+    prisma.courier.findMany({
+      where: {
+        isActive: true,
+        user: {
+          role: Role.COURIER,
+        },
+      },
+      select: {
+        userId: true,
+        name: true,
+        user: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ name: "asc" }],
+    }),
+  ]);
 
-  const updatedOrder = await prisma.order.update({
-    where: { id: orderId },
-    data: {
-      courierId: courier.id,
-      status:
-        order.status === OrderStatus.ASSEMBLED
-          ? OrderStatus.HANDED_TO_COURIER
-          : order.status,
+  return buildRouteDistributionPlan(deliveryDate, orders, couriers);
+}
+
+export async function applyCourierRedistribution(deliveryDate: string) {
+  const proposal = await previewCourierRedistribution(deliveryDate);
+
+  await prisma.$transaction(async (tx) => {
+    for (const route of proposal.routes) {
+      for (const order of route.orders) {
+        await tx.order.update({
+          where: { id: order.orderId },
+          data: { courierId: route.courierId },
+        });
+
+        await tx.deliveryTask.upsert({
+          where: { orderId: order.orderId },
+          update: {
+            courierId: route.courierId,
+            status: DeliveryTaskStatus.ASSIGNED,
+            routeOrder: order.routeOrder,
+          },
+          create: {
+            orderId: order.orderId,
+            courierId: route.courierId,
+            status: DeliveryTaskStatus.ASSIGNED,
+            routeOrder: order.routeOrder,
+          },
+        });
+      }
+    }
+  }, ORDER_TRANSACTION_OPTIONS);
+
+  return previewCourierRedistribution(deliveryDate);
+}
+
+export async function getUnassignedOrdersCount(date?: string | null) {
+  return prisma.order.count({
+    where: {
+      deliveryDate: date ? dateStringToDbDate(date) : undefined,
+      courierId: null,
+      status: {
+        in: routeAssignableOrderStatuses,
+      },
     },
   });
-
-  await prisma.deliveryTask.upsert({
-    where: { orderId },
-    update: {
-      courierId: courier.id,
-      status: DeliveryTaskStatus.ASSIGNED,
-      routeOrder,
-    },
-    create: {
-      orderId,
-      courierId: courier.id,
-      status: DeliveryTaskStatus.ASSIGNED,
-      routeOrder,
-    },
-  });
-
-  return updatedOrder;
 }
 
 export async function getDeliveryBoard(filters: {
@@ -2032,14 +2520,7 @@ export async function getDeliveryBoard(filters: {
       courierId: filters.courierId || undefined,
       deliveryTimeSlotId: filters.timeSlotId || undefined,
       status: {
-        in: [
-          OrderStatus.CONFIRMED,
-          OrderStatus.ASSEMBLING,
-          OrderStatus.ASSEMBLED,
-          OrderStatus.HANDED_TO_COURIER,
-          OrderStatus.COURIER_ON_THE_WAY,
-          OrderStatus.DELIVERY_ISSUE,
-        ],
+        in: routeAssignableOrderStatuses,
       },
     },
     include: {

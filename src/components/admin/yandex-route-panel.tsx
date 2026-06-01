@@ -54,6 +54,8 @@ const ROUTE_START_POINT: RouteQueryPoint = {
   latitude: ROSTOV_CENTER.latitude,
   longitude: ROSTOV_CENTER.longitude,
 };
+const ROUTE_AVERAGE_SPEED_KMH = 24;
+const ROUTE_STOP_SERVICE_MINUTES = 12;
 
 function toCoordinate(value: CoordinateValue) {
   if (value === null || value === undefined || value === "") {
@@ -204,6 +206,24 @@ function getRouteCostSummary(points: RoutePoint[]) {
   };
 }
 
+function getRouteEtaMinutes(distanceKm: number, stopsCount: number) {
+  return Math.round(
+    (distanceKm / ROUTE_AVERAGE_SPEED_KMH) * 60 +
+      stopsCount * ROUTE_STOP_SERVICE_MINUTES,
+  );
+}
+
+function formatEta(minutes: number) {
+  if (minutes < 60) {
+    return `${minutes} мин`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+
+  return rest > 0 ? `${hours} ч ${rest} мин` : `${hours} ч`;
+}
+
 function getSlotSummary(points: RoutePoint[]) {
   const counts = new Map<string, number>();
 
@@ -237,7 +257,13 @@ function getGroupedRoutes(points: RoutePoint[]) {
   }));
 }
 
-export function YandexRoutePanel({ orders }: { orders: DeliveryRouteOrder[] }) {
+export function YandexRoutePanel({
+  orders,
+  date,
+}: {
+  orders: DeliveryRouteOrder[];
+  date: string;
+}) {
   const routePoints = orders.map(getRoutePoint);
   const pointsWithCoordinates = routePoints.filter(
     (point) => point.latitude !== null && point.longitude !== null,
@@ -269,7 +295,7 @@ export function YandexRoutePanel({ orders }: { orders: DeliveryRouteOrder[] }) {
             <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">
               Яндекс.Карты
             </p>
-            <h2 className="mt-1 text-2xl font-semibold">Карта заказов на сегодня</h2>
+            <h2 className="mt-1 text-2xl font-semibold">Карта заказов на {date}</h2>
           </div>
           <Link
             href={fullRouteUrl}
@@ -364,6 +390,11 @@ export function YandexRoutePanel({ orders }: { orders: DeliveryRouteOrder[] }) {
         <div className="grid gap-4 lg:grid-cols-2">
           {groupedRoutes.map((group) => {
             const costSummary = getRouteCostSummary(group.points);
+            const groupDistance = getRouteDistance([ROUTE_START_POINT, ...group.points]);
+            const groupEta = getRouteEtaMinutes(
+              groupDistance.distance,
+              group.points.length,
+            );
 
             return (
               <article key={group.courier} className="glass-panel rounded-[2rem] p-5">
@@ -374,7 +405,14 @@ export function YandexRoutePanel({ orders }: { orders: DeliveryRouteOrder[] }) {
                     </p>
                     <h3 className="mt-1 text-xl font-semibold">{group.courier}</h3>
                     <p className="mt-1 text-sm text-[var(--muted)]">
-                      Точки: {formatCurrency(costSummary.total)}
+                      {group.points.length} заказов ·{" "}
+                      {groupDistance.knownSegments > 0
+                        ? `${groupDistance.distance.toFixed(1)} км`
+                        : "нет координат"}{" "}
+                      · {formatEta(groupEta)}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--muted)]">
+                      Внутренняя стоимость точек: {formatCurrency(costSummary.total)}
                       {costSummary.reviewCount > 0
                         ? ` · проверить ${costSummary.reviewCount}`
                         : ""}

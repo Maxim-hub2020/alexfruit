@@ -18,10 +18,10 @@ export default async function CartPage() {
     <MainShell active="cart" user={user}>
       <section className="section-shell space-y-6 py-8">
         <div className="glass-panel rounded-[2.2rem] p-6">
-          <h1 className="font-serif text-5xl font-semibold">Корзина и оформление</h1>
+          <h1 className="font-serif text-5xl font-semibold">Корзина</h1>
           <p className="mt-3 max-w-2xl text-lg text-[var(--muted)]">
-            Выберите адрес, дату и оформите заказ. Доставку на сегодня принимаем
-            до 09:00, дальше ближайшая дата автоматически переносится на завтра.
+            Проверьте товары и количество. Дату, адрес и комментарий выберете на
+            следующем шаге оформления заказа.
           </p>
         </div>
 

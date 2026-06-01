@@ -31,6 +31,7 @@ export function CheckoutClient({
   const { items, subtotal, clear, updateQuantity, removeItem, hydrated } = useCart();
   const minDeliveryDate = getDefaultDeliveryDate();
   const [date, setDate] = useState(() => minDeliveryDate);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [addressId, setAddressId] = useState(addresses[0]?.id ?? "");
   const [needsLift, setNeedsLift] = useState(false);
   const [comment, setComment] = useState("");
@@ -154,6 +155,36 @@ export function CheckoutClient({
       </section>
 
       <aside className="glass-panel h-fit rounded-[2rem] p-5">
+        {!isCheckoutOpen ? (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold">Итого в корзине</h2>
+              <p className="text-sm text-[var(--muted)]">
+                Данные доставки заполним на следующем шаге, когда вы перейдёте к
+                оформлению.
+              </p>
+            </div>
+
+            <div className="rounded-[1.5rem] bg-white/90 p-4">
+              <div className="flex items-center justify-between text-sm text-[var(--muted)]">
+                <span>Позиций</span>
+                <span>{items.length}</span>
+              </div>
+              <div className="mt-3 flex items-center justify-between border-t border-[var(--line)] pt-4 text-lg font-bold">
+                <span>Товары</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+            </div>
+
+            <Button
+              className="w-full"
+              onClick={() => setIsCheckoutOpen(true)}
+              disabled={items.length === 0}
+            >
+              Перейти к оформлению
+            </Button>
+          </div>
+        ) : (
         <div className="space-y-4">
           <div className="space-y-2">
             <h2 className="text-xl font-semibold">Оформление заказа</h2>
@@ -284,6 +315,7 @@ export function CheckoutClient({
             {isSubmitting ? "Оформляем..." : "Оформить заказ"}
           </Button>
         </div>
+        )}
       </aside>
     </div>
   );

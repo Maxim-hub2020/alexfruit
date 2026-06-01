@@ -6,7 +6,7 @@ import { AssemblyProductShortagePanel } from "@/components/admin/assembly-produc
 import { MainShell } from "@/components/layout/main-shell";
 import { requirePageUser } from "@/lib/auth";
 import { canPrintOrderLabelStatus } from "@/lib/constants";
-import { getAdminOrders } from "@/lib/orders";
+import { getAdminOrders, getUnassignedOrdersCount } from "@/lib/orders";
 import { toClientValue } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
@@ -20,13 +20,16 @@ export default async function AdminOrdersPage({
   const params = await searchParams;
   const selectedDate = typeof params.date === "string" ? params.date : "";
   const courierFilter = typeof params.courierId === "string" ? params.courierId : null;
-  const orders = await getAdminOrders({
-    date: selectedDate || null,
-    status: typeof params.status === "string" ? params.status : null,
-    customer: typeof params.customer === "string" ? params.customer : null,
-    courierId: courierFilter,
-    timeSlotId: typeof params.timeSlotId === "string" ? params.timeSlotId : null,
-  });
+  const [orders, unassignedOrdersCount] = await Promise.all([
+    getAdminOrders({
+      date: selectedDate || null,
+      status: typeof params.status === "string" ? params.status : null,
+      customer: typeof params.customer === "string" ? params.customer : null,
+      courierId: courierFilter,
+      timeSlotId: typeof params.timeSlotId === "string" ? params.timeSlotId : null,
+    }),
+    getUnassignedOrdersCount(selectedDate || null),
+  ]);
   const baseQuery = new URLSearchParams();
   const unassignedQuery = new URLSearchParams();
 
@@ -40,7 +43,6 @@ export default async function AdminOrdersPage({
   const allOrdersQuery = baseQuery.toString();
   const allOrdersUrl = allOrdersQuery ? `/admin/orders?${allOrdersQuery}` : "/admin/orders";
   const unassignedUrl = `/admin/orders?${unassignedQuery}`;
-  const unassignedOrdersCount = orders.filter((order) => !order.courier).length;
   const labelsUrl = selectedDate
     ? `/api/admin/orders/labels?date=${encodeURIComponent(selectedDate)}`
     : "";
@@ -111,6 +113,19 @@ export default async function AdminOrdersPage({
             ) : null}
           </div>
         </div>
+
+        {unassignedOrdersCount > 0 ? (
+          <div className="rounded-[1.7rem] bg-amber-50 p-5 text-amber-950 ring-1 ring-amber-100">
+            <p className="text-lg font-semibold">
+              Внимание! Есть {unassignedOrdersCount} заказ(ов) без назначенного курьера.
+            </p>
+            <p className="mt-1 text-sm text-amber-800">
+              Автораспределение назначает курьера при создании заказа, поэтому такие
+              заказы появились после ручного снятия назначения или отсутствия активных
+              курьеров.
+            </p>
+          </div>
+        ) : null}
 
         <AssemblyProductShortagePanel orders={toClientValue(orders as never)} />
 

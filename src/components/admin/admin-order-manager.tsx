@@ -92,6 +92,7 @@ function OrderMiniCard({ order, dense = false }: { order: AdminOrder; dense?: bo
       className={cn(
         "group block rounded-[1.6rem] bg-white/92 p-4 shadow-sm ring-1 ring-[var(--line)] transition hover:-translate-y-0.5 hover:shadow-xl",
         dense ? "space-y-3" : "space-y-4",
+        !order.courier && "bg-amber-50/90 ring-amber-200",
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -126,7 +127,13 @@ function OrderMiniCard({ order, dense = false }: { order: AdminOrder; dense?: bo
         {!dense ? (
           <p className="flex items-center gap-2">
             <Truck size={14} />
-            <span>{order.courier?.name ?? "курьер не назначен"}</span>
+            <span
+              className={cn(
+                !order.courier && "font-semibold text-amber-800",
+              )}
+            >
+              {order.courier?.name ?? "курьер не назначен"}
+            </span>
           </p>
         ) : null}
         {order.needsLift ? (

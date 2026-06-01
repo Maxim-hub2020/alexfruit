@@ -9,9 +9,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireApiUser([Role.ADMIN]);
+    const user = await requireApiUser([Role.ADMIN]);
     const { id } = await params;
-    const order = await assignCourierToOrder(id, await request.json());
+    const order = await assignCourierToOrder(id, await request.json(), {
+      adminUserId: user.id,
+    });
     return NextResponse.json(order);
   } catch (error) {
     return jsonError(error);

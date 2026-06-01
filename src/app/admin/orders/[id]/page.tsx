@@ -27,10 +27,14 @@ export default async function AdminOrderDetailsPage({
       orderBy: { name: "asc" },
     }),
   ]);
-  const couriers = courierProfiles.map((profile) => ({
+  const courierOptions = courierProfiles.map((profile) => ({
     id: profile.userId,
     name: profile.name || profile.user.name,
   }));
+  const couriers = [
+    { id: user.id, name: `${user.name} (я)` },
+    ...courierOptions.filter((courier) => courier.id !== user.id),
+  ];
 
   return (
     <MainShell active="admin-orders" user={user}>

@@ -4,6 +4,7 @@ import { FileText, MapPin } from "lucide-react";
 import { Role } from "@/generated/prisma";
 import { AdminCourierLocations } from "@/components/admin/admin-courier-locations";
 import { AdminDatePdfActions } from "@/components/admin/admin-date-pdf-actions";
+import { AdminRouteRebalancePanel } from "@/components/admin/admin-route-rebalance-panel";
 import { YandexRoutePanel } from "@/components/admin/yandex-route-panel";
 import { MainShell } from "@/components/layout/main-shell";
 import { PhoneCallLink } from "@/components/ui/phone-call-link";
@@ -11,7 +12,8 @@ import { StatusPill } from "@/components/ui/status-pill";
 import { requirePageUser } from "@/lib/auth";
 import { canPrintOrderLabelStatus } from "@/lib/constants";
 import { getAdminCourierLocations } from "@/lib/courier-locations";
-import { getDeliveryBoard } from "@/lib/orders";
+import { getDeliveryBoard, getUnassignedOrdersCount } from "@/lib/orders";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +26,12 @@ export default async function AdminDeliveryPage({
   const params = await searchParams;
   const selectedDate =
     typeof params.date === "string" ? params.date : format(new Date(), "yyyy-MM-dd");
-  const [orders, courierLocations] = await Promise.all([
+  const [orders, courierLocations, unassignedOrdersCount] = await Promise.all([
     getDeliveryBoard({
       date: selectedDate,
     }),
     getAdminCourierLocations(),
+    getUnassignedOrdersCount(selectedDate),
   ]);
   const labelsUrl = `/api/admin/orders/labels?date=${encodeURIComponent(selectedDate)}`;
   const labelsCount = orders.filter((order) =>
@@ -63,12 +66,23 @@ export default async function AdminDeliveryPage({
           labelsEmptyText="Этикетки появятся после подтверждения заказа администратором."
         />
 
-        <YandexRoutePanel orders={orders} />
+        <AdminRouteRebalancePanel
+          date={selectedDate}
+          unassignedCount={unassignedOrdersCount}
+        />
+
+        <YandexRoutePanel orders={orders} date={selectedDate} />
         <AdminCourierLocations couriers={courierLocations} />
 
         <div className="grid gap-4 xl:grid-cols-2">
           {orders.map((order) => (
-            <article key={order.id} className="glass-panel rounded-[2rem] p-5">
+            <article
+              key={order.id}
+              className={cn(
+                "glass-panel rounded-[2rem] p-5",
+                !order.courier && "ring-2 ring-amber-300",
+              )}
+            >
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap items-center gap-3">
