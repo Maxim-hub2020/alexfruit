@@ -121,6 +121,11 @@ export function CatalogExplorer({
     setHeroIndex((current) => (current + 1) % heroProducts.length);
   }
 
+  function returnToCategories() {
+    setCategory(null);
+    setQuery("");
+  }
+
   return (
     <div className="rounded-[2.35rem] bg-white px-4 py-5 shadow-[0_30px_90px_rgba(61,93,74,0.12)] ring-1 ring-white/80 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -156,7 +161,7 @@ export function CatalogExplorer({
         <div className="flex gap-6 overflow-x-auto border-b border-[var(--line)] pb-2">
           <button
             type="button"
-            onClick={() => setCategory(null)}
+            onClick={returnToCategories}
             className={cn(
               "group flex min-w-[4.8rem] flex-col items-center gap-2 border-b-2 px-1 pb-3 text-sm font-semibold transition",
               !category
@@ -235,8 +240,16 @@ export function CatalogExplorer({
         </section>
       ) : (
         <section className="mt-7">
-          <div className="mb-4 flex items-end justify-between gap-4">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
+              <button
+                type="button"
+                onClick={returnToCategories}
+                className="mb-3 inline-flex items-center gap-2 rounded-2xl bg-[var(--surface-muted)] px-4 py-2 text-sm font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--line)] transition hover:bg-white"
+              >
+                <ChevronLeft size={16} />
+                Назад к категориям
+              </button>
               <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">
                 Товары
               </p>
@@ -244,18 +257,9 @@ export function CatalogExplorer({
                 {selectedCategory ? selectedCategory.name : "Результаты поиска"}
               </h2>
             </div>
-            <div className="hidden items-center gap-3 sm:flex">
-              <button
-                type="button"
-                onClick={() => setCategory(null)}
-                className="rounded-2xl bg-[var(--surface-muted)] px-4 py-2 text-sm font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--line)]"
-              >
-                К категориям
-              </button>
-              <p className="text-sm text-[var(--muted)]">
-                {filteredProducts.length} товаров
-              </p>
-            </div>
+            <p className="text-sm text-[var(--muted)]">
+              {filteredProducts.length} товаров
+            </p>
           </div>
 
           {filteredProducts.length > 0 ? (

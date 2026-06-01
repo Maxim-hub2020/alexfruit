@@ -40,6 +40,9 @@ const adapter = new PrismaPg({
 });
 
 const prisma = new PrismaClient({ adapter });
+const shouldSeedDemoAccounts =
+  process.env.SEED_DEMO_ACCOUNTS === "true" ||
+  (process.env.NODE_ENV !== "production" && process.env.SEED_DEMO_ACCOUNTS !== "false");
 
 async function upsertUser(params: {
   email: string;
@@ -80,89 +83,100 @@ async function upsertUser(params: {
 }
 
 async function main() {
-  await upsertUser({
-    email: process.env.DEFAULT_ADMIN_EMAIL ?? "admin@alexfrut.local",
-    password: process.env.DEFAULT_ADMIN_PASSWORD ?? "admin12345",
-    name: "Марина Админ",
-    phone: "+79000000001",
-    role: Role.ADMIN,
-  });
+  let demoCustomerId: string | null = null;
+  let demoCourierId: string | null = null;
+  let demoAddressId: string | null = null;
 
-  const courier = await upsertUser({
-    email: process.env.DEFAULT_COURIER_EMAIL ?? "courier@alexfrut.local",
-    password: process.env.DEFAULT_COURIER_PASSWORD ?? "courier12345",
-    name: "Илья Курьер",
-    phone: "+79000000002",
-    role: Role.COURIER,
-  });
+  if (shouldSeedDemoAccounts) {
+    await upsertUser({
+      email: process.env.DEFAULT_ADMIN_EMAIL ?? "admin@alexfrut.local",
+      password: process.env.DEFAULT_ADMIN_PASSWORD ?? "admin12345",
+      name: "Марина Админ",
+      phone: "+79000000001",
+      role: Role.ADMIN,
+    });
 
-  const customer = await upsertUser({
-    email: process.env.DEFAULT_CUSTOMER_EMAIL ?? "customer@alexfrut.local",
-    password: process.env.DEFAULT_CUSTOMER_PASSWORD ?? "customer12345",
-    name: "Елена Соколова",
-    phone: "+79000000003",
-    role: Role.CUSTOMER,
-  });
+    const courier = await upsertUser({
+      email: process.env.DEFAULT_COURIER_EMAIL ?? "courier@alexfrut.local",
+      password: process.env.DEFAULT_COURIER_PASSWORD ?? "courier12345",
+      name: "Илья Курьер",
+      phone: "+79000000002",
+      role: Role.COURIER,
+    });
 
-  await prisma.customerProfile.upsert({
-    where: { userId: customer.id },
-    update: {},
-    create: { userId: customer.id },
-  });
+    const customer = await upsertUser({
+      email: process.env.DEFAULT_CUSTOMER_EMAIL ?? "customer@alexfrut.local",
+      password: process.env.DEFAULT_CUSTOMER_PASSWORD ?? "customer12345",
+      name: "Елена Соколова",
+      phone: "+79000000003",
+      role: Role.CUSTOMER,
+    });
 
-  await prisma.courier.upsert({
-    where: { userId: courier.id },
-    update: {
-      name: courier.name,
-      phone: courier.phone,
-    },
-    create: {
-      userId: courier.id,
-      name: courier.name,
-      phone: courier.phone,
-      isActive: true,
-    },
-  });
+    await prisma.customerProfile.upsert({
+      where: { userId: customer.id },
+      update: {},
+      create: { userId: customer.id },
+    });
 
-  const address = await prisma.address.upsert({
-    where: { id: "customer-default-address" },
-    update: {
-      userId: customer.id,
-      title: "Дом",
-      city: "Ростов-на-Дону",
-      street: "Пушкинская",
-      house: "104",
-      apartment: "18",
-      entrance: "2",
-      floor: "5",
-      comment: "Позвонить за 10 минут",
-      latitude: 47.2288,
-      longitude: 39.7291,
-      isDefault: true,
-    },
-    create: {
-      id: "customer-default-address",
-      userId: customer.id,
-      title: "Дом",
-      city: "Ростов-на-Дону",
-      street: "Пушкинская",
-      house: "104",
-      apartment: "18",
-      entrance: "2",
-      floor: "5",
-      comment: "Позвонить за 10 минут",
-      latitude: 47.2288,
-      longitude: 39.7291,
-      isDefault: true,
-    },
-  });
+    await prisma.courier.upsert({
+      where: { userId: courier.id },
+      update: {
+        name: courier.name,
+        phone: courier.phone,
+        isActive: true,
+      },
+      create: {
+        userId: courier.id,
+        name: courier.name,
+        phone: courier.phone,
+        isActive: true,
+      },
+    });
 
-  await prisma.customerProfile.update({
-    where: { userId: customer.id },
-    data: {
-      defaultAddressId: address.id,
-    },
-  });
+    const address = await prisma.address.upsert({
+      where: { id: "customer-default-address" },
+      update: {
+        userId: customer.id,
+        title: "Дом",
+        city: "Ростов-на-Дону",
+        street: "Пушкинская",
+        house: "104",
+        apartment: "18",
+        entrance: "2",
+        floor: "5",
+        comment: "Позвонить за 10 минут",
+        latitude: 47.2288,
+        longitude: 39.7291,
+        isDefault: true,
+      },
+      create: {
+        id: "customer-default-address",
+        userId: customer.id,
+        title: "Дом",
+        city: "Ростов-на-Дону",
+        street: "Пушкинская",
+        house: "104",
+        apartment: "18",
+        entrance: "2",
+        floor: "5",
+        comment: "Позвонить за 10 минут",
+        latitude: 47.2288,
+        longitude: 39.7291,
+        isDefault: true,
+      },
+    });
+
+    await prisma.customerProfile.update({
+      where: { userId: customer.id },
+      data: {
+        defaultAddressId: address.id,
+      },
+    });
+
+    demoCustomerId = customer.id;
+    demoCourierId = courier.id;
+    demoAddressId = address.id;
+  }
 
   const categories = seasonalCategories;
 
@@ -254,116 +268,122 @@ async function main() {
     });
   }
 
-  const todayDeliveryDate = new Date(
-    `${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`,
-  );
+  if (shouldSeedDemoAccounts && demoCustomerId && demoCourierId && demoAddressId) {
+    const todayDeliveryDate = new Date(
+      `${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`,
+    );
 
-  const demoOrderNumber = "1001";
-  const legacyDemoOrderNumber = "AF-DEMO-0001";
-  const compactDemoOrder = await prisma.order.findFirst({
-    where: { orderNumber: demoOrderNumber },
-  });
-  const legacyDemoOrder = compactDemoOrder
-    ? null
-    : await prisma.order.findFirst({
-        where: { orderNumber: legacyDemoOrderNumber },
-      });
-  const orderExists = compactDemoOrder ?? legacyDemoOrder;
-
-  if (orderExists) {
-    const slot = await prisma.deliveryTimeSlot.findFirst({
-      where: { title: "09:00-11:00" },
+    const demoOrderNumber = "1001";
+    const legacyDemoOrderNumber = "AF-DEMO-0001";
+    const compactDemoOrder = await prisma.order.findFirst({
+      where: { orderNumber: demoOrderNumber },
     });
+    const legacyDemoOrder = compactDemoOrder
+      ? null
+      : await prisma.order.findFirst({
+          where: { orderNumber: legacyDemoOrderNumber },
+        });
+    const orderExists = compactDemoOrder ?? legacyDemoOrder;
 
-    if (slot) {
-      await prisma.order.update({
-        where: { id: orderExists.id },
-        data: {
-          ...(orderExists.orderNumber !== demoOrderNumber
-            ? { orderNumber: demoOrderNumber }
-            : {}),
-          userId: customer.id,
-          addressId: address.id,
-          deliveryDate: todayDeliveryDate,
-          deliveryTimeSlotId: slot.id,
-          status: OrderStatus.ASSEMBLING,
-          courierId: courier.id,
-          editableUntil: new Date(Date.now() + 3 * 60 * 60 * 1000),
-        },
+    if (orderExists) {
+      const slot = await prisma.deliveryTimeSlot.findFirst({
+        where: { title: "09:00-11:00" },
       });
 
-      await prisma.deliveryTask.upsert({
-        where: { orderId: orderExists.id },
-        update: {
-          courierId: courier.id,
-          status: DeliveryTaskStatus.ASSIGNED,
-          routeOrder: 1,
-        },
-        create: {
-          orderId: orderExists.id,
-          courierId: courier.id,
-          status: DeliveryTaskStatus.ASSIGNED,
-          routeOrder: 1,
-        },
-      });
+      if (slot) {
+        await prisma.order.update({
+          where: { id: orderExists.id },
+          data: {
+            ...(orderExists.orderNumber !== demoOrderNumber
+              ? { orderNumber: demoOrderNumber }
+              : {}),
+            userId: demoCustomerId,
+            addressId: demoAddressId,
+            deliveryDate: todayDeliveryDate,
+            deliveryTimeSlotId: slot.id,
+            status: OrderStatus.ASSEMBLING,
+            courierId: demoCourierId,
+            editableUntil: new Date(Date.now() + 3 * 60 * 60 * 1000),
+          },
+        });
+
+        await prisma.deliveryTask.upsert({
+          where: { orderId: orderExists.id },
+          update: {
+            courierId: demoCourierId,
+            status: DeliveryTaskStatus.ASSIGNED,
+            routeOrder: 1,
+          },
+          create: {
+            orderId: orderExists.id,
+            courierId: demoCourierId,
+            status: DeliveryTaskStatus.ASSIGNED,
+            routeOrder: 1,
+          },
+        });
+      }
     }
-  }
 
-  if (!orderExists) {
-    const productsForOrder = await prisma.product.findMany({
-      take: 3,
-      orderBy: { createdAt: "asc" },
-    });
-    const slot = await prisma.deliveryTimeSlot.findFirst({
-      where: { title: "09:00-11:00" },
-    });
+    if (!orderExists) {
+      const productsForOrder = await prisma.product.findMany({
+        take: 3,
+        orderBy: { createdAt: "asc" },
+      });
+      const slot = await prisma.deliveryTimeSlot.findFirst({
+        where: { title: "09:00-11:00" },
+      });
 
-    if (slot && productsForOrder.length > 0) {
-      const order = await prisma.order.create({
-        data: {
-          orderNumber: demoOrderNumber,
-          userId: customer.id,
-          addressId: address.id,
-          deliveryDate: todayDeliveryDate,
-          deliveryTimeSlotId: slot.id,
-          status: OrderStatus.ASSEMBLING,
-          preliminaryTotal: 2350,
-          finalTotal: 2410,
-          customerComment: "Нужны самые спелые ягоды",
-          adminComment: "Добавить салфетки",
-          courierId: courier.id,
-          editableUntil: new Date(Date.now() + 3 * 60 * 60 * 1000),
-          items: {
-            createMany: {
-              data: productsForOrder.map((product, index) => ({
-                productId: product.id,
-                productName: product.name,
-                price: Number(product.price),
-                unit: product.unit,
-                orderedQuantity: index === 0 ? 2 : 1,
-                actualQuantity: index === 0 ? 2.1 : 1,
-                preliminarySum: Number(product.price) * (index === 0 ? 2 : 1),
-                finalSum:
-                  Number(product.price) * (index === 0 ? 2.1 : 1),
-              })),
+      if (slot && productsForOrder.length > 0) {
+        const order = await prisma.order.create({
+          data: {
+            orderNumber: demoOrderNumber,
+            userId: demoCustomerId,
+            addressId: demoAddressId,
+            deliveryDate: todayDeliveryDate,
+            deliveryTimeSlotId: slot.id,
+            status: OrderStatus.ASSEMBLING,
+            preliminaryTotal: 2350,
+            finalTotal: 2410,
+            customerComment: "Нужны самые спелые ягоды",
+            adminComment: "Добавить салфетки",
+            courierId: demoCourierId,
+            editableUntil: new Date(Date.now() + 3 * 60 * 60 * 1000),
+            items: {
+              createMany: {
+                data: productsForOrder.map((product, index) => ({
+                  productId: product.id,
+                  productName: product.name,
+                  price: Number(product.price),
+                  unit: product.unit,
+                  orderedQuantity: index === 0 ? 2 : 1,
+                  actualQuantity: index === 0 ? 2.1 : 1,
+                  preliminarySum: Number(product.price) * (index === 0 ? 2 : 1),
+                  finalSum:
+                    Number(product.price) * (index === 0 ? 2.1 : 1),
+                })),
+              },
             },
           },
-        },
-      });
+        });
 
-      await prisma.deliveryTask.create({
-        data: {
-          orderId: order.id,
-          courierId: courier.id,
-          status: DeliveryTaskStatus.ASSIGNED,
-          routeOrder: 1,
-        },
-      });
+        await prisma.deliveryTask.create({
+          data: {
+            orderId: order.id,
+            courierId: demoCourierId,
+            status: DeliveryTaskStatus.ASSIGNED,
+            routeOrder: 1,
+          },
+        });
+      }
     }
   }
 
   console.log("Seed completed");
-  console.log("Base users, catalog, slots, and sample order are ready.");
+  console.log(
+    shouldSeedDemoAccounts
+      ? "Base users, catalog, slots, and sample order are ready."
+      : "Catalog and slots are ready. Demo accounts were skipped for production.",
+  );
 }
 
 main()

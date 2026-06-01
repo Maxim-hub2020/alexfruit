@@ -5,6 +5,7 @@ import { ApiError } from "@/lib/api";
 import { normalizeRussianPhone } from "@/lib/auth";
 import { orderStatusMeta } from "@/lib/constants";
 import { prisma } from "@/lib/db";
+import { applyCourierRedistribution } from "@/lib/orders";
 import { adminCourierSchema } from "@/lib/validators";
 
 const activeOrderStatuses: OrderStatus[] = [
@@ -133,21 +134,22 @@ export async function removeCourierFromSystem(userId: string) {
     throw new ApiError("Курьер не найден", 404);
   }
 
-  const activeOrders = await prisma.order.count({
+  const activeAssignments = await prisma.order.findMany({
     where: {
       courierId: userId,
       status: {
         in: activeOrderStatuses,
       },
     },
+    select: {
+      id: true,
+      deliveryDate: true,
+    },
   });
-
-  if (activeOrders > 0) {
-    throw new ApiError(
-      "Сначала переназначьте активные заказы этого курьера, затем удалите его из системы",
-      409,
-    );
-  }
+  const activeOrderIds = activeAssignments.map((order) => order.id);
+  const affectedRouteDates = [
+    ...new Set(activeAssignments.map((order) => format(order.deliveryDate, "yyyy-MM-dd"))),
+  ];
 
   const [ordersCount, tasksCount] = await Promise.all([
     prisma.order.count({ where: { courierId: userId } }),
@@ -156,6 +158,21 @@ export async function removeCourierFromSystem(userId: string) {
 
   if (ordersCount > 0 || tasksCount > 0) {
     await prisma.$transaction(async (tx) => {
+      if (activeOrderIds.length > 0) {
+        await tx.deliveryTask.deleteMany({
+          where: {
+            orderId: { in: activeOrderIds },
+          },
+        });
+
+        await tx.order.updateMany({
+          where: {
+            id: { in: activeOrderIds },
+          },
+          data: { courierId: null },
+        });
+      }
+
       if (courier.courierProfile) {
         await tx.courier.update({
           where: { userId },
@@ -169,7 +186,13 @@ export async function removeCourierFromSystem(userId: string) {
       });
     });
 
-    return { ok: true, archived: true };
+    await Promise.all(affectedRouteDates.map((date) => applyCourierRedistribution(date)));
+
+    return {
+      ok: true,
+      archived: true,
+      redistributedOrders: activeOrderIds.length,
+    };
   }
 
   await prisma.user.delete({
