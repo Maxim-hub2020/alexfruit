@@ -136,6 +136,7 @@ const COURIER_TARGET_ROUTE_ORDERS = 8;
 const COURIER_EMPTY_ROUTE_START_PENALTY = 12;
 const COURIER_MISSING_COORDINATE_PENALTY = 7;
 const MIN_COURIER_ROUTE_ORDERS = 3;
+const COURIER_MAIN_ROUTE_MERGE_BONUS = 1.5;
 const SAME_STREET_BONUS = 6;
 const ROUTE_AVERAGE_SPEED_KMH = 24;
 const ROUTE_STOP_SERVICE_MINUTES = 12;
@@ -317,17 +318,6 @@ function getRouteEtaMinutes(distanceKm: number, stopsCount: number) {
   return Math.round(
     (distanceKm / ROUTE_AVERAGE_SPEED_KMH) * 60 +
       stopsCount * ROUTE_STOP_SERVICE_MINUTES,
-  );
-}
-
-function getPlannedCourierRouteCount(ordersCount: number, couriersCount: number) {
-  if (ordersCount <= 0 || couriersCount <= 0) {
-    return 0;
-  }
-
-  return Math.min(
-    couriersCount,
-    Math.max(1, Math.floor(ordersCount / MIN_COURIER_ROUTE_ORDERS)),
   );
 }
 
@@ -586,11 +576,7 @@ async function getAutomaticCourierAssignment(
     (first.name || "").localeCompare(second.name || "", "ru"),
   );
   const existingOrders = sortedCouriers.flatMap((courier) => courier.user.assignedOrders);
-  const activeRouteCount = getPlannedCourierRouteCount(
-    existingOrders.length + 1,
-    sortedCouriers.length,
-  );
-  const activeCouriers = sortedCouriers.slice(0, Math.max(activeRouteCount, 1));
+  const activeCouriers = sortedCouriers;
   const sectorIndex = getAddressSectorIndex(address, activeCouriers.length);
   const sectorCounts = Array.from({ length: activeCouriers.length }, () => 0);
 
@@ -2695,6 +2681,32 @@ function chooseNearestRouteForOrders<TOrder extends { address: AddressWithCoordi
     })[0]?.route;
 }
 
+function chooseMainRouteForTinyOrders<TOrder extends { address: AddressWithCoordinates }>(
+  orders: TOrder[],
+  routes: Array<RouteState<TOrder>>,
+) {
+  return routes
+    .map((route) => ({
+      route,
+      score:
+        orders.reduce(
+          (sum, order) => sum + scoreCourierForAddress(order.address, route.orders),
+          0,
+        ) -
+        route.orders.length * COURIER_MAIN_ROUTE_MERGE_BONUS,
+    }))
+    .toSorted((first, second) => {
+      const scoreDiff = first.score - second.score;
+      const mainRouteDiff = second.route.orders.length - first.route.orders.length;
+
+      return (
+        scoreDiff ||
+        mainRouteDiff ||
+        first.route.courierName.localeCompare(second.route.courierName, "ru")
+      );
+    })[0]?.route;
+}
+
 function mergeTinyCourierRoutes<TOrder extends { address: AddressWithCoordinates }>(
   routeStates: Array<RouteState<TOrder>>,
 ) {
@@ -2711,7 +2723,7 @@ function mergeTinyCourierRoutes<TOrder extends { address: AddressWithCoordinates
       break;
     }
 
-    const targetRoute = chooseNearestRouteForOrders(
+    const targetRoute = chooseMainRouteForTinyOrders(
       tinyRoute.orders,
       routeStates.filter((route) => route !== tinyRoute && route.orders.length > 0),
     );
@@ -2751,11 +2763,7 @@ function buildRouteDistributionPlan(
     };
   }
 
-  const activeRouteCount = getPlannedCourierRouteCount(
-    orders.length,
-    routeStates.length,
-  );
-  const activeRouteStates = routeStates.slice(0, Math.max(activeRouteCount, 1));
+  const activeRouteStates = routeStates;
   const orderedQueue = [...orders].sort((first, second) => {
     const firstRouteOrder = first.deliveryTask?.routeOrder ?? Number.MAX_SAFE_INTEGER;
     const secondRouteOrder = second.deliveryTask?.routeOrder ?? Number.MAX_SAFE_INTEGER;
