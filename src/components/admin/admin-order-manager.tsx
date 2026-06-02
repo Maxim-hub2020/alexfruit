@@ -17,23 +17,23 @@ import {
 import { StatusPill } from "@/components/ui/status-pill";
 import { cn, formatCurrency, getOrderStatusLabel } from "@/lib/utils";
 
-const flowStatuses = ["NEW", "CONFIRMED", "HANDED_TO_COURIER"] as const;
+const flowStatuses = ["ASSEMBLING", "ASSEMBLED", "HANDED_TO_COURIER"] as const;
 
 const kanbanLanes = [
   {
-    key: "new",
-    label: "Новый",
-    hint: "Принять и уточнить",
-    targetStatus: "NEW",
-    statuses: ["NEW", "PENDING_CONFIRMATION"],
+    key: "assembly",
+    label: "Сборка",
+    hint: "Проверка, вес и наличие",
+    targetStatus: "ASSEMBLING",
+    statuses: ["NEW", "PENDING_CONFIRMATION", "CONFIRMED", "ASSEMBLING"],
     accent: "from-emerald-50 via-white to-white ring-emerald-100",
   },
   {
-    key: "confirmed",
-    label: "Подтверждён",
-    hint: "Готовится к сборке",
-    targetStatus: "CONFIRMED",
-    statuses: ["CONFIRMED", "ASSEMBLING", "ASSEMBLED"],
+    key: "assembled",
+    label: "Собран",
+    hint: "Готов к передаче",
+    targetStatus: "ASSEMBLED",
+    statuses: ["ASSEMBLED"],
     accent: "from-lime-50 via-white to-white ring-lime-100",
   },
   {
@@ -88,8 +88,12 @@ function getFlowProgress(status: string) {
     return 100;
   }
 
-  if (["CONFIRMED", "ASSEMBLING", "ASSEMBLED"].includes(status)) {
+  if (["ASSEMBLED"].includes(status)) {
     return 66;
+  }
+
+  if (["NEW", "PENDING_CONFIRMATION", "CONFIRMED", "ASSEMBLING"].includes(status)) {
+    return 33;
   }
 
   return 33;
@@ -209,9 +213,9 @@ function OrderStageProgress({ status }: { status: string }) {
       <div className="grid grid-cols-3 gap-2">
         {flowStatuses.map((flowStatus) => {
           const isActive =
-            flowStatus === "NEW"
+            flowStatus === "ASSEMBLING"
               ? progress >= 33
-              : flowStatus === "CONFIRMED"
+              : flowStatus === "ASSEMBLED"
                 ? progress >= 66
                 : progress >= 100;
 

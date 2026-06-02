@@ -37,6 +37,7 @@ type CatalogProduct = {
     id: string;
     name: string;
     slug: string;
+    imageUrl?: string | null;
   };
 };
 
@@ -58,7 +59,7 @@ export function CatalogExplorer({
   categories,
   products,
 }: {
-  categories: Array<{ id: string; name: string; slug: string }>;
+  categories: Array<{ id: string; name: string; slug: string; imageUrl?: string | null }>;
   products: CatalogProduct[];
 }) {
   const [query, setQuery] = useState("");
@@ -224,8 +225,18 @@ export function CatalogExplorer({
                   onClick={() => setCategory(item.slug)}
                   className="group rounded-[1.35rem] bg-[var(--surface-muted)] p-3 text-left ring-1 ring-[var(--line)] transition hover:-translate-y-1 hover:bg-white hover:shadow-[0_18px_48px_rgba(61,93,74,0.12)] sm:p-4"
                 >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-[1rem] bg-white text-[var(--accent-strong)] ring-1 ring-[var(--line)] transition group-hover:bg-[var(--accent-soft)] sm:h-12 sm:w-12">
-                    <Icon size={24} />
+                  <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-[1rem] bg-white text-[var(--accent-strong)] ring-1 ring-[var(--line)] transition group-hover:bg-[var(--accent-soft)] sm:h-12 sm:w-12">
+                    {item.imageUrl ? (
+                      <Image
+                        src={item.imageUrl}
+                        alt={item.name}
+                        fill
+                        className="object-cover"
+                        sizes="48px"
+                      />
+                    ) : (
+                      <Icon size={24} />
+                    )}
                   </span>
                   <span className="mt-3 block text-base font-semibold leading-tight sm:text-lg">
                     {item.name}

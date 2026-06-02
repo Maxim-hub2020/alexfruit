@@ -19,6 +19,7 @@ type CategoryOption = {
   id: string;
   name: string;
   slug: string;
+  imageUrl?: string | null;
 };
 
 type ProductRecord = {
@@ -51,6 +52,12 @@ type ProductFormState = {
   isPromo: boolean;
 };
 
+type CategoryFormState = {
+  name: string;
+  slug: string;
+  imageUrl: string;
+};
+
 type CatalogFeedback = {
   type: "success" | "error";
   message: string;
@@ -67,6 +74,12 @@ const stockOptions = [
   { value: "LOW", label: "Осталось мало" },
   { value: "OUT_OF_STOCK", label: "Нет в наличии" },
 ];
+
+const emptyCategoryForm: CategoryFormState = {
+  name: "",
+  slug: "",
+  imageUrl: "",
+};
 
 function createEmptyProductForm(categoryId = ""): ProductFormState {
   return {
@@ -206,7 +219,8 @@ export function AdminCatalogManager({
 }) {
   const router = useRouter();
   const [isRefreshing, startRefresh] = useTransition();
-  const [categoryForm, setCategoryForm] = useState({ name: "", slug: "" });
+  const [categoryForm, setCategoryForm] = useState<CategoryFormState>(emptyCategoryForm);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [productForm, setProductForm] = useState<ProductFormState>(() =>
     createEmptyProductForm(categories[0]?.id ?? ""),
   );
@@ -217,6 +231,7 @@ export function AdminCatalogManager({
   const [feedback, setFeedback] = useState<CatalogFeedback | null>(null);
   const [isSubmittingProduct, setIsSubmittingProduct] = useState(false);
   const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
+  const [uploadingField, setUploadingField] = useState<"category" | "product" | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const resolvedCategoryId = productForm.categoryId || categories[0]?.id || "";
@@ -257,6 +272,58 @@ export function AdminCatalogManager({
     setIsProductEditorOpen(true);
   }
 
+  function beginEditingCategory(category: CategoryOption) {
+    setFeedback(null);
+    setEditingCategoryId(category.id);
+    setCategoryForm({
+      name: category.name,
+      slug: category.slug,
+      imageUrl: category.imageUrl ?? "",
+    });
+  }
+
+  function resetCategoryEditor() {
+    setEditingCategoryId(null);
+    setCategoryForm(emptyCategoryForm);
+  }
+
+  async function uploadCatalogImage(
+    file: File | null | undefined,
+    target: "category" | "product",
+  ) {
+    if (!file) {
+      return;
+    }
+
+    setUploadingField(target);
+    setFeedback(null);
+
+    const formData = new FormData();
+    formData.set("file", file);
+    const response = await fetch("/api/admin/uploads", {
+      method: "POST",
+      body: formData,
+    });
+    const result = await response.json().catch(() => ({}));
+    setUploadingField(null);
+
+    if (!response.ok) {
+      setFeedback({
+        type: "error",
+        message: result.error ?? "Не удалось загрузить изображение.",
+      });
+      return;
+    }
+
+    if (target === "category") {
+      setCategoryForm((current) => ({ ...current, imageUrl: result.url ?? "" }));
+    } else {
+      setProductForm((current) => ({ ...current, imageUrl: result.url ?? "" }));
+    }
+
+    setFeedback({ type: "success", message: "Изображение загружено на сервер." });
+  }
+
   function beginEditing(product: ProductRecord) {
     setFeedback(null);
     setSelectedProductId(product.id);
@@ -279,16 +346,20 @@ export function AdminCatalogManager({
   async function submitCategory() {
     setIsSubmittingCategory(true);
     setFeedback(null);
+    const isEditingCategory = Boolean(editingCategoryId);
 
-    const response = await fetch("/api/admin/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...categoryForm,
-        slug: categoryForm.slug.trim().toLowerCase(),
-        sortOrder: categories.length + 1,
-      }),
-    });
+    const response = await fetch(
+      editingCategoryId ? `/api/admin/categories/${editingCategoryId}` : "/api/admin/categories",
+      {
+        method: editingCategoryId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...categoryForm,
+          slug: categoryForm.slug.trim().toLowerCase(),
+          sortOrder: editingCategoryId ? undefined : categories.length + 1,
+        }),
+      },
+    );
 
     const result = await response.json();
     setIsSubmittingCategory(false);
@@ -298,8 +369,11 @@ export function AdminCatalogManager({
       return;
     }
 
-    setCategoryForm({ name: "", slug: "" });
-    setFeedback({ type: "success", message: "Категория добавлена." });
+    resetCategoryEditor();
+    setFeedback({
+      type: "success",
+      message: isEditingCategory ? "Категория обновлена." : "Категория добавлена.",
+    });
     refreshCatalog();
   }
 
@@ -492,14 +566,39 @@ export function AdminCatalogManager({
 
               <label className="space-y-2">
                 <span className="text-sm font-medium text-[var(--muted)]">Фото товара</span>
-                <input
-                  value={productForm.imageUrl}
-                  onChange={(event) =>
-                    setProductForm((current) => ({ ...current, imageUrl: event.target.value }))
-                  }
-                  placeholder="https://... или /products/photo.webp"
-                  className="h-11 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
-                />
+                <div className="grid gap-2">
+                  {productForm.imageUrl ? (
+                    <div className="relative h-28 overflow-hidden rounded-2xl bg-[var(--surface-muted)] ring-1 ring-[var(--line)]">
+                      <Image
+                        src={productForm.imageUrl}
+                        alt="Фото товара"
+                        fill
+                        className="object-cover"
+                        sizes="320px"
+                      />
+                    </div>
+                  ) : null}
+                  <input
+                    type="file"
+                    accept="image/avif,image/jpeg,image/png,image/webp"
+                    onChange={(event) => {
+                      void uploadCatalogImage(event.target.files?.[0], "product");
+                      event.target.value = "";
+                    }}
+                    className="text-sm file:mr-3 file:h-10 file:rounded-2xl file:border-0 file:bg-[var(--accent)] file:px-4 file:text-sm file:font-semibold file:text-white"
+                  />
+                  <input
+                    value={productForm.imageUrl}
+                    onChange={(event) =>
+                      setProductForm((current) => ({ ...current, imageUrl: event.target.value }))
+                    }
+                    placeholder="/uploads/catalog/photo.webp"
+                    className="h-11 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
+                  />
+                  {uploadingField === "product" ? (
+                    <span className="text-xs text-[var(--muted)]">Загружаем фото...</span>
+                  ) : null}
+                </div>
               </label>
             </div>
 
@@ -561,6 +660,11 @@ export function AdminCatalogManager({
                 Категории
               </p>
               <h2 className="mt-2 text-2xl font-semibold">Новая категория</h2>
+              {editingCategoryId ? (
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  Редактируется существующая категория.
+                </p>
+              ) : null}
             </div>
             <Sparkles size={18} className="text-[var(--accent-strong)]" />
           </div>
@@ -582,19 +686,93 @@ export function AdminCatalogManager({
               placeholder="slug, например sezonnoe"
               className="h-11 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
             />
-            <Button onClick={() => submitCategory()} disabled={isSubmittingCategory}>
-              {isSubmittingCategory ? "Добавляем..." : "Добавить категорию"}
-            </Button>
+            <div className="grid gap-3 md:grid-cols-[160px_1fr]">
+              <div className="relative h-32 overflow-hidden rounded-[1.5rem] bg-white/70 ring-1 ring-[var(--line)]">
+                {categoryForm.imageUrl ? (
+                  <Image
+                    src={categoryForm.imageUrl}
+                    alt={categoryForm.name || "Категория"}
+                    fill
+                    className="object-cover"
+                    sizes="160px"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-4xl">🍓</div>
+                )}
+              </div>
+              <label className="grid content-center gap-2">
+                <span className="text-sm font-medium text-[var(--muted)]">
+                  Картинка категории
+                </span>
+                <input
+                  type="file"
+                  accept="image/avif,image/jpeg,image/png,image/webp"
+                  onChange={(event) => {
+                    void uploadCatalogImage(event.target.files?.[0], "category");
+                    event.target.value = "";
+                  }}
+                  className="text-sm file:mr-3 file:h-10 file:rounded-2xl file:border-0 file:bg-[var(--accent)] file:px-4 file:text-sm file:font-semibold file:text-white"
+                />
+                <input
+                  value={categoryForm.imageUrl}
+                  onChange={(event) =>
+                    setCategoryForm((current) => ({ ...current, imageUrl: event.target.value }))
+                  }
+                  placeholder="/uploads/catalog/category.webp"
+                  className="h-11 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
+                />
+                {uploadingField === "category" ? (
+                  <span className="text-xs text-[var(--muted)]">Загружаем картинку...</span>
+                ) : null}
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => submitCategory()} disabled={isSubmittingCategory}>
+                {isSubmittingCategory
+                  ? "Сохраняем..."
+                  : editingCategoryId
+                    ? "Сохранить категорию"
+                    : "Добавить категорию"}
+              </Button>
+              {editingCategoryId ? (
+                <Button variant="ghost" onClick={resetCategoryEditor}>
+                  Отменить
+                </Button>
+              ) : null}
+            </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {categories.map((category) => (
-              <span
+              <button
                 key={category.id}
-                className="rounded-full bg-white/82 px-3 py-2 text-xs font-semibold text-[var(--foreground)] ring-1 ring-[var(--line)]"
+                type="button"
+                onClick={() => beginEditingCategory(category)}
+                className={cn(
+                  "flex items-center gap-3 rounded-[1.35rem] bg-white/82 p-3 text-left text-xs font-semibold text-[var(--foreground)] ring-1 ring-[var(--line)] transition hover:-translate-y-0.5 hover:shadow-lg",
+                  editingCategoryId === category.id && "ring-[var(--accent)]",
+                )}
               >
-                {category.name}
-              </span>
+                <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
+                  {category.imageUrl ? (
+                    <Image
+                      src={category.imageUrl}
+                      alt={category.name}
+                      fill
+                      className="object-cover"
+                      sizes="48px"
+                    />
+                  ) : (
+                    <span className="flex h-full items-center justify-center text-xl">🍎</span>
+                  )}
+                </span>
+                <span>
+                  <span className="block text-sm">{category.name}</span>
+                  <span className="mt-0.5 block text-[11px] text-[var(--muted)]">
+                    {category.slug}
+                  </span>
+                </span>
+              </button>
             ))}
           </div>
       </section>

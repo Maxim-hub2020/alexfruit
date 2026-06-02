@@ -1,8 +1,9 @@
 import { Role } from "@/generated/prisma";
 import { AdminCourierHistorySearch } from "@/components/admin/admin-courier-history-search";
 import { AdminCourierManager } from "@/components/admin/admin-courier-manager";
+import { AdminPickerManager } from "@/components/admin/admin-picker-manager";
 import { MainShell } from "@/components/layout/main-shell";
-import { getAdminCourierBoard, searchCourierDeliveryHistory } from "@/lib/admin";
+import { getAdminCourierBoard, getAdminPickers, searchCourierDeliveryHistory } from "@/lib/admin";
 import { requirePageUser } from "@/lib/auth";
 import { toClientValue } from "@/lib/serialize";
 
@@ -20,8 +21,9 @@ export default async function AdminCouriersPage({
     date: typeof params.date === "string" ? params.date : "",
     courierId: typeof params.courierId === "string" ? params.courierId : "",
   };
-  const [couriers, courierHistory] = await Promise.all([
+  const [couriers, pickers, courierHistory] = await Promise.all([
     getAdminCourierBoard(),
+    getAdminPickers(),
     searchCourierDeliveryHistory(filters),
   ]);
 
@@ -42,6 +44,7 @@ export default async function AdminCouriersPage({
         </div>
 
         <AdminCourierManager couriers={toClientValue(couriers)} />
+        <AdminPickerManager pickers={toClientValue(pickers)} />
         <AdminCourierHistorySearch
           couriers={toClientValue(couriers)}
           history={courierHistory}

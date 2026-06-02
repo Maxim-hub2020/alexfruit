@@ -6,6 +6,7 @@ export const roleLabels: Record<string, string> = {
   CUSTOMER: "Клиент",
   ADMIN: "Администратор",
   COURIER: "Курьер",
+  PICKER: "Сборщик",
 };
 
 export const stockStatusLabels: Record<string, string> = {

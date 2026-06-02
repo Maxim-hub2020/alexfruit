@@ -20,9 +20,10 @@ const routeRules = [
   { prefix: "/orders", roles: ["CUSTOMER", "ADMIN"] },
   { prefix: "/admin", roles: ["ADMIN"] },
   { prefix: "/courier", roles: ["COURIER"] },
+  { prefix: "/picker", roles: ["PICKER"] },
 ] as const;
 
-const courierBlockedPagePrefixes = [
+const staffBlockedPagePrefixes = [
   "/",
   "/catalog",
   "/cart",
@@ -83,11 +84,15 @@ function getHomeForRole(role: string) {
     return "/courier";
   }
 
+  if (role === "PICKER") {
+    return "/picker";
+  }
+
   return "/";
 }
 
-function isCourierBlockedPage(pathname: string) {
-  return courierBlockedPagePrefixes.some((prefix) => {
+function isStaffBlockedPage(pathname: string) {
+  return staffBlockedPagePrefixes.some((prefix) => {
     if (prefix === "/") {
       return pathname === "/";
     }
@@ -112,7 +117,11 @@ function getRateLimitPolicy(pathname: string): RateLimitPolicy {
     return policies.orders;
   }
 
-  if (pathname.startsWith("/api/admin/") || pathname.startsWith("/api/courier/")) {
+  if (
+    pathname.startsWith("/api/admin/") ||
+    pathname.startsWith("/api/courier/") ||
+    pathname.startsWith("/api/picker/")
+  ) {
     return policies.staff;
   }
 
@@ -225,7 +234,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith(prefix),
   );
 
-  if (!rule && !isCourierBlockedPage(pathname)) {
+  if (!rule && !isStaffBlockedPage(pathname)) {
     return finalizeResponse(
       NextResponse.next(),
       rateLimit.policy,
@@ -258,7 +267,7 @@ export async function proxy(request: NextRequest) {
     const { payload } = await jwtVerify(token, getSecret());
     const role = String(payload.role ?? "");
 
-    if (role === "COURIER" && isCourierBlockedPage(pathname)) {
+    if ((role === "COURIER" || role === "PICKER") && isStaffBlockedPage(pathname)) {
       return finalizeResponse(
         NextResponse.redirect(new URL(getHomeForRole(role), request.url)),
         rateLimit.policy,

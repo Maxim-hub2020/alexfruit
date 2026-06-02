@@ -46,6 +46,10 @@ const courierNavItems = [
   { key: "courier-profile", href: "/courier/profile", label: "Профиль", icon: UserRound },
 ] as const;
 
+const pickerNavItems = [
+  { key: "picker-assembly", href: "/picker", label: "Сборка", icon: PackageCheck },
+] as const;
+
 function getNavItems(role?: string | null) {
   if (role === "ADMIN") {
     return adminNavItems;
@@ -53,6 +57,10 @@ function getNavItems(role?: string | null) {
 
   if (role === "COURIER") {
     return courierNavItems;
+  }
+
+  if (role === "PICKER") {
+    return pickerNavItems;
   }
 
   return customerNavItems;

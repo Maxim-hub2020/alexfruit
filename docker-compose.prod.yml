@@ -27,6 +27,8 @@ services:
         condition: service_healthy
     expose:
       - "3000"
+    volumes:
+      - uploads:/app/public/uploads
     command: >
       sh -c "npm run db:generate &&
              npx prisma migrate deploy &&
@@ -59,5 +61,6 @@ networks:
 
 volumes:
   pgdata:
+  uploads:
   caddy_data:
   caddy_config:

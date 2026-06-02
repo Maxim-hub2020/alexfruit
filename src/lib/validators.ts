@@ -47,13 +47,6 @@ export const addressSchema = z.object({
   isDefault: z.coerce.boolean().optional().default(false),
 });
 
-export const categorySchema = z.object({
-  name: z.string().trim().min(2),
-  slug: z.string().trim().min(2),
-  sortOrder: z.coerce.number().int().min(0).default(0),
-  isActive: z.coerce.boolean().optional().default(true),
-});
-
 const imageSourceSchema = z
   .string()
   .trim()
@@ -73,6 +66,14 @@ const imageSourceSchema = z
       return false;
     }
   }, "Укажите ссылку на изображение или путь вида /products/image.webp");
+
+export const categorySchema = z.object({
+  name: z.string().trim().min(2),
+  slug: z.string().trim().min(2),
+  imageUrl: imageSourceSchema.optional().or(z.literal("")),
+  sortOrder: z.coerce.number().int().min(0).default(0),
+  isActive: z.coerce.boolean().optional().default(true),
+});
 
 export const productSchema = z.object({
   categoryId: z.string().trim().min(1),
@@ -133,6 +134,15 @@ export const orderItemsSchema = z.object({
   items: z.array(orderLineSchema).min(1),
 });
 
+export const orderActualItemsSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string().trim().min(1),
+      actualQuantity: z.coerce.number().positive().nullable().optional(),
+    }),
+  ).min(1),
+});
+
 export const orderRescheduleSchema = z.object({
   deliveryDate: z.string().trim().min(10),
   deliveryTimeSlotId: z.string().trim().min(1).optional().or(z.literal("")),
@@ -149,6 +159,12 @@ export const assignCourierSchema = z.object({
 export const adminCourierSchema = z.object({
   phone: z.string().trim().min(10, "Укажите телефон курьера"),
   name: z.string().trim().min(2, "Укажите имя курьера"),
+  password: z.string().min(6, "Минимум 6 символов"),
+});
+
+export const adminPickerSchema = z.object({
+  phone: z.string().trim().min(10, "Укажите телефон сборщика"),
+  name: z.string().trim().min(2, "Укажите имя сборщика"),
   password: z.string().min(6, "Минимум 6 символов"),
 });
 

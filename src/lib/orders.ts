@@ -43,6 +43,7 @@ import {
   createOrderSchema,
   courierProblemSchema,
   courierTaskStatusSchema,
+  orderActualItemsSchema,
   orderEditSchema,
   orderItemsSchema,
   orderRescheduleSchema,
@@ -1363,7 +1364,7 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
         sharedCartTitle: sharedCart?.title,
         deliveryDate: orderDeliveryDate,
         deliveryTimeSlotId: deliveryTimeSlot.id,
-        status: OrderStatus.NEW,
+        status: OrderStatus.ASSEMBLING,
         courierId: courierAssignment?.courierId,
         preliminaryTotal: built.preliminaryTotal,
         finalTotal: built.finalTotal,
@@ -2037,7 +2038,22 @@ export async function getAdminOrder(orderId: string) {
     include: {
       user: true,
       address: true,
-      sharedCart: true,
+      sharedCart: {
+        include: {
+          items: {
+            include: {
+              addedBy: {
+                select: {
+                  id: true,
+                  name: true,
+                  phone: true,
+                },
+              },
+            },
+            orderBy: [{ addedBy: { name: "asc" } }, { productName: "asc" }],
+          },
+        },
+      },
       items: true,
       courier: true,
       deliveryTimeSlot: true,
@@ -2050,6 +2066,49 @@ export async function getAdminOrder(orderId: string) {
   }
 
   return order;
+}
+
+export async function getPickerAssemblyOrders(filters: { date?: string | null } = {}) {
+  const date = filters.date || format(new Date(), "yyyy-MM-dd");
+  const assemblyStatuses: OrderStatus[] = [
+    OrderStatus.NEW,
+    OrderStatus.PENDING_CONFIRMATION,
+    OrderStatus.CONFIRMED,
+    OrderStatus.ASSEMBLING,
+    OrderStatus.ASSEMBLED,
+  ];
+
+  return prisma.order.findMany({
+    where: {
+      deliveryDate: dateStringToDbDate(date),
+      status: {
+        in: assemblyStatuses,
+      },
+    },
+    include: {
+      user: true,
+      address: true,
+      items: true,
+      deliveryTimeSlot: true,
+      sharedCart: {
+        include: {
+          items: {
+            include: {
+              addedBy: {
+                select: {
+                  id: true,
+                  name: true,
+                  phone: true,
+                },
+              },
+            },
+            orderBy: [{ addedBy: { name: "asc" } }, { productName: "asc" }],
+          },
+        },
+      },
+    },
+    orderBy: [{ deliveryTimeSlot: { startTime: "asc" } }, { createdAt: "asc" }],
+  });
 }
 
 export async function updateOrderByAdmin(orderId: string, input: unknown) {
@@ -2284,6 +2343,71 @@ export async function updateOrderItemsByAdmin(orderId: string, input: unknown) {
             data: built.itemRows,
           },
         },
+      },
+      include: {
+        items: true,
+      },
+    });
+  }, ORDER_TRANSACTION_OPTIONS);
+}
+
+function printableNumber(value: number | string | { toString(): string } | null | undefined) {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+export async function updateOrderActualQuantitiesByStaff(orderId: string, input: unknown) {
+  const data = orderActualItemsSchema.parse(input);
+  const order = await getAdminOrder(orderId);
+  const lockedStatuses: OrderStatus[] = [OrderStatus.DELIVERED, OrderStatus.CANCELLED];
+
+  if (lockedStatuses.includes(order.status)) {
+    throw new ApiError("Завершённый заказ нельзя редактировать", 400);
+  }
+
+  const existingItems = new Map(order.items.map((item) => [item.id, item]));
+  const requestedItems = new Map(data.items.map((item) => [item.id, item]));
+
+  for (const itemId of requestedItems.keys()) {
+    if (!existingItems.has(itemId)) {
+      throw new ApiError("Позиция заказа не найдена", 404);
+    }
+  }
+
+  const nextItems = order.items.map((item) => {
+    const requested = requestedItems.get(item.id);
+    const actualQuantity = requested
+      ? requested.actualQuantity ?? null
+      : item.actualQuantity;
+    const effectiveQuantity = actualQuantity ?? item.orderedQuantity;
+    const finalSum = printableNumber(item.price) * printableNumber(effectiveQuantity);
+
+    return {
+      id: item.id,
+      actualQuantity,
+      finalSum,
+    };
+  });
+  const nextFinalTotal =
+    nextItems.reduce((sum, item) => sum + item.finalSum, 0) + printableNumber(order.liftFee);
+
+  return prisma.$transaction(async (tx) => {
+    await Promise.all(
+      nextItems.map((item) =>
+        tx.orderItem.update({
+          where: { id: item.id },
+          data: {
+            actualQuantity: item.actualQuantity,
+            finalSum: item.finalSum,
+          },
+        }),
+      ),
+    );
+
+    return tx.order.update({
+      where: { id: orderId },
+      data: {
+        finalTotal: nextFinalTotal,
       },
       include: {
         items: true,
@@ -2732,6 +2856,22 @@ export async function getOrdersForLabels(filters: { date: string }) {
       user: true,
       address: true,
       deliveryTimeSlot: true,
+      sharedCart: {
+        include: {
+          items: {
+            include: {
+              addedBy: {
+                select: {
+                  id: true,
+                  name: true,
+                  phone: true,
+                },
+              },
+            },
+            orderBy: [{ addedBy: { name: "asc" } }, { productName: "asc" }],
+          },
+        },
+      },
     },
     orderBy: [{ deliveryTimeSlot: { startTime: "asc" } }, { createdAt: "asc" }],
   });
@@ -2756,6 +2896,22 @@ export async function getOrdersForStaffPdf(filters: {
       courier: true,
       deliveryTimeSlot: true,
       deliveryTask: true,
+      sharedCart: {
+        include: {
+          items: {
+            include: {
+              addedBy: {
+                select: {
+                  id: true,
+                  name: true,
+                  phone: true,
+                },
+              },
+            },
+            orderBy: [{ addedBy: { name: "asc" } }, { productName: "asc" }],
+          },
+        },
+      },
     },
     orderBy: [{ deliveryTimeSlot: { startTime: "asc" } }, { createdAt: "asc" }],
   });
@@ -2905,7 +3061,11 @@ export async function getCourierActiveTasks(
         is: {
           deliveryDate: filters.date ? dateStringToDbDate(filters.date) : undefined,
           status: {
-            notIn: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+            in: [
+              OrderStatus.HANDED_TO_COURIER,
+              OrderStatus.COURIER_ON_THE_WAY,
+              OrderStatus.DELIVERY_ISSUE,
+            ],
           },
         },
       },

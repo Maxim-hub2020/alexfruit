@@ -28,6 +28,20 @@ type LabelOrder = {
   deliveryTimeSlot?: {
     title: string;
   } | null;
+  sharedCart?: {
+    items?: Array<{
+      addedById: string;
+      addedBy: {
+        id: string;
+        name: string;
+        phone?: string | null;
+      };
+    }>;
+  } | null;
+};
+
+type LabelOptions = {
+  participantId?: string | null;
 };
 
 const regularFontCandidates = [
@@ -324,7 +338,47 @@ function drawOrderLabelPage({
   return page;
 }
 
-export async function createOrdersLabelsPdf(orders: LabelOrder[]) {
+function uniqueParticipantLabels(order: LabelOrder, options: LabelOptions = {}) {
+  const participantItems = order.sharedCart?.items ?? [];
+
+  if (participantItems.length === 0) {
+    return [order];
+  }
+
+  const participants = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      phone?: string | null;
+    }
+  >();
+
+  for (const item of participantItems) {
+    if (options.participantId && item.addedById !== options.participantId) {
+      continue;
+    }
+
+    participants.set(item.addedById, item.addedBy);
+  }
+
+  if (participants.size === 0) {
+    return [order];
+  }
+
+  return [...participants.values()].map((participant) => ({
+    ...order,
+    user: {
+      name: participant.name,
+      phone: participant.phone,
+    },
+  }));
+}
+
+export async function createOrdersLabelsPdf(
+  orders: LabelOrder[],
+  options: LabelOptions = {},
+) {
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
 
@@ -332,16 +386,21 @@ export async function createOrdersLabelsPdf(orders: LabelOrder[]) {
   const boldFont = await embedFont(pdfDoc, boldFontCandidates).catch(() => fallbackFont);
 
   for (const order of orders) {
-    drawOrderLabelPage({
-      pdfDoc,
-      order,
-      boldFont,
-    });
+    for (const labelOrder of uniqueParticipantLabels(order, options)) {
+      drawOrderLabelPage({
+        pdfDoc,
+        order: labelOrder,
+        boldFont,
+      });
+    }
   }
 
   return pdfDoc.save();
 }
 
-export async function createOrderLabelPdf(order: LabelOrder) {
-  return createOrdersLabelsPdf([order]);
+export async function createOrderLabelPdf(
+  order: LabelOrder,
+  options: LabelOptions = {},
+) {
+  return createOrdersLabelsPdf([order], options);
 }

@@ -9,12 +9,14 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireApiUser([Role.ADMIN]);
+    await requireApiUser([Role.ADMIN, Role.PICKER]);
     const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const participantId = searchParams.get("participantId");
     const order = await getAdminOrder(id);
 
     if (!canPrintOrderLabelStatus(order.status)) {
@@ -24,7 +26,7 @@ export async function GET(
       );
     }
 
-    const pdfBytes = await createOrderLabelPdf(order);
+    const pdfBytes = await createOrderLabelPdf(order, { participantId });
     const pdfBody = new ArrayBuffer(pdfBytes.byteLength);
 
     new Uint8Array(pdfBody).set(pdfBytes);

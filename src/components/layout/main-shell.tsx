@@ -20,13 +20,20 @@ export function MainShell({
 }) {
   const isAdmin = user?.role === "ADMIN";
   const isCourier = user?.role === "COURIER";
-  const homeHref = isAdmin ? "/admin" : isCourier ? "/courier?tab=today&day=today" : "/";
+  const isPicker = user?.role === "PICKER";
+  const homeHref = isAdmin
+    ? "/admin"
+    : isCourier
+      ? "/courier?tab=today&day=today"
+      : isPicker
+        ? "/picker"
+        : "/";
 
   return (
     <div
       className={cn(
         "relative min-h-screen pb-28 pt-24 md:pt-28",
-        (isAdmin || isCourier) && "md:pb-40",
+        (isAdmin || isCourier || isPicker) && "md:pb-40",
       )}
     >
       <AppHeader
@@ -34,18 +41,20 @@ export function MainShell({
         homeHref={homeHref}
         isAdmin={isAdmin}
         isCourier={isCourier}
+        isPicker={isPicker}
         user={user}
       />
 
       <main>{children}</main>
 
-      {isAdmin || isCourier ? (
+      {isAdmin || isCourier || isPicker ? (
         <div className="admin-nav-dock">
           <DesktopLiquidNav
             active={active}
             className={cn(
               "admin-desktop-liquid-nav",
               isCourier && "courier-desktop-liquid-nav",
+              isPicker && "courier-desktop-liquid-nav",
             )}
             role={user?.role}
           />

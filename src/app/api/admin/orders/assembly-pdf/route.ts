@@ -20,7 +20,7 @@ function getDateParam(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    await requireApiUser([Role.ADMIN]);
+    await requireApiUser([Role.ADMIN, Role.PICKER]);
     const date = getDateParam(request);
     const orders = await getOrdersForStaffPdf({ date });
 

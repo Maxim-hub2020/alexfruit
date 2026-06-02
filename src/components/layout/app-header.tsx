@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { LayoutDashboard, Truck } from "lucide-react";
+import { LayoutDashboard, PackageCheck, Truck } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { DesktopLiquidNav } from "@/components/layout/desktop-liquid-nav";
 import { LogoutButton } from "@/components/profile/logout-button";
@@ -24,12 +24,14 @@ export function AppHeader({
   homeHref,
   isAdmin,
   isCourier,
+  isPicker,
   user,
 }: {
   active?: string;
   homeHref: string;
   isAdmin: boolean;
   isCourier: boolean;
+  isPicker: boolean;
   user?: HeaderUser | null;
 }) {
   const [isCompact, setIsCompact] = useState(false);
@@ -109,18 +111,28 @@ export function AppHeader({
           </div>
         </Link>
 
-        {!isAdmin && !isCourier ? (
+        {!isAdmin && !isCourier && !isPicker ? (
           <DesktopLiquidNav active={active} role={user?.role} />
         ) : null}
 
         <div className="flex shrink-0 items-center gap-2">
-          {(isAdmin || isCourier) && (
+          {(isAdmin || isCourier || isPicker) && (
             <Link
-              href={isAdmin ? "/admin" : "/courier?tab=today&day=today"}
+              href={isAdmin ? "/admin" : isCourier ? "/courier?tab=today&day=today" : "/picker"}
               className="hidden items-center gap-2 rounded-2xl bg-white/58 px-4 py-3 text-sm font-semibold text-[var(--foreground)] ring-1 ring-white/60 backdrop-blur-xl transition hover:bg-white/76 lg:inline-flex"
             >
-              {isAdmin ? <LayoutDashboard size={16} /> : <Truck size={16} />}
-              {isAdmin ? "Операционный центр" : "Кабинет курьера"}
+              {isAdmin ? (
+                <LayoutDashboard size={16} />
+              ) : isCourier ? (
+                <Truck size={16} />
+              ) : (
+                <PackageCheck size={16} />
+              )}
+              {isAdmin
+                ? "Операционный центр"
+                : isCourier
+                  ? "Кабинет курьера"
+                  : "Кабинет сборщика"}
             </Link>
           )}
 

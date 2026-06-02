@@ -139,6 +139,10 @@ export async function requirePageUser(roles?: Role[]) {
       redirect("/courier");
     }
 
+    if (user.role === Role.PICKER) {
+      redirect("/picker");
+    }
+
     redirect("/");
   }
 

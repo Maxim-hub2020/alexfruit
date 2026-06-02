@@ -6,7 +6,7 @@ import { normalizeRussianPhone } from "@/lib/auth";
 import { orderStatusMeta } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { applyCourierRedistribution } from "@/lib/orders";
-import { adminCourierSchema } from "@/lib/validators";
+import { adminCourierSchema, adminPickerSchema } from "@/lib/validators";
 
 const activeOrderStatuses: OrderStatus[] = [
   OrderStatus.NEW,
@@ -120,6 +120,59 @@ export async function createCourier(input: unknown) {
       },
     },
   });
+}
+
+export async function createPicker(input: unknown) {
+  const data = adminPickerSchema.parse(input);
+  const phone = normalizeRussianPhone(data.phone);
+
+  if (!/^\+7\d{10}$/.test(phone)) {
+    throw new ApiError("Укажите телефон сборщика в формате +7XXXXXXXXXX", 400);
+  }
+
+  const existingUser = await prisma.user.findFirst({
+    where: { phone },
+  });
+
+  if (existingUser) {
+    throw new ApiError("Пользователь с таким телефоном уже существует", 409);
+  }
+
+  return prisma.user.create({
+    data: {
+      name: data.name,
+      email: null,
+      phone,
+      passwordHash: await bcrypt.hash(data.password, 10),
+      role: Role.PICKER,
+    },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      role: true,
+      createdAt: true,
+    },
+  });
+}
+
+export async function removePickerFromSystem(userId: string) {
+  const picker = await prisma.user.findFirst({
+    where: {
+      id: userId,
+      role: Role.PICKER,
+    },
+  });
+
+  if (!picker) {
+    throw new ApiError("Сборщик не найден", 404);
+  }
+
+  await prisma.user.delete({
+    where: { id: userId },
+  });
+
+  return { ok: true };
 }
 
 export async function removeCourierFromSystem(userId: string) {
@@ -251,6 +304,22 @@ export async function getAdminCourierBoard() {
         .filter((order) => order.status === OrderStatus.DELIVERED)
         .reduce((sum, order) => sum + orderAmount(order), 0),
     };
+  });
+}
+
+export async function getAdminPickers() {
+  return prisma.user.findMany({
+    where: {
+      role: Role.PICKER,
+    },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      role: true,
+      createdAt: true,
+    },
+    orderBy: [{ name: "asc" }],
   });
 }
 

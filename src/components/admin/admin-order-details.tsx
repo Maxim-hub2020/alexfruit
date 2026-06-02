@@ -21,16 +21,16 @@ import { cn, formatCurrency, formatDateLabel } from "@/lib/utils";
 
 const stageActions = [
   {
-    label: "Новый",
-    description: "Заказ только поступил",
-    status: "NEW",
-    statuses: ["NEW", "PENDING_CONFIRMATION"],
+    label: "На сборке",
+    description: "Сборщик проверяет наличие и вес",
+    status: "ASSEMBLING",
+    statuses: ["NEW", "PENDING_CONFIRMATION", "CONFIRMED", "ASSEMBLING"],
   },
   {
-    label: "Подтверждён",
-    description: "Заказ принят в работу",
-    status: "CONFIRMED",
-    statuses: ["CONFIRMED", "ASSEMBLING", "ASSEMBLED"],
+    label: "Собран",
+    description: "Ожидает передачи курьеру",
+    status: "ASSEMBLED",
+    statuses: ["ASSEMBLED"],
   },
   {
     label: "В доставке",
@@ -282,8 +282,8 @@ export function AdminOrderDetails({
             })}
           </div>
           <p className="mt-4 text-sm text-[var(--muted)]">
-            Детальные статусы внутри системы сохраняются, но для работы администратора
-            оставлены три понятных этапа.
+            Заказ после оформления сразу попадает на сборку. Когда сборщик сверит
+            фактический вес, администратор передаёт заказ курьеру.
           </p>
         </div>
 
@@ -364,7 +364,10 @@ export function AdminOrderDetails({
               </div>
               <div>
                 <p className="text-xs text-[var(--muted)]">Количество</p>
-                <p className="font-semibold">{Number(item.orderedQuantity)}</p>
+                <p className="font-semibold">
+                  {Number(item.orderedQuantity)}
+                  {item.actualQuantity ? ` → факт ${Number(item.actualQuantity)}` : ""}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-[var(--muted)]">Сумма</p>
