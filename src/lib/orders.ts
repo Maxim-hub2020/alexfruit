@@ -6,7 +6,6 @@ import {
   Prisma,
   ProblemType,
   Role,
-  StockStatus,
 } from "@/generated/prisma";
 import { ApiError } from "@/lib/api";
 import {
@@ -21,7 +20,9 @@ import {
   DEFAULT_DELIVERY_SLOT_START,
   DEFAULT_DELIVERY_SLOT_TITLE,
   LIFT_SERVICE_FEE,
+  getBusinessDateKey,
   getDeliveryDateAvailability,
+  isTodayDeliveryClosed,
 } from "@/lib/delivery-rules";
 import {
   addDailyAvailabilityToProducts,
@@ -134,6 +135,7 @@ const COURIER_OVERLOAD_WEIGHT = 3.5;
 const COURIER_TARGET_ROUTE_ORDERS = 8;
 const COURIER_EMPTY_ROUTE_START_PENALTY = 12;
 const COURIER_MISSING_COORDINATE_PENALTY = 7;
+const MIN_COURIER_ROUTE_ORDERS = 3;
 const SAME_STREET_BONUS = 6;
 const ROUTE_AVERAGE_SPEED_KMH = 24;
 const ROUTE_STOP_SERVICE_MINUTES = 12;
@@ -315,6 +317,41 @@ function getRouteEtaMinutes(distanceKm: number, stopsCount: number) {
   return Math.round(
     (distanceKm / ROUTE_AVERAGE_SPEED_KMH) * 60 +
       stopsCount * ROUTE_STOP_SERVICE_MINUTES,
+  );
+}
+
+function getPlannedCourierRouteCount(ordersCount: number, couriersCount: number) {
+  if (ordersCount <= 0 || couriersCount <= 0) {
+    return 0;
+  }
+
+  return Math.min(
+    couriersCount,
+    Math.max(1, Math.floor(ordersCount / MIN_COURIER_ROUTE_ORDERS)),
+  );
+}
+
+function getAddressSectorIndex(address: AddressWithCoordinates, sectorsCount: number) {
+  if (sectorsCount <= 1) {
+    return 0;
+  }
+
+  const point = getAddressPoint(address);
+
+  if (!point) {
+    return null;
+  }
+
+  const latitudeDelta = point.latitude - ROSTOV_CENTER.latitude;
+  const longitudeDelta =
+    (point.longitude - ROSTOV_CENTER.longitude) *
+    Math.cos((ROSTOV_CENTER.latitude * Math.PI) / 180);
+  const angle = Math.atan2(longitudeDelta, latitudeDelta);
+  const normalizedAngle = (angle + Math.PI * 2) % (Math.PI * 2);
+
+  return Math.min(
+    sectorsCount - 1,
+    Math.floor(normalizedAngle / ((Math.PI * 2) / sectorsCount)),
   );
 }
 
@@ -545,18 +582,56 @@ async function getAutomaticCourierAssignment(
     orderBy: [{ name: "asc" }],
   });
 
-  const courier = couriers
-    .map((item) => ({
-      ...item,
-      score: scoreCourierForAddress(address, item.user.assignedOrders),
-    }))
-    .toSorted((first, second) => {
-      const scoreDiff = first.score - second.score;
-      const loadDiff =
-        first.user.assignedOrders.length - second.user.assignedOrders.length;
+  const sortedCouriers = couriers.toSorted((first, second) =>
+    (first.name || "").localeCompare(second.name || "", "ru"),
+  );
+  const existingOrders = sortedCouriers.flatMap((courier) => courier.user.assignedOrders);
+  const activeRouteCount = getPlannedCourierRouteCount(
+    existingOrders.length + 1,
+    sortedCouriers.length,
+  );
+  const activeCouriers = sortedCouriers.slice(0, Math.max(activeRouteCount, 1));
+  const sectorIndex = getAddressSectorIndex(address, activeCouriers.length);
+  const sectorCounts = Array.from({ length: activeCouriers.length }, () => 0);
 
-      return scoreDiff || loadDiff || first.name.localeCompare(second.name);
-    })[0];
+  for (const order of existingOrders) {
+    const orderSectorIndex = getAddressSectorIndex(order.address, activeCouriers.length);
+
+    if (orderSectorIndex !== null) {
+      sectorCounts[orderSectorIndex] += 1;
+    }
+  }
+
+  if (sectorIndex !== null) {
+    sectorCounts[sectorIndex] += 1;
+  }
+
+  const preferredCourier =
+    sectorIndex !== null && sectorCounts[sectorIndex] >= MIN_COURIER_ROUTE_ORDERS
+      ? activeCouriers[sectorIndex]
+      : null;
+  const courier =
+    preferredCourier ??
+    activeCouriers
+      .map((item) => ({
+        ...item,
+        score: scoreCourierForAddress(address, item.user.assignedOrders),
+      }))
+      .toSorted((first, second) => {
+        const scoreDiff = first.score - second.score;
+        const activeRouteDiff =
+          Number(first.user.assignedOrders.length === 0) -
+          Number(second.user.assignedOrders.length === 0);
+        const loadDiff =
+          first.user.assignedOrders.length - second.user.assignedOrders.length;
+
+        return (
+          activeRouteDiff ||
+          scoreDiff ||
+          loadDiff ||
+          first.name.localeCompare(second.name, "ru")
+        );
+      })[0];
 
   if (!courier) {
     return null;
@@ -593,11 +668,36 @@ function getLiftFee(needsLift: boolean) {
   return needsLift ? LIFT_SERVICE_FEE : 0;
 }
 
-function assertCustomerDeliveryDateAvailable(deliveryDate: string) {
-  const availability = getDeliveryDateAvailability(deliveryDate);
+function assertCustomerDeliveryDateAvailable(
+  deliveryDate: string,
+  options: { allowTodayAfterCutoff?: boolean } = {},
+) {
+  const availability = getDeliveryDateAvailability(
+    deliveryDate,
+    new Date(),
+    options,
+  );
 
   if (!availability.available) {
     throw new ApiError(availability.reason ?? "Выберите другую дату доставки", 400);
+  }
+}
+
+function assertSameDayOrderHasOnlyInventory(
+  deliveryDate: string,
+  items: Array<{ isPreorder: boolean }>,
+) {
+  const dateKey = deliveryDate.slice(0, 10);
+
+  if (dateKey !== getBusinessDateKey() || !isTodayDeliveryClosed()) {
+    return;
+  }
+
+  if (items.some((item) => item.isPreorder)) {
+    throw new ApiError(
+      "Сегодня можно оформить только товары, которые есть в наличии. Позиции под заказ выберите на завтра.",
+      400,
+    );
   }
 }
 
@@ -746,9 +846,7 @@ async function buildOrderItems(
     const finalSum = price * finalQuantity;
     const inventoryReservation = options.inventoryReservations?.get(product.id);
     const reservedQuantity = inventoryReservation?.reservedQuantity ?? 0;
-    const isPreorder =
-      product.stockStatus === StockStatus.OUT_OF_STOCK ||
-      Boolean(inventoryReservation?.isPreorder);
+    const isPreorder = Boolean(inventoryReservation?.isPreorder);
 
     return {
       productId: product.id,
@@ -1292,7 +1390,9 @@ export async function getCustomerOrderById(userId: string, orderId: string) {
 
 export async function createOrderForCustomer(userId: string, input: unknown) {
   const data = createOrderSchema.parse(input);
-  assertCustomerDeliveryDateAvailable(data.deliveryDate);
+  assertCustomerDeliveryDateAvailable(data.deliveryDate, {
+    allowTodayAfterCutoff: true,
+  });
   const [address, sharedCart] = await Promise.all([
     prisma.address.findFirst({
       where: { id: data.addressId, userId, isDeleted: false },
@@ -1349,6 +1449,7 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
       needsLift: data.needsLift,
       inventoryReservations,
     });
+    assertSameDayOrderHasOnlyInventory(data.deliveryDate, built.itemRows);
     const courierAssignment = await getAutomaticCourierAssignment(
       tx,
       orderDeliveryDate,
@@ -1408,6 +1509,13 @@ export async function createOrderForCustomer(userId: string, input: unknown) {
     return createdOrder;
   }, ORDER_TRANSACTION_OPTIONS);
 
+  await applyCourierRedistribution(data.deliveryDate).catch((error) => {
+    console.warn("Automatic courier redistribution failed after order creation", {
+      orderId: order.id,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  });
+
   await createNotification({
     userId,
     orderId: order.id,
@@ -1442,7 +1550,9 @@ export async function updateOrderByCustomer(
 
   const existingDeliveryDate = format(existing.deliveryDate, "yyyy-MM-dd");
   if (data.deliveryDate !== existingDeliveryDate) {
-    assertCustomerDeliveryDateAvailable(data.deliveryDate);
+    assertCustomerDeliveryDateAvailable(data.deliveryDate, {
+      allowTodayAfterCutoff: true,
+    });
   }
 
   const address = await prisma.address.findFirst({
@@ -1470,6 +1580,7 @@ export async function updateOrderByCustomer(
       needsLift: data.needsLift,
       inventoryReservations,
     });
+    assertSameDayOrderHasOnlyInventory(data.deliveryDate, built.itemRows);
 
     await tx.orderItem.deleteMany({
       where: { orderId },
@@ -1518,7 +1629,9 @@ export async function rescheduleOrderByCustomer(
   input: unknown,
 ) {
   const data = orderRescheduleSchema.parse(input);
-  assertCustomerDeliveryDateAvailable(data.deliveryDate);
+  assertCustomerDeliveryDateAvailable(data.deliveryDate, {
+    allowTodayAfterCutoff: true,
+  });
   const existing = await prisma.order.findFirst({
     where: { id: orderId, userId },
     include: {
@@ -1556,6 +1669,16 @@ export async function rescheduleOrderByCustomer(
       data.deliveryDate,
       orderToInventoryLines(existing),
     );
+    assertSameDayOrderHasOnlyInventory(
+      data.deliveryDate,
+      existing.items.map((item) => ({
+        isPreorder: Boolean(
+          item.productId
+            ? inventoryReservations.get(item.productId)?.isPreorder
+            : true,
+        ),
+      })),
+    );
 
     await Promise.all(
       existing.items.map((item) => {
@@ -1567,7 +1690,7 @@ export async function rescheduleOrderByCustomer(
           where: { id: item.id },
           data: {
             reservedQuantity: inventoryReservation?.reservedQuantity ?? 0,
-            isPreorder: item.isPreorder || Boolean(inventoryReservation?.isPreorder),
+            isPreorder: Boolean(inventoryReservation?.isPreorder),
           },
         });
       }),
@@ -2170,7 +2293,7 @@ export async function updateOrderByAdmin(orderId: string, input: unknown) {
             where: { id: item.id },
             data: {
               reservedQuantity,
-              isPreorder: item.isPreorder || Boolean(inventoryReservation?.isPreorder),
+              isPreorder: Boolean(inventoryReservation?.isPreorder),
             },
           });
         }),
@@ -2542,12 +2665,78 @@ function getDistributionAddressLabel(order: DistributionOrder) {
   }`;
 }
 
+type RouteState<TOrder extends { address: AddressWithCoordinates }> = {
+  courierId: string;
+  courierName: string;
+  orders: TOrder[];
+};
+
+function chooseNearestRouteForOrders<TOrder extends { address: AddressWithCoordinates }>(
+  orders: TOrder[],
+  routes: Array<RouteState<TOrder>>,
+) {
+  return routes
+    .map((route) => ({
+      route,
+      score: orders.reduce(
+        (sum, order) => sum + scoreCourierForAddress(order.address, route.orders),
+        0,
+      ),
+    }))
+    .toSorted((first, second) => {
+      const scoreDiff = first.score - second.score;
+      const loadDiff = first.route.orders.length - second.route.orders.length;
+
+      return (
+        scoreDiff ||
+        loadDiff ||
+        first.route.courierName.localeCompare(second.route.courierName, "ru")
+      );
+    })[0]?.route;
+}
+
+function mergeTinyCourierRoutes<TOrder extends { address: AddressWithCoordinates }>(
+  routeStates: Array<RouteState<TOrder>>,
+) {
+  while (routeStates.filter((route) => route.orders.length > 0).length > 1) {
+    const tinyRoute = routeStates
+      .filter(
+        (route) =>
+          route.orders.length > 0 &&
+          route.orders.length < MIN_COURIER_ROUTE_ORDERS,
+      )
+      .toSorted((first, second) => first.orders.length - second.orders.length)[0];
+
+    if (!tinyRoute) {
+      break;
+    }
+
+    const targetRoute = chooseNearestRouteForOrders(
+      tinyRoute.orders,
+      routeStates.filter((route) => route !== tinyRoute && route.orders.length > 0),
+    );
+
+    if (!targetRoute) {
+      break;
+    }
+
+    targetRoute.orders.push(...tinyRoute.orders);
+    tinyRoute.orders = [];
+  }
+}
+
 function buildRouteDistributionPlan(
   deliveryDate: string,
   orders: DistributionOrder[],
   couriers: Array<{ userId: string; name: string; user: { name: string } }>,
 ) {
-  const routeStates = couriers.map((courier) => ({
+  const sortedCouriers = couriers.toSorted((first, second) =>
+    (first.name || first.user.name).localeCompare(
+      second.name || second.user.name,
+      "ru",
+    ),
+  );
+  const routeStates = sortedCouriers.map((courier) => ({
     courierId: courier.userId,
     courierName: courier.name || courier.user.name,
     orders: [] as DistributionOrder[],
@@ -2562,6 +2751,11 @@ function buildRouteDistributionPlan(
     };
   }
 
+  const activeRouteCount = getPlannedCourierRouteCount(
+    orders.length,
+    routeStates.length,
+  );
+  const activeRouteStates = routeStates.slice(0, Math.max(activeRouteCount, 1));
   const orderedQueue = [...orders].sort((first, second) => {
     const firstRouteOrder = first.deliveryTask?.routeOrder ?? Number.MAX_SAFE_INTEGER;
     const secondRouteOrder = second.deliveryTask?.routeOrder ?? Number.MAX_SAFE_INTEGER;
@@ -2573,24 +2767,16 @@ function buildRouteDistributionPlan(
   });
 
   for (const order of orderedQueue) {
-    const bestRoute = routeStates
-      .map((route) => ({
-        route,
-        score: scoreCourierForAddress(order.address, route.orders),
-      }))
-      .toSorted((first, second) => {
-        const scoreDiff = first.score - second.score;
-        const loadDiff = first.route.orders.length - second.route.orders.length;
+    const sectorIndex = getAddressSectorIndex(order.address, activeRouteStates.length);
+    const sectorRoute =
+      sectorIndex === null ? null : activeRouteStates[sectorIndex] ?? null;
+    const fallbackRoute = chooseNearestRouteForOrders([order], activeRouteStates);
+    const route = sectorRoute ?? fallbackRoute;
 
-        return (
-          scoreDiff ||
-          loadDiff ||
-          first.route.courierName.localeCompare(second.route.courierName)
-        );
-      })[0];
-
-    bestRoute.route.orders.push(order);
+    route?.orders.push(order);
   }
+
+  mergeTinyCourierRoutes(routeStates);
 
   const routes = routeStates.map((route) => {
     const routeOrders = sortRouteItemsByDistance(route.orders);

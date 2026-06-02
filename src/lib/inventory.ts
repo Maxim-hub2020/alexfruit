@@ -1,7 +1,7 @@
 import { getDefaultDeliveryDate } from "@/lib/delivery-rules";
 import { prisma } from "@/lib/db";
 import { dateStringToDbDate } from "@/lib/utils";
-import { OrderStatus, Prisma, StockStatus } from "@/generated/prisma";
+import { OrderStatus, Prisma } from "@/generated/prisma";
 
 export type InventoryLine = {
   productId?: string | null;
@@ -164,7 +164,6 @@ export async function updateDailyInventoryBoard(input: {
 export async function addDailyAvailabilityToProducts<
   T extends {
     id: string;
-    stockStatus: StockStatus | string;
   },
 >(products: T[], dateInput?: string | null) {
   const date = normalizeInventoryDate(dateInput);
@@ -176,9 +175,7 @@ export async function addDailyAvailabilityToProducts<
     const availableQuantity = inventory
       ? getInventoryAvailableQuantity(inventory)
       : null;
-    const isAvailableForDate =
-      product.stockStatus !== StockStatus.OUT_OF_STOCK &&
-      (!inventory || (availableQuantity ?? 0) > 0);
+    const isAvailableForDate = Boolean(inventory && (availableQuantity ?? 0) > 0);
 
     return {
       ...product,
@@ -213,7 +210,7 @@ export async function reserveDailyInventoryForLines(
         productId,
         requestedQuantity: quantity,
         reservedQuantity: 0,
-        isPreorder: false,
+        isPreorder: true,
       });
       continue;
     }

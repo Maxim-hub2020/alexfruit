@@ -29,7 +29,6 @@ type CatalogProduct = {
   isHit: boolean;
   isNew: boolean;
   isPromo: boolean;
-  stockStatus: string;
   hasDailyInventory?: boolean;
   availableQuantity?: number | null;
   isAvailableForDate?: boolean;
@@ -40,6 +39,8 @@ type CatalogProduct = {
     imageUrl?: string | null;
   };
 };
+
+type AvailabilityFilter = "all" | "today" | "preorder" | "promo";
 
 const categoryIcons = {
   frukty: Apple,
@@ -55,6 +56,25 @@ const categoryIcons = {
   aktsii: BadgePercent,
 } as const;
 
+const availabilityFilters: Array<{ value: AvailabilityFilter; label: string }> = [
+  { value: "all", label: "Все" },
+  { value: "today", label: "Можно сегодня" },
+  { value: "preorder", label: "Под заказ" },
+  { value: "promo", label: "Акции и хиты" },
+];
+
+function isAvailableToday(product: CatalogProduct) {
+  return product.isAvailableForDate === true && Number(product.availableQuantity ?? 0) > 0;
+}
+
+function isPreorderProduct(product: CatalogProduct) {
+  return product.isAvailableForDate === false;
+}
+
+function isPromotedProduct(product: CatalogProduct) {
+  return product.isPromo || product.isHit || product.isNew;
+}
+
 export function CatalogExplorer({
   categories,
   products,
@@ -65,6 +85,8 @@ export function CatalogExplorer({
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [heroIndex, setHeroIndex] = useState(0);
+  const [availabilityFilter, setAvailabilityFilter] =
+    useState<AvailabilityFilter>("all");
   const deferredQuery = useDeferredValue(query);
 
   const heroProducts = useMemo(() => {
@@ -90,21 +112,36 @@ export function CatalogExplorer({
 
     return counts;
   }, [products]);
+  const availabilityFilterCounts = useMemo(
+    () => ({
+      all: products.length,
+      today: products.filter(isAvailableToday).length,
+      preorder: products.filter(isPreorderProduct).length,
+      promo: products.filter(isPromotedProduct).length,
+    }),
+    [products],
+  );
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase();
 
     return products.filter((product) => {
       const matchesCategory = !category || product.category.slug === category;
+      const matchesAvailability =
+        availabilityFilter === "all" ||
+        (availabilityFilter === "today" && isAvailableToday(product)) ||
+        (availabilityFilter === "preorder" && isPreorderProduct(product)) ||
+        (availabilityFilter === "promo" && isPromotedProduct(product));
       const matchesQuery =
         normalizedQuery.length === 0 ||
         product.name.toLowerCase().includes(normalizedQuery) ||
         (product.description ?? "").toLowerCase().includes(normalizedQuery);
 
-      return matchesCategory && matchesQuery;
+      return matchesCategory && matchesAvailability && matchesQuery;
     });
-  }, [category, deferredQuery, products]);
-  const isCategoryLanding = !category && deferredQuery.trim().length === 0;
+  }, [availabilityFilter, category, deferredQuery, products]);
+  const isCategoryLanding =
+    !category && deferredQuery.trim().length === 0 && availabilityFilter === "all";
 
   function showPreviousHero() {
     if (heroProducts.length === 0) {
@@ -125,6 +162,7 @@ export function CatalogExplorer({
   function returnToCategories() {
     setCategory(null);
     setQuery("");
+    setAvailabilityFilter("all");
   }
 
   return (
@@ -155,6 +193,32 @@ export function CatalogExplorer({
               className="h-12 w-full rounded-2xl bg-[var(--surface-muted)] pl-11 pr-4 text-sm outline-none ring-1 ring-[var(--line)] transition focus:bg-white focus:ring-[var(--accent)]"
             />
           </label>
+          <div className="flex flex-wrap gap-2">
+            {availabilityFilters.map((filter) => {
+              const isActive = availabilityFilter === filter.value;
+              const count = availabilityFilterCounts[filter.value];
+
+              return (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setAvailabilityFilter(filter.value)}
+                  className={cn(
+                    "rounded-full px-3 py-2 text-xs font-semibold transition ring-1",
+                    isActive
+                      ? "bg-[var(--accent)] text-white ring-[var(--accent)]"
+                      : "bg-white text-[var(--muted)] ring-[var(--line)] hover:text-[var(--foreground)]",
+                  )}
+                >
+                  {filter.label}
+                  <span className="ml-1 opacity-75">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs leading-5 text-[var(--muted)]">
+            “Можно сегодня” показывает только остатки мини-склада на сегодня.
+          </p>
         </div>
       </div>
 

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useDeferredValue, useMemo, useState, useTransition } from "react";
 import { PackageCheck, Save, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { stockStatusLabels, unitLabels } from "@/lib/constants";
+import { unitLabels } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 type InventoryProduct = {
@@ -14,7 +14,6 @@ type InventoryProduct = {
   imageUrl?: string | null;
   unit: string;
   isActive: boolean;
-  stockStatus: string;
   category: {
     name: string;
   };
@@ -277,9 +276,6 @@ export function AdminInventoryManager({
                       <div className="flex flex-wrap gap-2 text-xs font-semibold">
                         <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1">
                           {product.category.name}
-                        </span>
-                        <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1">
-                          {stockStatusLabels[product.stockStatus] ?? product.stockStatus}
                         </span>
                         <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1">
                           ед.: {unitLabel}

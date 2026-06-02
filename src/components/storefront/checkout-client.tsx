@@ -7,6 +7,7 @@ import { useCart } from "@/components/providers/cart-provider";
 import { Button } from "@/components/ui/button";
 import {
   LIFT_SERVICE_FEE,
+  getBusinessDateKey,
   getDefaultDeliveryDate,
   getDeliveryDateAvailability,
 } from "@/lib/delivery-rules";
@@ -29,8 +30,13 @@ export function CheckoutClient({
 }) {
   const router = useRouter();
   const { items, subtotal, clear, updateQuantity, removeItem, hydrated } = useCart();
-  const minDeliveryDate = getDefaultDeliveryDate();
-  const [date, setDate] = useState(() => minDeliveryDate);
+  const canOrderTodayFromInventory =
+    items.length > 0 && items.every((item) => !item.isPreorder);
+  const minDeliveryDate = canOrderTodayFromInventory
+    ? getBusinessDateKey()
+    : getDefaultDeliveryDate();
+  const [date, setDate] = useState(() => getDefaultDeliveryDate());
+  const selectedDate = date < minDeliveryDate ? minDeliveryDate : date;
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [addressId, setAddressId] = useState(addresses[0]?.id ?? "");
   const [needsLift, setNeedsLift] = useState(false);
@@ -38,7 +44,9 @@ export function CheckoutClient({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const deliveryAvailability = getDeliveryDateAvailability(date);
+  const deliveryAvailability = getDeliveryDateAvailability(selectedDate, new Date(), {
+    allowTodayAfterCutoff: canOrderTodayFromInventory,
+  });
   const liftFee = needsLift ? LIFT_SERVICE_FEE : 0;
   const total = useMemo(() => subtotal + liftFee, [liftFee, subtotal]);
 
@@ -72,7 +80,7 @@ export function CheckoutClient({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         addressId,
-        deliveryDate: date,
+        deliveryDate: selectedDate,
         needsLift,
         customerComment: comment,
         items: items.map((item) => ({
@@ -238,7 +246,7 @@ export function CheckoutClient({
             </span>
             <input
               type="date"
-              value={date}
+              value={selectedDate}
               min={minDeliveryDate}
               onChange={(event) => setDate(event.target.value)}
               className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
@@ -246,6 +254,11 @@ export function CheckoutClient({
             {!deliveryAvailability.available ? (
               <span className="block rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 {deliveryAvailability.reason}
+              </span>
+            ) : null}
+            {canOrderTodayFromInventory ? (
+              <span className="block rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                Эти товары есть в наличии, поэтому их можно оформить на сегодня.
               </span>
             ) : null}
           </label>

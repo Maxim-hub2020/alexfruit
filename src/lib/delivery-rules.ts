@@ -58,6 +58,7 @@ export function getDefaultDeliveryDate(value = new Date()) {
 export function getDeliveryDateAvailability(
   deliveryDate: string,
   value = new Date(),
+  options: { allowTodayAfterCutoff?: boolean } = {},
 ) {
   const dateKey = deliveryDate.slice(0, 10);
   const today = getBusinessDateKey(value);
@@ -69,7 +70,11 @@ export function getDeliveryDateAvailability(
     };
   }
 
-  if (dateKey === today && isTodayDeliveryClosed(value)) {
+  if (
+    dateKey === today &&
+    isTodayDeliveryClosed(value) &&
+    !options.allowTodayAfterCutoff
+  ) {
     return {
       available: false,
       reason: "Доставка на сегодня закрыта после 09:00. Выберите завтрашнюю дату.",

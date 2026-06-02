@@ -3,7 +3,6 @@ import {
   OrderStatus,
   ProblemType,
   ProductUnit,
-  StockStatus,
 } from "@/generated/prisma";
 import { z } from "zod";
 
@@ -86,7 +85,6 @@ export const productSchema = z.object({
   isHit: z.coerce.boolean().optional().default(false),
   isNew: z.coerce.boolean().optional().default(false),
   isPromo: z.coerce.boolean().optional().default(false),
-  stockStatus: z.nativeEnum(StockStatus).default(StockStatus.IN_STOCK),
 });
 
 export const dailyInventorySchema = z.object({

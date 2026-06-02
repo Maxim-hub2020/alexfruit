@@ -67,7 +67,7 @@ export type SharedCartWithItems = Prisma.SharedCartGetPayload<{
     items: {
       include: {
         addedBy: { select: { id: true; name: true; phone: true } };
-        product: { select: { id: true; imageUrl: true; stockStatus: true; isActive: true } };
+        product: { select: { id: true; imageUrl: true; isActive: true } };
       };
     };
   };
@@ -92,7 +92,7 @@ export async function createSharedCart(ownerId: string, input: unknown) {
             include: {
               addedBy: { select: { id: true, name: true, phone: true } },
               product: {
-                select: { id: true, imageUrl: true, stockStatus: true, isActive: true },
+                select: { id: true, imageUrl: true, isActive: true },
               },
             },
             orderBy: { createdAt: "asc" },
@@ -126,7 +126,7 @@ export async function getSharedCart(token: string) {
         include: {
           addedBy: { select: { id: true, name: true, phone: true } },
           product: {
-            select: { id: true, imageUrl: true, stockStatus: true, isActive: true },
+            select: { id: true, imageUrl: true, isActive: true },
           },
         },
         orderBy: [{ createdAt: "asc" }, { productName: "asc" }],

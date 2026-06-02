@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { SharedCartCheckoutPanel } from "@/components/storefront/shared-cart-checkout-panel";
 import { unitLabels } from "@/lib/constants";
-import { cn, formatCurrency } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
 type SharedCartItem = {
   id: string;
@@ -33,7 +33,6 @@ type SharedCartItem = {
   product: {
     id: string;
     imageUrl?: string | null;
-    stockStatus: string;
     isActive: boolean;
   };
 };
@@ -58,7 +57,6 @@ type SharedCartProduct = {
   price: number | string;
   unit: string;
   imageUrl?: string | null;
-  stockStatus: string;
   category: {
     name: string;
     slug: string;
@@ -536,16 +534,12 @@ export function SharedCartClient({
 
           <div className="grid gap-3">
             {filteredProducts.map((product) => {
-              const isUnavailable = product.stockStatus === "OUT_OF_STOCK";
               const isBusy = busyId === `add-${product.id}`;
 
               return (
                 <article
                   key={product.id}
-                  className={cn(
-                    "flex items-center gap-3 rounded-[1.4rem] bg-white/88 p-3 ring-1 ring-[var(--line)]",
-                    isUnavailable && "opacity-60",
-                  )}
+                  className="flex items-center gap-3 rounded-[1.4rem] bg-white/88 p-3 ring-1 ring-[var(--line)]"
                 >
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
                     {product.imageUrl ? (
@@ -572,7 +566,7 @@ export function SharedCartClient({
                   <button
                     type="button"
                     onClick={() => addProduct(product.id)}
-                    disabled={!user || isUnavailable || isBusy || isOrdered}
+                    disabled={!user || isBusy || isOrdered}
                     className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] text-white transition active:scale-95 disabled:bg-white disabled:text-[var(--muted)] disabled:ring-1 disabled:ring-[var(--line)]"
                     aria-label={`Добавить ${product.name} в общую корзину`}
                   >

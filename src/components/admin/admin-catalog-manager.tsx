@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { stockStatusLabels, unitLabels } from "@/lib/constants";
+import { unitLabels } from "@/lib/constants";
 import { cn, formatCurrency } from "@/lib/utils";
 
 type CategoryOption = {
@@ -30,7 +30,6 @@ type ProductRecord = {
   price: number | string;
   unit: string;
   imageUrl?: string | null;
-  stockStatus: string;
   isActive: boolean;
   isHit: boolean;
   isNew: boolean;
@@ -45,7 +44,6 @@ type ProductFormState = {
   price: string;
   unit: string;
   imageUrl: string;
-  stockStatus: string;
   isActive: boolean;
   isHit: boolean;
   isNew: boolean;
@@ -69,12 +67,6 @@ const unitOptions = [
   { value: "PACK", label: "упак." },
 ];
 
-const stockOptions = [
-  { value: "IN_STOCK", label: "В наличии" },
-  { value: "LOW", label: "Осталось мало" },
-  { value: "OUT_OF_STOCK", label: "Нет в наличии" },
-];
-
 const emptyCategoryForm: CategoryFormState = {
   name: "",
   slug: "",
@@ -89,7 +81,6 @@ function createEmptyProductForm(categoryId = ""): ProductFormState {
     price: "",
     unit: "KG",
     imageUrl: "",
-    stockStatus: "IN_STOCK",
     isActive: true,
     isHit: false,
     isNew: false,
@@ -335,7 +326,6 @@ export function AdminCatalogManager({
       price: String(Number(product.price)),
       unit: product.unit,
       imageUrl: product.imageUrl ?? "",
-      stockStatus: product.stockStatus,
       isActive: product.isActive,
       isHit: product.isHit,
       isNew: product.isNew,
@@ -462,7 +452,8 @@ export function AdminCatalogManager({
                 {selectedProductId ? "Редактирование карточки" : "Новый товар"}
               </h2>
               <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                Добавляйте новые позиции, меняйте цену, наличие и отметки для витрины.
+                Добавляйте позиции, меняйте цену, фото и отметки для витрины.
+                Наличие рассчитывается автоматически по мини-складу.
               </p>
             </div>
 
@@ -544,25 +535,12 @@ export function AdminCatalogManager({
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-2">
-                <span className="text-sm font-medium text-[var(--muted)]">Статус наличия</span>
-                <select
-                  value={productForm.stockStatus}
-                  onChange={(event) =>
-                    setProductForm((current) => ({
-                      ...current,
-                      stockStatus: event.target.value,
-                    }))
-                  }
-                  className="h-11 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
-                >
-                  {stockOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="rounded-[1.5rem] bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-950 ring-1 ring-emerald-100">
+                <span className="font-semibold">Наличие управляется мини-складом.</span>{" "}
+                Если сборщик или администратор внесли остаток на день, товар
+                показывается “в наличии”. Если остатка нет, клиент всё равно
+                сможет добавить товар как “под заказ”.
+              </div>
 
               <label className="space-y-2">
                 <span className="text-sm font-medium text-[var(--muted)]">Фото товара</span>
@@ -886,9 +864,6 @@ export function AdminCatalogManager({
                         </span>
                         <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-[var(--foreground)]">
                           {unitLabels[product.unit] ?? product.unit}
-                        </span>
-                        <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-[var(--foreground)]">
-                          {stockStatusLabels[product.stockStatus] ?? product.stockStatus}
                         </span>
                         {product.isHit && (
                           <span className="rounded-full bg-orange-100 px-3 py-1 text-orange-900">

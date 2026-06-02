@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { Clock3, Flame, Sparkles, Tag } from "lucide-react";
 import { AddToCartButton } from "@/components/storefront/add-to-cart-button";
-import { stockStatusLabels, unitLabels } from "@/lib/constants";
+import { unitLabels } from "@/lib/constants";
 import { formatCurrency } from "@/lib/utils";
 
 type ProductCardProps = {
@@ -15,7 +15,6 @@ type ProductCardProps = {
     isHit: boolean;
     isNew: boolean;
     isPromo: boolean;
-    stockStatus: string;
     hasDailyInventory?: boolean;
     availableQuantity?: number | null;
     isAvailableForDate?: boolean;
@@ -62,7 +61,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
       ? "Под заказ"
       : product.hasDailyInventory && product.availableQuantity !== null
       ? `В наличии: ${product.availableQuantity}`
-      : stockStatusLabels[product.stockStatus] ?? product.stockStatus;
+      : "В наличии";
 
   if (variant === "catalog") {
     return (
