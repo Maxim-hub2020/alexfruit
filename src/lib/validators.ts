@@ -21,6 +21,10 @@ export const registerSchema = z.object({
     .trim()
     .regex(/^\+7\d{10}$/, "Укажите телефон в формате +7XXXXXXXXXX"),
   password: z.string().min(6, "Минимум 6 символов"),
+  messengerChallengeId: z.preprocess(
+    (value) => (typeof value === "string" ? value.trim() : ""),
+    z.string().min(1, "Подтвердите телефон через Max или Telegram"),
+  ),
 });
 
 export const customerProfileSchema = emailOrPhone.extend({

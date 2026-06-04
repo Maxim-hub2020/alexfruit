@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 
 function getRedirectByRole(role: string) {
@@ -110,18 +110,39 @@ type MessengerChallenge = {
   expiresAt: string;
 };
 
+type VerifiedMessengerChallenge = {
+  id: string;
+  phoneDigits: string;
+  provider: MessengerProvider;
+};
+
+type MessengerAuthPanelProps = {
+  phoneDigits: string;
+  mode?: "login" | "register";
+  onVerified?: (challenge: VerifiedMessengerChallenge) => void;
+};
+
 const messengerProviderLabels: Record<MessengerProvider, string> = {
   TELEGRAM: "Telegram",
   MAX: "Max",
 };
 
-function MessengerAuthPanel({ phoneDigits }: { phoneDigits: string }) {
+function MessengerAuthPanel({
+  phoneDigits,
+  mode = "login",
+  onVerified,
+}: MessengerAuthPanelProps) {
   const router = useRouter();
   const [challenge, setChallenge] = useState<MessengerChallenge | null>(null);
   const [loadingProvider, setLoadingProvider] = useState<MessengerProvider | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const onVerifiedRef = useRef(onVerified);
+
+  useEffect(() => {
+    onVerifiedRef.current = onVerified;
+  }, [onVerified]);
 
   useEffect(() => {
     if (!challenge?.id) {
@@ -152,6 +173,18 @@ function MessengerAuthPanel({ phoneDigits }: { phoneDigits: string }) {
 
       if (result.status === "VERIFIED") {
         completed = true;
+
+        if (mode === "register") {
+          setError("");
+          setMessage("Телефон подтверждён. Теперь задайте пароль и создайте аккаунт.");
+          onVerifiedRef.current?.({
+            id: challenge.id,
+            phoneDigits,
+            provider: challenge.provider,
+          });
+          return;
+        }
+
         setIsCompleting(true);
         setMessage("Телефон подтверждён. Входим в приложение...");
 
@@ -198,7 +231,7 @@ function MessengerAuthPanel({ phoneDigits }: { phoneDigits: string }) {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [challenge?.id, router]);
+  }, [challenge, mode, phoneDigits, router]);
 
   async function startMessenger(provider: MessengerProvider) {
     setError("");
@@ -243,7 +276,7 @@ function MessengerAuthPanel({ phoneDigits }: { phoneDigits: string }) {
       <div className="flex items-center gap-3">
         <span className="h-px flex-1 bg-[var(--line)]" />
         <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-          Быстрый вход
+          {mode === "register" ? "Подтверждение телефона" : "Быстрый вход"}
         </span>
         <span className="h-px flex-1 bg-[var(--line)]" />
       </div>
@@ -348,8 +381,11 @@ export function RegisterForm() {
     phoneDigits: "",
     password: "",
   });
+  const [verifiedChallenge, setVerifiedChallenge] =
+    useState<VerifiedMessengerChallenge | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const isPhoneVerified = verifiedChallenge?.phoneDigits === form.phoneDigits;
 
   async function submit() {
     setIsLoading(true);
@@ -361,12 +397,24 @@ export function RegisterForm() {
       return;
     }
 
+    const verifiedChallengeId =
+      verifiedChallenge?.phoneDigits === form.phoneDigits
+        ? verifiedChallenge.id
+        : null;
+
+    if (!verifiedChallengeId) {
+      setIsLoading(false);
+      setError("Сначала подтвердите этот номер через Max или Telegram.");
+      return;
+    }
+
     const response = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         phone: `+7${form.phoneDigits}`,
         password: form.password,
+        messengerChallengeId: verifiedChallengeId,
       }),
     });
     const result = await response.json();
@@ -382,10 +430,15 @@ export function RegisterForm() {
   }
 
   function updatePhoneDigits(value: string) {
+    const phoneDigits = getRussianPhoneDigits(value);
+
     setForm((current) => ({
       ...current,
-      phoneDigits: getRussianPhoneDigits(value),
+      phoneDigits,
     }));
+    setVerifiedChallenge((current) =>
+      current?.phoneDigits === phoneDigits ? current : null,
+    );
   }
 
   return (
@@ -396,6 +449,11 @@ export function RegisterForm() {
         </span>
         <PhoneDigitsInput value={form.phoneDigits} onChange={updatePhoneDigits} />
       </label>
+      {isPhoneVerified && verifiedChallenge && (
+        <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-100">
+          Телефон подтверждён через {messengerProviderLabels[verifiedChallenge.provider]}.
+        </p>
+      )}
       <input
         value={form.password}
         onChange={(event) =>
@@ -409,7 +467,11 @@ export function RegisterForm() {
       <Button className="w-full" onClick={() => submit()} disabled={isLoading}>
         {isLoading ? "Создаём..." : "Создать аккаунт"}
       </Button>
-      <MessengerAuthPanel phoneDigits={form.phoneDigits} />
+      <MessengerAuthPanel
+        phoneDigits={form.phoneDigits}
+        mode="register"
+        onVerified={setVerifiedChallenge}
+      />
     </div>
   );
 }

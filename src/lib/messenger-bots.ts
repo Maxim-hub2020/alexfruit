@@ -128,7 +128,7 @@ export async function handleTelegramWebhook(update: TelegramUpdate) {
 
     await sendTelegramMessage(
       message.chat.id,
-      "Нажмите кнопку ниже, чтобы подтвердить номер телефона для входа в АлексФрут.",
+      "Нажмите кнопку ниже, чтобы подтвердить номер телефона для входа или регистрации в АлексФрут.",
       contactReplyKeyboard(),
     );
     return;
@@ -146,7 +146,7 @@ export async function handleTelegramWebhook(update: TelegramUpdate) {
     await sendTelegramMessage(
       message.chat.id,
       result.ok
-        ? "Телефон подтверждён. Вернитесь на сайт, вход завершится автоматически."
+        ? "Телефон подтверждён. Вернитесь на сайт, чтобы завершить вход или регистрацию."
         : result.reason,
       result.ok ? removeTelegramKeyboard() : undefined,
     );
@@ -257,7 +257,7 @@ export async function handleMaxWebhook(update: MaxUpdate) {
       userId,
       "reason" in result
         ? (result.reason ?? "Не удалось начать подтверждение телефона")
-        : "Нажмите кнопку ниже, чтобы подтвердить номер телефона для входа в АлексФрут.",
+        : "Нажмите кнопку ниже, чтобы подтвердить номер телефона для входа или регистрации в АлексФрут.",
       "reason" in result ? undefined : maxContactKeyboard(),
     );
     return;
@@ -294,6 +294,6 @@ export async function handleMaxWebhook(update: MaxUpdate) {
     userId,
     "reason" in result
       ? result.reason
-      : "Телефон подтверждён. Вернитесь на сайт, вход завершится автоматически.",
+      : "Телефон подтверждён. Вернитесь на сайт, чтобы завершить вход или регистрацию.",
   );
 }

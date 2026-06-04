@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { Role } from "@/generated/prisma";
+import { MessengerAuthStatus, Role } from "@/generated/prisma";
 import { ApiError } from "@/lib/api";
 import { AUTH_COOKIE_NAME } from "@/lib/constants";
 import { prisma } from "@/lib/db";
@@ -165,29 +165,70 @@ export async function requireApiUser(roles?: Role[]) {
 
 export async function registerAndLogin(input: unknown) {
   const data = registerSchema.parse(input);
-  const phone = data.phone;
+  const phone = normalizeRussianPhone(data.phone);
+  const now = new Date();
 
-  const existing = await prisma.user.findFirst({
-    where: {
-      phone,
-    },
-  });
+  const user = await prisma.$transaction(async (tx) => {
+    const challenge = await tx.messengerAuthChallenge.findUnique({
+      where: { id: data.messengerChallengeId },
+    });
 
-  if (existing) {
-    throw new ApiError("Пользователь с таким телефоном уже существует", 409);
-  }
+    if (!challenge) {
+      throw new ApiError("Подтверждение телефона не найдено. Начните регистрацию заново.", 404);
+    }
 
-  const user = await prisma.user.create({
-    data: {
-      name: createDefaultCustomerName(phone),
-      email: null,
-      phone,
-      passwordHash: await hashPassword(data.password),
-      role: Role.CUSTOMER,
-      customerProfile: {
-        create: {},
+    if (challenge.status !== MessengerAuthStatus.VERIFIED) {
+      throw new ApiError("Сначала подтвердите телефон через Max или Telegram", 409);
+    }
+
+    if (challenge.expiresAt <= now) {
+      await tx.messengerAuthChallenge.update({
+        where: { id: challenge.id },
+        data: { status: MessengerAuthStatus.EXPIRED },
+      });
+      throw new ApiError("Время подтверждения истекло. Подтвердите телефон заново.", 410);
+    }
+
+    if (challenge.phone !== phone) {
+      await tx.messengerAuthChallenge.update({
+        where: { id: challenge.id },
+        data: { status: MessengerAuthStatus.FAILED },
+      });
+      throw new ApiError("Подтверждённый номер не совпадает с номером регистрации", 409);
+    }
+
+    const existing = await tx.user.findFirst({
+      where: {
+        phone,
       },
-    },
+    });
+
+    if (existing) {
+      throw new ApiError("Пользователь с таким телефоном уже существует", 409);
+    }
+
+    const createdUser = await tx.user.create({
+      data: {
+        name: createDefaultCustomerName(phone),
+        email: null,
+        phone,
+        passwordHash: await hashPassword(data.password),
+        role: Role.CUSTOMER,
+        customerProfile: {
+          create: {},
+        },
+      },
+    });
+
+    await tx.messengerAuthChallenge.update({
+      where: { id: challenge.id },
+      data: {
+        status: MessengerAuthStatus.CONSUMED,
+        userId: createdUser.id,
+      },
+    });
+
+    return createdUser;
   });
 
   await createSession({
