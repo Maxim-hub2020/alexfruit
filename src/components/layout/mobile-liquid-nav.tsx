@@ -9,6 +9,7 @@ import {
   Bell,
   ClipboardList,
   Home,
+  MessageCircle,
   PackageCheck,
   PackageOpen,
   Route,
@@ -34,6 +35,7 @@ const adminNavItems = [
   { key: "admin-delivery", href: "/admin/delivery", label: "Сборка", icon: PackageCheck },
   { key: "admin-products", href: "/admin/products", label: "Каталог", icon: ShoppingBasket },
   { key: "admin-inventory", href: "/admin/inventory", label: "Склад", icon: PackageOpen },
+  { key: "admin-reviews", href: "/admin/reviews", label: "Клиенты", icon: MessageCircle },
   { key: "admin-couriers", href: "/admin/couriers", label: "Курьеры", icon: Truck },
   { key: "admin-analytics", href: "/admin/analytics", label: "Аналитика", icon: BarChart3 },
 ] as const;

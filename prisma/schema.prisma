@@ -102,6 +102,8 @@ model User {
   ownedSharedCarts  SharedCart[]       @relation("SharedCartOwner")
   sharedCartItems   SharedCartItem[]   @relation("SharedCartItemContributor")
   messengerAuths    MessengerAuthChallenge[]
+  productReviews    ProductReview[]    @relation("CustomerProductReviews")
+  reviewReplies     ProductReview[]    @relation("AdminProductReviewReplies")
 }
 
 model CustomerProfile {
@@ -170,6 +172,7 @@ model Product {
   orderItems       OrderItem[]
   sharedCartItems  SharedCartItem[]
   dailyInventories DailyInventory[]
+  reviews          ProductReview[]
 
   @@index([categoryId])
 }
@@ -254,6 +257,7 @@ model Order {
   items              OrderItem[]
   deliveryTask       DeliveryTask?
   notifications      Notification[]
+  reviews            ProductReview[]
 
   @@index([userId, deliveryDate])
   @@index([courierId])
@@ -275,8 +279,46 @@ model OrderItem {
   finalSum         Decimal?    @db.Decimal(10, 2)
   order            Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product          Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
+  review           ProductReview?
 
   @@index([orderId])
+}
+
+model ProductReview {
+  id             String               @id @default(cuid())
+  productId      String
+  orderId        String
+  orderItemId    String               @unique
+  userId         String
+  rating         Int
+  comment        String?
+  adminReply     String?
+  adminReplyAt   DateTime?
+  adminReplyById String?
+  isPublished    Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  product        Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order          Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem      OrderItem            @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  user           User                 @relation("CustomerProductReviews", fields: [userId], references: [id], onDelete: Cascade)
+  adminReplyBy   User?                @relation("AdminProductReviewReplies", fields: [adminReplyById], references: [id], onDelete: SetNull)
+  photos         ProductReviewPhoto[]
+
+  @@index([productId, isPublished, createdAt])
+  @@index([userId, createdAt])
+  @@index([orderId])
+  @@index([adminReplyById])
+}
+
+model ProductReviewPhoto {
+  id        String        @id @default(cuid())
+  reviewId  String
+  url       String
+  createdAt DateTime      @default(now())
+  review    ProductReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
 }
 
 model DeliveryTimeSlot {

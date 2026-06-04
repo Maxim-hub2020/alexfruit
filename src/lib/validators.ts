@@ -98,6 +98,26 @@ export const productSchema = z.object({
   isPromo: z.coerce.boolean().optional().default(false),
 });
 
+const reviewPhotoUrlSchema = z
+  .string()
+  .trim()
+  .regex(
+    /^\/uploads\/reviews\/[A-Za-z0-9._-]+\.(avif|jpe?g|png|webp)$/i,
+    "Фото отзыва должно быть загружено через приложение",
+  );
+
+export const productReviewSchema = z.object({
+  orderItemId: z.string().trim().min(1),
+  rating: z.coerce.number().int().min(1).max(5),
+  comment: z.string().trim().max(1000).optional().or(z.literal("")),
+  photoUrls: z.array(reviewPhotoUrlSchema).max(5).optional().default([]),
+});
+
+export const adminProductReviewSchema = z.object({
+  adminReply: z.string().trim().max(1000).optional().or(z.literal("")),
+  isPublished: z.coerce.boolean().optional(),
+});
+
 export const dailyInventorySchema = z.object({
   date: z.string().trim().min(10),
   items: z.array(

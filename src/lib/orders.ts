@@ -39,6 +39,7 @@ import {
   sendPushForNotification,
   sendPushForNotifications,
 } from "@/lib/push-notifications";
+import { addReviewSummaryToProducts } from "@/lib/reviews";
 import { dateStringToDbDate } from "@/lib/utils";
 import {
   assignCourierSchema,
@@ -1188,9 +1189,11 @@ export async function getStorefrontData(userId?: string, deliveryDate?: string |
       orderBy: { startTime: "asc" },
     }),
   ]);
-  const productsWithAvailability = await addDailyAvailabilityToProducts(
-    products,
-    deliveryDate,
+  const productsWithAvailability = await addReviewSummaryToProducts(
+    await addDailyAvailabilityToProducts(
+      products,
+      deliveryDate,
+    ),
   );
   const availableProducts = productsWithAvailability.filter(
     (product) => product.isAvailableForDate,
@@ -1335,7 +1338,15 @@ export async function getCustomerOrders(userId: string) {
   return prisma.order.findMany({
     where: { userId },
     include: {
-      items: true,
+      items: {
+        include: {
+          review: {
+            include: {
+              photos: true,
+            },
+          },
+        },
+      },
       address: true,
       sharedCart: {
         select: {

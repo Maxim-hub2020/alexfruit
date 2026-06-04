@@ -32,6 +32,8 @@ type CatalogProduct = {
   hasDailyInventory?: boolean;
   availableQuantity?: number | null;
   isAvailableForDate?: boolean;
+  averageRating?: number | null;
+  reviewsCount?: number;
   category: {
     id: string;
     name: string;

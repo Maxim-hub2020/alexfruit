@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Clock3, Flame, Sparkles, Tag } from "lucide-react";
+import { Clock3, Flame, Sparkles, Star, Tag } from "lucide-react";
 import { AddToCartButton } from "@/components/storefront/add-to-cart-button";
 import { unitLabels } from "@/lib/constants";
 import { formatCurrency } from "@/lib/utils";
@@ -18,6 +18,8 @@ type ProductCardProps = {
     hasDailyInventory?: boolean;
     availableQuantity?: number | null;
     isAvailableForDate?: boolean;
+    averageRating?: number | null;
+    reviewsCount?: number;
   };
   variant?: "default" | "catalog";
 };
@@ -49,6 +51,33 @@ function ProductBadges({ product }: { product: ProductCardProps["product"] }) {
           Под заказ
         </span>
       )}
+    </div>
+  );
+}
+
+function ProductRating({ product }: { product: ProductCardProps["product"] }) {
+  const rating = product.averageRating ?? null;
+  const reviewsCount = product.reviewsCount ?? 0;
+  const roundedRating = rating ? Math.round(rating) : 0;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+      <span className="flex items-center gap-0.5" aria-label={rating ? `Рейтинг ${rating}` : "Пока нет отзывов"}>
+        {Array.from({ length: 5 }).map((_, index) => (
+          <Star
+            key={index}
+            size={14}
+            className={
+              index < roundedRating
+                ? "fill-amber-400 text-amber-400"
+                : "fill-none text-[var(--line)]"
+            }
+          />
+        ))}
+      </span>
+      <span>
+        {rating ? `${rating.toFixed(1)} · ${reviewsCount}` : "Нет отзывов"}
+      </span>
     </div>
   );
 }
@@ -92,6 +121,9 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
             <p className="mt-1 text-xs text-[var(--muted)]">
               за {unitLabels[product.unit] ?? product.unit}
             </p>
+            <div className="mt-2">
+              <ProductRating product={product} />
+            </div>
             <p className="mt-2 text-sm leading-5 text-[var(--muted)]">
               {product.description || "Свежая поставка с ежедневным обновлением."}
             </p>
@@ -150,6 +182,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
           <p className="text-sm leading-6 text-[var(--muted)]">
             {product.description || "Свежая поставка с ежедневным обновлением."}
           </p>
+          <ProductRating product={product} />
           <p className="text-xs font-semibold text-[var(--accent-strong)]">
             {availabilityLabel}
           </p>

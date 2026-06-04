@@ -19,6 +19,11 @@ const adminSections = [
     description: "Товары, категории, наличие, фото, акции и цены для витрины.",
   },
   {
+    href: "/admin/reviews",
+    title: "Отзывы клиентов",
+    description: "Рейтинги товаров, фотографии от клиентов, ответы администратора и скрытие лишнего.",
+  },
+  {
     href: "/admin/couriers",
     title: "Курьеры",
     description: "Добавление курьеров, доступы в кабинет и удаление из активной системы.",
@@ -71,7 +76,7 @@ export default async function AdminPage() {
           ))}
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
           {adminSections.map((section) => (
             <Link
               key={section.href}
