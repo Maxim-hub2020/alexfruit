@@ -13,6 +13,7 @@ import {
   labelPrintableOrderStatuses,
   orderStatusMeta,
 } from "@/lib/constants";
+import { startCourierRouteWithEta } from "@/lib/courier-eta";
 import { prisma, readWithPrismaRetry } from "@/lib/db";
 import {
   DEFAULT_DELIVERY_SLOT_CAPACITY,
@@ -3315,6 +3316,11 @@ export async function updateCourierTaskStatus(
   input: unknown,
 ) {
   const data = courierTaskStatusSchema.parse(input);
+
+  if (data.status === DeliveryTaskStatus.IN_PROGRESS) {
+    return startCourierRouteWithEta(taskId, courierUserId);
+  }
+
   const task = await prisma.deliveryTask.findFirst({
     where: {
       id: taskId,
@@ -3334,11 +3340,9 @@ export async function updateCourierTaskStatus(
   }
 
   const nextOrderStatus =
-    data.status === DeliveryTaskStatus.IN_PROGRESS
-      ? OrderStatus.COURIER_ON_THE_WAY
-      : data.status === DeliveryTaskStatus.DELIVERED
-        ? OrderStatus.DELIVERED
-        : task.order.status;
+    data.status === DeliveryTaskStatus.DELIVERED
+      ? OrderStatus.DELIVERED
+      : task.order.status;
 
   return prisma.$transaction(async (tx) => {
     await tx.deliveryTask.update({

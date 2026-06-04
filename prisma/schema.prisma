@@ -247,20 +247,20 @@ model Order {
 }
 
 model OrderItem {
-  id              String      @id @default(cuid())
-  orderId         String
-  productId       String?
-  productName     String
-  price           Decimal     @db.Decimal(10, 2)
-  unit            ProductUnit
-  orderedQuantity Decimal     @db.Decimal(10, 2)
-  actualQuantity  Decimal?    @db.Decimal(10, 2)
-  reservedQuantity Decimal    @default(0) @db.Decimal(10, 2)
-  isPreorder      Boolean     @default(false)
-  preliminarySum  Decimal     @db.Decimal(10, 2)
-  finalSum        Decimal?    @db.Decimal(10, 2)
-  order           Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product         Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
+  id               String      @id @default(cuid())
+  orderId          String
+  productId        String?
+  productName      String
+  price            Decimal     @db.Decimal(10, 2)
+  unit             ProductUnit
+  orderedQuantity  Decimal     @db.Decimal(10, 2)
+  actualQuantity   Decimal?    @db.Decimal(10, 2)
+  reservedQuantity Decimal     @default(0) @db.Decimal(10, 2)
+  isPreorder       Boolean     @default(false)
+  preliminarySum   Decimal     @db.Decimal(10, 2)
+  finalSum         Decimal?    @db.Decimal(10, 2)
+  order            Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product          Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
 }
@@ -285,17 +285,22 @@ model Courier {
 }
 
 model DeliveryTask {
-  id                      String             @id @default(cuid())
-  orderId                 String             @unique
-  courierId               String
-  status                  DeliveryTaskStatus @default(ASSIGNED)
-  routeOrder              Int?
-  deliveredAt             DateTime?
-  arrivalNotificationSent Boolean            @default(false)
-  problemType             ProblemType?
-  problemComment          String?
-  order                   Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  courier                 User               @relation("CourierTasks", fields: [courierId], references: [id], onDelete: Cascade)
+  id                         String             @id @default(cuid())
+  orderId                    String             @unique
+  courierId                  String
+  status                     DeliveryTaskStatus @default(ASSIGNED)
+  routeOrder                 Int?
+  estimatedArrivalAt         DateTime?
+  etaMinutes                 Int?
+  etaUpdatedAt               DateTime?
+  routeStartedAt             DateTime?
+  routeEtaNotificationSentAt DateTime?
+  deliveredAt                DateTime?
+  arrivalNotificationSent    Boolean            @default(false)
+  problemType                ProblemType?
+  problemComment             String?
+  order                      Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courier                    User               @relation("CourierTasks", fields: [courierId], references: [id], onDelete: Cascade)
 
   @@index([courierId, status])
 }

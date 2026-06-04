@@ -3,9 +3,16 @@ import {
   NotificationType,
   OrderStatus,
   Role,
-  type Prisma,
 } from "@/generated/prisma";
 import { ApiError } from "@/lib/api";
+import {
+  getApproximateEtaMinutes,
+  getDistanceKm,
+  getOrderPoint,
+  getSavedCourierEta,
+  refreshCourierRouteEtaFromLocation,
+  toLocationDto,
+} from "@/lib/courier-eta";
 import { prisma } from "@/lib/db";
 import { sendPushForNotification } from "@/lib/push-notifications";
 import { courierLocationSchema } from "@/lib/validators";
@@ -31,71 +38,6 @@ const adminCurrentOrderStatuses: OrderStatus[] = [
 ];
 const ARRIVAL_NOTIFICATION_ETA_MINUTES = 15;
 
-function toNumber(value: Prisma.Decimal | number | string | null | undefined) {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function toLocationDto(location: {
-  latitude: Prisma.Decimal | number | string;
-  longitude: Prisma.Decimal | number | string;
-  accuracy?: Prisma.Decimal | number | string | null;
-  updatedAt: Date;
-}) {
-  return {
-    latitude: toNumber(location.latitude) ?? 0,
-    longitude: toNumber(location.longitude) ?? 0,
-    accuracy: toNumber(location.accuracy),
-    updatedAt: location.updatedAt.toISOString(),
-  };
-}
-
-function getDistanceKm(
-  first: { latitude: number; longitude: number },
-  second: { latitude: number; longitude: number },
-) {
-  const radius = 6371;
-  const latDelta = ((second.latitude - first.latitude) * Math.PI) / 180;
-  const lonDelta = ((second.longitude - first.longitude) * Math.PI) / 180;
-  const firstLat = (first.latitude * Math.PI) / 180;
-  const secondLat = (second.latitude * Math.PI) / 180;
-  const a =
-    Math.sin(latDelta / 2) ** 2 +
-    Math.cos(firstLat) * Math.cos(secondLat) * Math.sin(lonDelta / 2) ** 2;
-
-  return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function getApproximateEtaMinutes(distanceKm: number) {
-  const cityTrafficMinutesPerKm = 3.2;
-  const dispatchBufferMinutes = 5;
-
-  return Math.max(
-    5,
-    Math.ceil(distanceKm * cityTrafficMinutesPerKm + dispatchBufferMinutes),
-  );
-}
-
-function getOrderPoint(order: {
-  address: {
-    latitude?: Prisma.Decimal | number | string | null;
-    longitude?: Prisma.Decimal | number | string | null;
-  };
-}) {
-  const latitude = toNumber(order.address.latitude);
-  const longitude = toNumber(order.address.longitude);
-
-  if (latitude === null || longitude === null) {
-    return null;
-  }
-
-  return { latitude, longitude };
-}
-
 export async function updateCourierLocation(courierId: string, input: unknown) {
   const data = courierLocationSchema.parse(input);
 
@@ -114,7 +56,13 @@ export async function updateCourierLocation(courierId: string, input: unknown) {
     },
   });
 
-  await notifyCustomersAboutArrivingCourier(courierId, toLocationDto(location));
+  const locationDto = toLocationDto(location);
+
+  await refreshCourierRouteEtaFromLocation(courierId, {
+    latitude: locationDto.latitude,
+    longitude: locationDto.longitude,
+  });
+  await notifyCustomersAboutArrivingCourier(courierId, locationDto);
 
   return location;
 }
@@ -294,6 +242,7 @@ export async function getCustomerOrderCourierLocation(
           courierLocation: true,
         },
       },
+      deliveryTask: true,
     },
   });
 
@@ -315,6 +264,7 @@ export async function getCustomerOrderCourierLocation(
     name: courier.courierProfile?.name || courier.name,
     phone: courier.courierProfile?.phone || courier.phone,
   };
+  const savedEta = getSavedCourierEta(order.deliveryTask);
 
   if (!visibleCourierLocationStatuses.includes(order.status)) {
     return {
@@ -327,11 +277,13 @@ export async function getCustomerOrderCourierLocation(
 
   if (!courier.courierLocation) {
     return {
-      available: false,
-      reason:
-        "Курьер назначен, но геолокация ещё не включена или временно недоступна.",
+      available: Boolean(savedEta),
+      reason: savedEta
+        ? "Карта появится после первого обновления геолокации курьера."
+        : "Курьер назначен, но геолокация ещё не включена или временно недоступна.",
       orderStatus: order.status,
       courier: courierInfo,
+      eta: savedEta,
     };
   }
 
@@ -354,11 +306,17 @@ export async function getCustomerOrderCourierLocation(
     courier: courierInfo,
     location,
     eta:
-      distanceKm === null
+      savedEta ??
+      (distanceKm === null
         ? null
         : {
             distanceKm,
             minutes: getApproximateEtaMinutes(distanceKm),
-          },
+            estimatedArrivalAt: new Date(
+              Date.now() + getApproximateEtaMinutes(distanceKm) * 60 * 1000,
+            ).toISOString(),
+            updatedAt: location.updatedAt,
+            source: "gps" as const,
+          }),
   };
 }

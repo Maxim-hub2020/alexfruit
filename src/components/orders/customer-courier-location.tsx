@@ -18,8 +18,11 @@ type CourierLocationResponse = {
     updatedAt: string;
   };
   eta?: {
-    distanceKm: number;
+    distanceKm?: number | null;
     minutes: number;
+    estimatedArrivalAt: string;
+    updatedAt?: string | null;
+    source: "route" | "gps";
   } | null;
 };
 
@@ -64,6 +67,13 @@ function formatEta(minutes: number) {
   return rest === 0
     ? `примерно через ${hours} ч.`
     : `примерно через ${hours} ч. ${rest} мин.`;
+}
+
+function formatArrivalAt(value: string) {
+  return new Date(value).toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function CustomerCourierLocation({ orderId }: { orderId: string }) {
@@ -138,7 +148,9 @@ export function CustomerCourierLocation({ orderId }: { orderId: string }) {
             <p className="font-semibold">Курьер на карте</p>
             <p className="mt-1 text-sm text-[var(--muted)]">
               {data?.eta
-                ? `Курьер будет ${formatEta(data.eta.minutes)}`
+                ? `Ориентировочно в ${formatArrivalAt(
+                    data.eta.estimatedArrivalAt,
+                  )}, ${formatEta(data.eta.minutes)}`
                 : data?.courier?.name
                   ? `Курьер: ${data.courier.name}`
                   : "Карта появится после назначения курьера."}
@@ -171,7 +183,10 @@ export function CustomerCourierLocation({ orderId }: { orderId: string }) {
             {data.eta ? (
               <span className="inline-flex items-center gap-1 font-semibold text-[var(--accent-strong)]">
                 <LocateFixed size={13} />
-                До вас около {data.eta.distanceKm.toFixed(1)} км,{" "}
+                {data.eta.distanceKm
+                  ? `До вас около ${data.eta.distanceKm.toFixed(1)} км, `
+                  : ""}
+                прибытие в {formatArrivalAt(data.eta.estimatedArrivalAt)},{" "}
                 {formatEta(data.eta.minutes)}
               </span>
             ) : (
@@ -193,11 +208,20 @@ export function CustomerCourierLocation({ orderId }: { orderId: string }) {
           </div>
         </>
       ) : (
-        <p className="px-4 pb-4 text-sm text-[var(--muted)]">
-          {isLoading
-            ? "Проверяем геолокацию курьера..."
-            : data?.reason ?? "Курьер ещё не передаёт координаты."}
-        </p>
+        <div className="space-y-2 px-4 pb-4 text-sm text-[var(--muted)]">
+          {data?.eta ? (
+            <p className="font-semibold text-[var(--accent-strong)]">
+              Курьер будет ориентировочно в{" "}
+              {formatArrivalAt(data.eta.estimatedArrivalAt)},{" "}
+              {formatEta(data.eta.minutes)}
+            </p>
+          ) : null}
+          <p>
+            {isLoading
+              ? "Проверяем геолокацию курьера..."
+              : data?.reason ?? "Курьер ещё не передаёт координаты."}
+          </p>
+        </div>
       )}
     </div>
   );
