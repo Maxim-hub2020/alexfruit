@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 
 function getRedirectByRole(role: string) {
@@ -11,6 +11,10 @@ function getRedirectByRole(role: string) {
 
   if (role === "COURIER") {
     return "/courier";
+  }
+
+  if (role === "PICKER") {
+    return "/picker";
   }
 
   return "/";
@@ -96,6 +100,184 @@ function PhoneDigitsInput({
   );
 }
 
+type MessengerProvider = "TELEGRAM" | "MAX";
+
+type MessengerChallenge = {
+  id: string;
+  provider: MessengerProvider;
+  deepLink: string;
+  status: string;
+  expiresAt: string;
+};
+
+const messengerProviderLabels: Record<MessengerProvider, string> = {
+  TELEGRAM: "Telegram",
+  MAX: "Max",
+};
+
+function MessengerAuthPanel({ phoneDigits }: { phoneDigits: string }) {
+  const router = useRouter();
+  const [challenge, setChallenge] = useState<MessengerChallenge | null>(null);
+  const [loadingProvider, setLoadingProvider] = useState<MessengerProvider | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!challenge?.id) {
+      return;
+    }
+
+    let cancelled = false;
+    let completed = false;
+
+    async function pollStatus() {
+      if (!challenge?.id || completed) {
+        return;
+      }
+
+      const response = await fetch(`/api/auth/messenger/status/${challenge.id}`, {
+        cache: "no-store",
+      });
+      const result = await response.json();
+
+      if (cancelled) {
+        return;
+      }
+
+      if (!response.ok) {
+        setError(result.error ?? "Не удалось проверить подтверждение");
+        return;
+      }
+
+      if (result.status === "VERIFIED") {
+        completed = true;
+        setIsCompleting(true);
+        setMessage("Телефон подтверждён. Входим в приложение...");
+
+        const completeResponse = await fetch("/api/auth/messenger/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: challenge.id }),
+        });
+        const completeResult = await completeResponse.json();
+
+        if (cancelled) {
+          return;
+        }
+
+        setIsCompleting(false);
+
+        if (!completeResponse.ok) {
+          setError(completeResult.error ?? "Не удалось завершить вход");
+          return;
+        }
+
+        router.push(getRedirectByRole(completeResult.role));
+        router.refresh();
+        return;
+      }
+
+      if (result.status === "EXPIRED" || result.status === "FAILED") {
+        setChallenge(null);
+        setMessage("");
+        setError(
+          result.status === "EXPIRED"
+            ? "Время подтверждения истекло. Запустите вход ещё раз."
+            : "Подтверждение не прошло. Проверьте номер и попробуйте заново.",
+        );
+      }
+    }
+
+    void pollStatus();
+    const intervalId = window.setInterval(() => {
+      void pollStatus();
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [challenge?.id, router]);
+
+  async function startMessenger(provider: MessengerProvider) {
+    setError("");
+    setMessage("");
+
+    if (phoneDigits.length !== 10) {
+      setError("Укажите 10 цифр телефона после +7.");
+      return;
+    }
+
+    setLoadingProvider(provider);
+
+    const response = await fetch("/api/auth/messenger/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, phone: `+7${phoneDigits}` }),
+    });
+    const result = await response.json();
+    setLoadingProvider(null);
+
+    if (!response.ok) {
+      setError(result.error ?? "Не удалось начать вход через мессенджер");
+      return;
+    }
+
+    setChallenge(result);
+    setMessage(
+      `Откройте ${messengerProviderLabels[provider]}, нажмите “Поделиться телефоном” и вернитесь сюда.`,
+    );
+
+    const popup = window.open(result.deepLink, "_blank", "noopener,noreferrer");
+
+    if (!popup) {
+      setMessage(
+        `Браузер заблокировал открытие ${messengerProviderLabels[provider]}. Откройте ссылку ниже вручную.`,
+      );
+    }
+  }
+
+  return (
+    <div className="rounded-[1.7rem] border border-[var(--line)] bg-white/70 p-4">
+      <div className="flex items-center gap-3">
+        <span className="h-px flex-1 bg-[var(--line)]" />
+        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+          Быстрый вход
+        </span>
+        <span className="h-px flex-1 bg-[var(--line)]" />
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        {(["TELEGRAM", "MAX"] as const).map((provider) => (
+          <Button
+            key={provider}
+            variant="ghost"
+            className="min-h-12"
+            disabled={Boolean(loadingProvider) || isCompleting}
+            onClick={() => void startMessenger(provider)}
+          >
+            {loadingProvider === provider
+              ? "Открываем..."
+              : messengerProviderLabels[provider]}
+          </Button>
+        ))}
+      </div>
+      {challenge?.deepLink && (
+        <a
+          href={challenge.deepLink}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 block text-center text-sm font-semibold text-[var(--accent-strong)]"
+        >
+          Открыть мессенджер вручную
+        </a>
+      )}
+      {message && <p className="mt-3 text-sm text-[var(--muted)]">{message}</p>}
+      {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
+    </div>
+  );
+}
+
 export function LoginForm() {
   const router = useRouter();
   const [form, setForm] = useState({ phoneDigits: "", password: "" });
@@ -155,6 +337,7 @@ export function LoginForm() {
       <Button className="w-full" onClick={() => submit()} disabled={isLoading}>
         {isLoading ? "Входим..." : "Войти"}
       </Button>
+      <MessengerAuthPanel phoneDigits={form.phoneDigits} />
     </div>
   );
 }
@@ -226,6 +409,7 @@ export function RegisterForm() {
       <Button className="w-full" onClick={() => submit()} disabled={isLoading}>
         {isLoading ? "Создаём..." : "Создать аккаунт"}
       </Button>
+      <MessengerAuthPanel phoneDigits={form.phoneDigits} />
     </div>
   );
 }

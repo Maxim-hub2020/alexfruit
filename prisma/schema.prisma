@@ -68,6 +68,19 @@ enum NotificationType {
   REPLACEMENT_REQUIRED
 }
 
+enum MessengerAuthProvider {
+  TELEGRAM
+  MAX
+}
+
+enum MessengerAuthStatus {
+  PENDING
+  VERIFIED
+  CONSUMED
+  EXPIRED
+  FAILED
+}
+
 model User {
   id                String             @id @default(cuid())
   name              String
@@ -88,6 +101,7 @@ model User {
   pushSubscriptions PushSubscription[]
   ownedSharedCarts  SharedCart[]       @relation("SharedCartOwner")
   sharedCartItems   SharedCartItem[]   @relation("SharedCartItemContributor")
+  messengerAuths    MessengerAuthChallenge[]
 }
 
 model CustomerProfile {
@@ -345,4 +359,25 @@ model PushSubscription {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model MessengerAuthChallenge {
+  id              String              @id @default(cuid())
+  provider        MessengerAuthProvider
+  phone           String
+  tokenHash       String              @unique
+  status          MessengerAuthStatus @default(PENDING)
+  userId          String?
+  messengerUserId String?
+  messengerChatId String?
+  contactPhone    String?
+  verifiedAt      DateTime?
+  expiresAt       DateTime
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  user            User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([provider, phone, status])
+  @@index([provider, messengerChatId, status])
+  @@index([expiresAt])
 }

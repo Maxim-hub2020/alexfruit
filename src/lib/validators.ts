@@ -32,6 +32,17 @@ export const loginSchema = z.object({
   password: z.string().min(6, "Минимум 6 символов"),
 });
 
+export const messengerAuthProviderSchema = z.enum(["TELEGRAM", "MAX"]);
+
+export const messengerAuthStartSchema = z.object({
+  provider: messengerAuthProviderSchema,
+  phone: z.string().trim().min(10, "Укажите телефон"),
+});
+
+export const messengerAuthCompleteSchema = z.object({
+  id: z.string().trim().min(1),
+});
+
 export const addressSchema = z.object({
   title: z.string().trim().min(2),
   city: z.string().trim().min(2),

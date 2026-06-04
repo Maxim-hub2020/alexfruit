@@ -43,6 +43,14 @@ DADATA_API_KEY=
 NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY=
 WEB_PUSH_PRIVATE_KEY=
 WEB_PUSH_SUBJECT=https://your-domain.example
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_BOT_USERNAME=
+TELEGRAM_WEBHOOK_SECRET=
+MAX_BOT_TOKEN=
+MAX_BOT_USERNAME=
+MAX_BOT_DEEP_LINK_BASE=
+MAX_BOT_API_BASE=https://platform-api.max.ru
+MAX_WEBHOOK_SECRET=
 STORAGE_ACCESS_KEY=
 STORAGE_SECRET_KEY=
 STORAGE_BUCKET=
@@ -69,6 +77,13 @@ RATE_LIMIT_MAX_BUCKETS=5000
 `DADATA_API_KEY` нужен для автоподсказок адреса DaData в профиле клиента. Ключ используется только на сервере через `/api/geo/suggest`, в браузер он не передаётся.
 
 `NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY` и `WEB_PUSH_SUBJECT` нужны для фоновых push-уведомлений через service worker. Публичный ключ можно отдавать в браузер, приватный ключ должен оставаться только на сервере. Новую пару VAPID-ключей можно получить командой `npm run push:keys`. Для iPhone `WEB_PUSH_SUBJECT` лучше задавать HTTPS-адресом сайта, а не локальным `mailto`, иначе Apple может отклонять отправку с `BadJwtToken`.
+
+`TELEGRAM_*` и `MAX_*` включают вход по номеру телефона через мессенджеры. Пользователь вводит номер на сайте, открывает бота, нажимает «Поделиться телефоном», после чего сайт завершает вход автоматически. Webhook URL:
+
+- Telegram: `https://alexfruit.ru/api/integrations/telegram/webhook`, секрет передаётся через `X-Telegram-Bot-Api-Secret-Token`.
+- Max: `https://alexfruit.ru/api/integrations/max/webhook`, включите события `bot_started` и `message_created`; секрет проверяется через `X-Max-Bot-Api-Secret`.
+
+Для Max `MAX_BOT_DEEP_LINK_BASE` можно оставить пустым, если указан `MAX_BOT_USERNAME`: ссылка будет собираться как `https://max.ru/<username>?start=<token>`.
 
 ## Защита от частых запросов
 

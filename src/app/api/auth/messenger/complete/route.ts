@@ -1,0 +1,16 @@
+import { NextResponse } from "next/server";
+import { jsonError } from "@/lib/api";
+import { completeMessengerPhoneAuth } from "@/lib/messenger-auth";
+
+export async function POST(request: Request) {
+  try {
+    const user = await completeMessengerPhoneAuth(await request.json());
+    return NextResponse.json({
+      id: user.id,
+      role: user.role,
+      name: user.name,
+    });
+  } catch (error) {
+    return jsonError(error);
+  }
+}
