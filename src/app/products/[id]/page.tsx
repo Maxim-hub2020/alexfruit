@@ -181,7 +181,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   </p>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-[1.4rem] bg-[#f5f8ef] p-4">
                     <p className="text-xs text-[var(--muted)]">Цена</p>
                     <p className="mt-2 text-2xl font-semibold text-[var(--accent-strong)]">
@@ -196,13 +196,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     <p className="mt-2 text-lg font-semibold">{availabilityLabel}</p>
                     <p className="text-xs text-[var(--muted)]">
                       на ближайшую доставку
-                    </p>
-                  </div>
-                  <div className="rounded-[1.4rem] bg-[#f5f8ef] p-4">
-                    <p className="text-xs text-[var(--muted)]">Отзывы</p>
-                    <p className="mt-2 text-lg font-semibold">{reviewsCount}</p>
-                    <p className="text-xs text-[var(--muted)]">
-                      от покупателей
                     </p>
                   </div>
                 </div>
@@ -223,10 +216,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     isPreorder ? "Добавить под заказ" : undefined
                   }
                 />
-                <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-                  Отзыв можно оставить после получения заказа — приложение само
-                  предложит оценить купленные товары.
-                </p>
               </div>
             </div>
           </div>
