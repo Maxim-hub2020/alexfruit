@@ -29,6 +29,7 @@ const staffBlockedPagePrefixes = [
   "/cart",
   "/orders",
   "/profile",
+  "/products",
   "/register",
   "/shared-cart",
 ] as const;

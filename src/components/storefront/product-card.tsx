@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { Clock3, Flame, Sparkles, Star, Tag } from "lucide-react";
 import { AddToCartButton } from "@/components/storefront/add-to-cart-button";
 import { unitLabels } from "@/lib/constants";
@@ -8,7 +9,7 @@ type ProductCardProps = {
   product: {
     id: string;
     name: string;
-    price: number | string;
+    price: number | string | { toString(): string };
     unit: string;
     imageUrl?: string | null;
     description?: string | null;
@@ -95,7 +96,11 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
   if (variant === "catalog") {
     return (
       <article className="group overflow-hidden rounded-[1.6rem] bg-white shadow-[0_18px_42px_rgba(61,93,74,0.1)] ring-1 ring-[var(--line)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_56px_rgba(61,93,74,0.14)]">
-        <div className="relative h-44 bg-[#edf5e9]">
+        <Link
+          href={`/products/${product.id}`}
+          className="relative block h-44 bg-[#edf5e9]"
+          aria-label={`Открыть карточку товара ${product.name}`}
+        >
           {product.imageUrl ? (
             <Image
               src={product.imageUrl}
@@ -108,12 +113,17 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
             <div className="flex h-full items-center justify-center text-6xl">🍎</div>
           )}
           <ProductBadges product={product} />
-        </div>
+        </Link>
 
         <div className="space-y-3 p-4">
           <div className="min-h-[5rem]">
             <div className="flex items-start justify-between gap-3">
-              <h3 className="text-base font-semibold leading-6">{product.name}</h3>
+              <Link
+                href={`/products/${product.id}`}
+                className="text-base font-semibold leading-6 transition hover:text-[var(--accent-strong)]"
+              >
+                {product.name}
+              </Link>
               <p className="shrink-0 text-lg font-bold text-[var(--accent-strong)]">
                 {formatCurrency(product.price)}
               </p>
@@ -130,9 +140,17 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
           </div>
 
           <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-3">
-            <span className="text-xs font-semibold text-[var(--accent-strong)]">
-              {availabilityLabel}
-            </span>
+            <div className="space-y-1">
+              <span className="block text-xs font-semibold text-[var(--accent-strong)]">
+                {availabilityLabel}
+              </span>
+              <Link
+                href={`/products/${product.id}`}
+                className="text-xs font-semibold text-[var(--muted)] underline-offset-4 transition hover:text-[var(--accent-strong)] hover:underline"
+              >
+                Подробнее и отзывы
+              </Link>
+            </div>
             <AddToCartButton
               productId={product.id}
               name={product.name}
@@ -151,7 +169,11 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
 
   return (
     <article className="soft-card overflow-hidden rounded-[2rem]">
-      <div className="relative h-52 bg-[var(--surface-muted)]">
+      <Link
+        href={`/products/${product.id}`}
+        className="relative block h-52 bg-[var(--surface-muted)]"
+        aria-label={`Открыть карточку товара ${product.name}`}
+      >
         {product.imageUrl ? (
           <Image
             src={product.imageUrl}
@@ -164,12 +186,17 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
           <div className="flex h-full items-center justify-center text-5xl">🍎</div>
         )}
         <ProductBadges product={product} />
-      </div>
+      </Link>
 
       <div className="space-y-4 p-5">
         <div className="space-y-2">
           <div className="flex items-start justify-between gap-3">
-            <h3 className="text-lg font-semibold">{product.name}</h3>
+            <Link
+              href={`/products/${product.id}`}
+              className="text-lg font-semibold transition hover:text-[var(--accent-strong)]"
+            >
+              {product.name}
+            </Link>
             <div className="text-right">
               <p className="text-lg font-bold text-[var(--accent-strong)]">
                 {formatCurrency(product.price)}
@@ -186,6 +213,12 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
           <p className="text-xs font-semibold text-[var(--accent-strong)]">
             {availabilityLabel}
           </p>
+          <Link
+            href={`/products/${product.id}`}
+            className="inline-flex text-sm font-semibold text-[var(--muted)] underline-offset-4 transition hover:text-[var(--accent-strong)] hover:underline"
+          >
+            Описание и отзывы
+          </Link>
         </div>
 
         <AddToCartButton
