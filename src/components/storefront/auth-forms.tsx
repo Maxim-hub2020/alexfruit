@@ -120,6 +120,7 @@ type MessengerAuthPanelProps = {
   phoneDigits: string;
   mode?: "login" | "register";
   onVerified?: (challenge: VerifiedMessengerChallenge) => void;
+  providers?: readonly MessengerProvider[];
 };
 
 const messengerProviderLabels: Record<MessengerProvider, string> = {
@@ -127,10 +128,13 @@ const messengerProviderLabels: Record<MessengerProvider, string> = {
   MAX: "Max",
 };
 
+const defaultMessengerProviders = ["TELEGRAM"] as const;
+
 function MessengerAuthPanel({
   phoneDigits,
   mode = "login",
   onVerified,
+  providers = defaultMessengerProviders,
 }: MessengerAuthPanelProps) {
   const router = useRouter();
   const [challenge, setChallenge] = useState<MessengerChallenge | null>(null);
@@ -280,8 +284,8 @@ function MessengerAuthPanel({
         </span>
         <span className="h-px flex-1 bg-[var(--line)]" />
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        {(["TELEGRAM", "MAX"] as const).map((provider) => (
+      <div className={`mt-4 grid gap-3 ${providers.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+        {providers.map((provider) => (
           <Button
             key={provider}
             variant="ghost"
@@ -291,7 +295,9 @@ function MessengerAuthPanel({
           >
             {loadingProvider === provider
               ? "Открываем..."
-              : messengerProviderLabels[provider]}
+              : mode === "register"
+                ? `Подтвердить номер телефона через ${messengerProviderLabels[provider]}`
+                : messengerProviderLabels[provider]}
           </Button>
         ))}
       </div>
@@ -367,7 +373,7 @@ export function LoginForm() {
         className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
       />
       {error && <p className="text-sm text-rose-700">{error}</p>}
-      <Button className="w-full" onClick={() => submit()} disabled={isLoading}>
+      <Button className="w-full" onClick={() => void submit()} disabled={isLoading}>
         {isLoading ? "Входим..." : "Войти"}
       </Button>
       <MessengerAuthPanel phoneDigits={form.phoneDigits} />
@@ -375,17 +381,47 @@ export function LoginForm() {
   );
 }
 
+type PhoneCheckStatus = "idle" | "checking" | "available" | "exists";
+
 export function RegisterForm() {
   const router = useRouter();
   const [form, setForm] = useState({
     phoneDigits: "",
     password: "",
   });
+  const [phoneStatus, setPhoneStatus] = useState<PhoneCheckStatus>("idle");
   const [verifiedChallenge, setVerifiedChallenge] =
     useState<VerifiedMessengerChallenge | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const isPhoneVerified = verifiedChallenge?.phoneDigits === form.phoneDigits;
+  const isPhoneVerified =
+    phoneStatus === "available" && verifiedChallenge?.phoneDigits === form.phoneDigits;
+
+  async function checkPhone() {
+    setError("");
+    setVerifiedChallenge(null);
+
+    if (form.phoneDigits.length !== 10) {
+      setError("Укажите 10 цифр телефона после +7.");
+      return;
+    }
+
+    setPhoneStatus("checking");
+    const response = await fetch("/api/auth/register/check-phone", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: `+7${form.phoneDigits}` }),
+    });
+    const result = await response.json();
+
+    if (!response.ok) {
+      setPhoneStatus("idle");
+      setError(result.error ?? "Не удалось проверить телефон");
+      return;
+    }
+
+    setPhoneStatus(result.exists ? "exists" : "available");
+  }
 
   async function submit() {
     setIsLoading(true);
@@ -404,7 +440,13 @@ export function RegisterForm() {
 
     if (!verifiedChallengeId) {
       setIsLoading(false);
-      setError("Сначала подтвердите этот номер через Max или Telegram.");
+      setError("Сначала подтвердите этот номер через Telegram.");
+      return;
+    }
+
+    if (form.password.length < 6) {
+      setIsLoading(false);
+      setError("Пароль должен быть не короче 6 символов.");
       return;
     }
 
@@ -435,7 +477,10 @@ export function RegisterForm() {
     setForm((current) => ({
       ...current,
       phoneDigits,
+      password: current.phoneDigits === phoneDigits ? current.password : "",
     }));
+    setPhoneStatus("idle");
+    setError("");
     setVerifiedChallenge((current) =>
       current?.phoneDigits === phoneDigits ? current : null,
     );
@@ -449,29 +494,64 @@ export function RegisterForm() {
         </span>
         <PhoneDigitsInput value={form.phoneDigits} onChange={updatePhoneDigits} />
       </label>
-      {isPhoneVerified && verifiedChallenge && (
-        <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-100">
-          Телефон подтверждён через {messengerProviderLabels[verifiedChallenge.provider]}.
-        </p>
+
+      {phoneStatus === "exists" && (
+        <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-100">
+          <p className="font-semibold">Этот телефон уже зарегистрирован.</p>
+          <a href="/login" className="mt-1 inline-block font-semibold text-[var(--accent-strong)]">
+            Войти в аккаунт
+          </a>
+        </div>
       )}
-      <input
-        value={form.password}
-        onChange={(event) =>
-          setForm((current) => ({ ...current, password: event.target.value }))
-        }
-        type="password"
-        placeholder="Пароль"
-        className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
-      />
+
+      {phoneStatus === "available" && !isPhoneVerified && (
+        <>
+          <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-100">
+            Телефон свободен. Подтвердите номер через Telegram, чтобы продолжить.
+          </p>
+          <MessengerAuthPanel
+            phoneDigits={form.phoneDigits}
+            mode="register"
+            onVerified={setVerifiedChallenge}
+            providers={defaultMessengerProviders}
+          />
+        </>
+      )}
+
+      {isPhoneVerified && verifiedChallenge && (
+        <>
+          <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-100">
+            Телефон подтверждён через {messengerProviderLabels[verifiedChallenge.provider]}.
+            Задайте пароль для входа.
+          </p>
+          <input
+            value={form.password}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, password: event.target.value }))
+            }
+            type="password"
+            placeholder="Придумайте пароль"
+            autoComplete="new-password"
+            className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
+          />
+        </>
+      )}
+
       {error && <p className="text-sm text-rose-700">{error}</p>}
-      <Button className="w-full" onClick={() => submit()} disabled={isLoading}>
-        {isLoading ? "Создаём..." : "Создать аккаунт"}
-      </Button>
-      <MessengerAuthPanel
-        phoneDigits={form.phoneDigits}
-        mode="register"
-        onVerified={setVerifiedChallenge}
-      />
+
+      {!isPhoneVerified ? (
+        <Button
+          className="w-full"
+          onClick={() => void checkPhone()}
+          disabled={phoneStatus === "checking"}
+        >
+          {phoneStatus === "checking" ? "Проверяем..." : "Продолжить"}
+        </Button>
+      ) : (
+        <Button className="w-full" onClick={() => void submit()} disabled={isLoading}>
+          {isLoading ? "Создаём..." : "Создать аккаунт"}
+        </Button>
+      )}
     </div>
   );
 }

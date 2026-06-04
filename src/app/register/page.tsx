@@ -15,10 +15,10 @@ export default async function RegisterPage() {
           <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">
             Регистрация
           </p>
-          <h1 className="mt-3 font-serif text-5xl font-semibold">Создать аккаунт клиента</h1>
+          <h1 className="mt-3 font-serif text-5xl font-semibold">Создать аккаунт</h1>
           <p className="mt-3 text-[var(--muted)]">
-            Укажите телефон, подтвердите его через Max или Telegram и задайте пароль.
-            Имя и адрес можно добавить позже в профиле.
+            Сначала укажите телефон. Если номер свободен, подтвердите его через Telegram
+            и задайте пароль для входа.
           </p>
           <div className="mt-6">
             <RegisterForm />
