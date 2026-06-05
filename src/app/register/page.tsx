@@ -18,7 +18,7 @@ export default async function RegisterPage() {
           <h1 className="mt-3 font-serif text-5xl font-semibold">Создать аккаунт</h1>
           <p className="mt-3 text-[var(--muted)]">
             Сначала укажите телефон. Если номер свободен, подтвердите его через Telegram
-            и задайте пароль для входа.
+            или Max и задайте пароль для входа.
           </p>
           <div className="mt-6">
             <RegisterForm />

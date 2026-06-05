@@ -128,7 +128,7 @@ const messengerProviderLabels: Record<MessengerProvider, string> = {
   MAX: "Max",
 };
 
-const defaultMessengerProviders = ["TELEGRAM"] as const;
+const defaultMessengerProviders = ["TELEGRAM", "MAX"] as const;
 
 function MessengerAuthPanel({
   phoneDigits,
@@ -440,7 +440,7 @@ export function RegisterForm() {
 
     if (!verifiedChallengeId) {
       setIsLoading(false);
-      setError("Сначала подтвердите этот номер через Telegram.");
+      setError("Сначала подтвердите этот номер через Telegram или Max.");
       return;
     }
 
@@ -507,7 +507,7 @@ export function RegisterForm() {
       {phoneStatus === "available" && !isPhoneVerified && (
         <>
           <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-100">
-            Телефон свободен. Подтвердите номер через Telegram, чтобы продолжить.
+            Телефон свободен. Подтвердите номер через Telegram или Max, чтобы продолжить.
           </p>
           <MessengerAuthPanel
             phoneDigits={form.phoneDigits}
