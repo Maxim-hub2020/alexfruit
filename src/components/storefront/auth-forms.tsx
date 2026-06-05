@@ -343,17 +343,51 @@ function MessengerAuthPanel({
   );
 }
 
+type PhoneCheckStatus = "idle" | "checking" | "available" | "exists";
+
 export function LoginForm() {
   const router = useRouter();
   const [form, setForm] = useState({ phoneDigits: "", password: "" });
+  const [phoneStatus, setPhoneStatus] = useState<PhoneCheckStatus>("idle");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const isPhoneKnown = phoneStatus === "exists";
+
+  async function checkPhone() {
+    setError("");
+
+    if (form.phoneDigits.length !== 10) {
+      setError("Укажите 10 цифр телефона после +7.");
+      return;
+    }
+
+    setPhoneStatus("checking");
+    const response = await fetch("/api/auth/login/check-phone", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: `+7${form.phoneDigits}` }),
+    });
+    const result = await response.json();
+
+    if (!response.ok) {
+      setPhoneStatus("idle");
+      setError(result.error ?? "Не удалось проверить телефон");
+      return;
+    }
+
+    setPhoneStatus(result.exists ? "exists" : "available");
+  }
 
   async function submit() {
     setError("");
 
     if (form.phoneDigits.length !== 10) {
       setError("Укажите 10 цифр телефона после +7.");
+      return;
+    }
+
+    if (!isPhoneKnown) {
+      setError("Сначала проверьте телефон.");
       return;
     }
 
@@ -375,6 +409,16 @@ export function LoginForm() {
     router.refresh();
   }
 
+  function updatePhoneDigits(phoneDigits: string) {
+    setForm((current) => ({
+      ...current,
+      phoneDigits,
+      password: current.phoneDigits === phoneDigits ? current.password : "",
+    }));
+    setPhoneStatus("idle");
+    setError("");
+  }
+
   return (
     <div className="space-y-4">
       <label className="block">
@@ -383,31 +427,53 @@ export function LoginForm() {
         </span>
         <PhoneDigitsInput
           value={form.phoneDigits}
-          onChange={(phoneDigits) =>
-            setForm((current) => ({ ...current, phoneDigits }))
-          }
+          onChange={updatePhoneDigits}
         />
       </label>
 
-      <input
-        value={form.password}
-        onChange={(event) =>
-          setForm((current) => ({ ...current, password: event.target.value }))
-        }
-        type="password"
-        placeholder="Пароль"
-        className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
-      />
+      {phoneStatus === "available" && (
+        <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-100">
+          <p className="font-semibold">Аккаунт с этим телефоном не найден.</p>
+          <a href="/register" className="mt-1 inline-block font-semibold text-[var(--accent-strong)]">
+            Зарегистрироваться
+          </a>
+        </div>
+      )}
+
+      {isPhoneKnown && (
+        <>
+          <input
+            value={form.password}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, password: event.target.value }))
+            }
+            type="password"
+            placeholder="Пароль"
+            autoComplete="current-password"
+            className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
+          />
+          <MessengerAuthPanel phoneDigits={form.phoneDigits} />
+        </>
+      )}
+
       {error && <p className="text-sm text-rose-700">{error}</p>}
-      <Button className="w-full" onClick={() => void submit()} disabled={isLoading}>
-        {isLoading ? "Входим..." : "Войти"}
-      </Button>
-      <MessengerAuthPanel phoneDigits={form.phoneDigits} />
+
+      {!isPhoneKnown ? (
+        <Button
+          className="w-full"
+          onClick={() => void checkPhone()}
+          disabled={phoneStatus === "checking"}
+        >
+          {phoneStatus === "checking" ? "Проверяем..." : "Продолжить"}
+        </Button>
+      ) : (
+        <Button className="w-full" onClick={() => void submit()} disabled={isLoading}>
+          {isLoading ? "Входим..." : "Войти по паролю"}
+        </Button>
+      )}
     </div>
   );
 }
-
-type PhoneCheckStatus = "idle" | "checking" | "available" | "exists";
 
 export function RegisterForm() {
   const router = useRouter();

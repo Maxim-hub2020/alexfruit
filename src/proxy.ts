@@ -112,6 +112,7 @@ function getClientIp(request: NextRequest) {
 function getRateLimitPolicy(pathname: string): RateLimitPolicy {
   if (
     pathname === "/api/auth/login" ||
+    pathname.startsWith("/api/auth/login/") ||
     pathname === "/api/auth/register" ||
     pathname.startsWith("/api/auth/register/") ||
     pathname.startsWith("/api/auth/messenger/")

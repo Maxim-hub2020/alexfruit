@@ -2,12 +2,10 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
 import {
   MessengerAuthProvider,
   MessengerAuthStatus,
-  Role,
 } from "@/generated/prisma";
 import { ApiError } from "@/lib/api";
 import {
   createSession,
-  hashPassword,
   normalizeRussianPhone,
 } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -53,10 +51,6 @@ function normalizePhoneOrThrow(value: string) {
   }
 
   return phone;
-}
-
-function createDefaultMessengerName(phone: string) {
-  return `Клиент ${phone.slice(-4)}`;
 }
 
 function requireEnv(name: string) {
@@ -247,30 +241,19 @@ export async function completeMessengerPhoneAuth(input: unknown) {
       where: { phone: challenge.phone },
     });
 
-    const resolvedUser =
-      existingUser ??
-      (await tx.user.create({
-        data: {
-          name: createDefaultMessengerName(challenge.phone),
-          email: null,
-          phone: challenge.phone,
-          passwordHash: await hashPassword(randomBytes(24).toString("base64url")),
-          role: Role.CUSTOMER,
-          customerProfile: {
-            create: {},
-          },
-        },
-      }));
+    if (!existingUser) {
+      throw new ApiError("Аккаунт с этим телефоном не найден. Зарегистрируйтесь.", 404);
+    }
 
     await tx.messengerAuthChallenge.update({
       where: { id: challenge.id },
       data: {
         status: MessengerAuthStatus.CONSUMED,
-        userId: resolvedUser.id,
+        userId: existingUser.id,
       },
     });
 
-    return resolvedUser;
+    return existingUser;
   });
 
   await createSession({
