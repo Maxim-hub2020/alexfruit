@@ -130,6 +130,27 @@ const messengerProviderLabels: Record<MessengerProvider, string> = {
 
 const defaultMessengerProviders = ["TELEGRAM", "MAX"] as const;
 
+function isAppleMobileDevice() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const navigatorWithStandalone = window.navigator as Navigator & {
+    standalone?: boolean;
+  };
+  const userAgent = navigatorWithStandalone.userAgent;
+
+  return (
+    /iPad|iPhone|iPod/.test(userAgent) ||
+    (navigatorWithStandalone.platform === "MacIntel" &&
+      navigatorWithStandalone.maxTouchPoints > 1)
+  );
+}
+
+function shouldUseSameWindowDeepLink(provider: MessengerProvider) {
+  return provider === "TELEGRAM" && isAppleMobileDevice();
+}
+
 function MessengerAuthPanel({
   phoneDigits,
   mode = "login",
@@ -266,6 +287,11 @@ function MessengerAuthPanel({
       `Откройте ${messengerProviderLabels[provider]}, нажмите “Поделиться телефоном” и вернитесь сюда.`,
     );
 
+    if (shouldUseSameWindowDeepLink(provider)) {
+      window.location.assign(result.deepLink);
+      return;
+    }
+
     const popup = window.open(result.deepLink, "_blank", "noopener,noreferrer");
 
     if (!popup) {
@@ -304,7 +330,7 @@ function MessengerAuthPanel({
       {challenge?.deepLink && (
         <a
           href={challenge.deepLink}
-          target="_blank"
+          target={shouldUseSameWindowDeepLink(challenge.provider) ? "_self" : "_blank"}
           rel="noreferrer"
           className="mt-3 block text-center text-sm font-semibold text-[var(--accent-strong)]"
         >
