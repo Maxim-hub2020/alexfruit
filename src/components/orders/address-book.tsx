@@ -295,34 +295,24 @@ export function AddressBook({
                   <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">
                     Основной
                   </span>
-                ) : (
-                  <button
-                    onClick={async () => {
-                      await fetch(`/api/addresses/${address.id}/set-default`, {
-                        method: "PATCH",
-                      });
-                      router.refresh();
-                    }}
-                    className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-[var(--accent-strong)]"
-                  >
-                    Сделать основным
-                  </button>
-                )}
+                ) : null}
                 <button
                   type="button"
                   onClick={() => startEditAddress(address)}
-                  className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-semibold text-[var(--ink)]"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--ink)] transition hover:bg-white"
+                  aria-label="Изменить адрес"
+                  title="Изменить адрес"
                 >
                   <Pencil size={13} />
-                  Изменить
                 </button>
                 <button
                   type="button"
                   onClick={() => deleteAddress(address.id)}
-                  className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-700 transition hover:bg-rose-100"
+                  aria-label="Удалить адрес"
+                  title="Удалить адрес"
                 >
                   <Trash2 size={13} />
-                  Удалить
                 </button>
               </div>
             </div>
@@ -472,7 +462,7 @@ export function AddressBook({
                 setForm((current) => ({ ...current, isDefault: event.target.checked }))
               }
             />
-            Сделать адресом по умолчанию
+            Сделать основным адресом
           </label>
           {error && <p className="text-sm text-rose-700">{error}</p>}
           <Button onClick={() => saveAddress()}>

@@ -144,10 +144,7 @@ export default async function HomePage() {
         <div className="glass-panel rounded-[2.2rem] p-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">
-                Категории на каждый день
-              </p>
-              <h2 className="mt-2 font-serif text-4xl font-semibold">
+              <h2 className="font-serif text-4xl font-semibold">
                 Выберите настроение корзины
               </h2>
             </div>
@@ -166,7 +163,7 @@ export default async function HomePage() {
                 <span>
                   <h3 className="text-xl font-semibold">{category.name}</h3>
                   <p className="mt-2 text-sm text-[var(--muted)]">
-                    {categoryDescriptions[category.slug] ?? "Свежие позиции на каждый день"}
+                    {categoryDescriptions[category.slug] ?? "Свежие позиции"}
                   </p>
                 </span>
                 <span className="category-choice-arrow" aria-hidden="true">
@@ -196,7 +193,10 @@ export default async function HomePage() {
                   : "Пока истории покупок мало, показываем готовые стартовые корзины."}
               </p>
             </div>
-            <Link href="/catalog" className="text-sm font-semibold text-[var(--accent-strong)]">
+            <Link
+              href="/catalog"
+              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl bg-white/82 px-4 text-sm font-semibold text-[var(--accent-strong)] shadow-sm ring-1 ring-[var(--line)] transition hover:-translate-y-0.5 hover:bg-white"
+            >
               Открыть весь каталог
             </Link>
           </div>

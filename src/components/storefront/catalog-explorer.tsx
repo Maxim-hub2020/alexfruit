@@ -12,6 +12,7 @@ import {
   Leaf,
   PackageOpen,
   Search,
+  SlidersHorizontal,
   Sparkles,
 } from "lucide-react";
 import { ProductCard } from "@/components/storefront/product-card";
@@ -59,8 +60,8 @@ const categoryIcons = {
 } as const;
 
 const availabilityFilters: Array<{ value: AvailabilityFilter; label: string }> = [
-  { value: "all", label: "Все" },
-  { value: "today", label: "Можно сегодня" },
+  { value: "all", label: "Все товары" },
+  { value: "today", label: "В наличии" },
   { value: "preorder", label: "Под заказ" },
   { value: "promo", label: "Акции и хиты" },
 ];
@@ -87,6 +88,7 @@ export function CatalogExplorer({
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [heroIndex, setHeroIndex] = useState(0);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [availabilityFilter, setAvailabilityFilter] =
     useState<AvailabilityFilter>("all");
   const deferredQuery = useDeferredValue(query);
@@ -144,6 +146,9 @@ export function CatalogExplorer({
   }, [availabilityFilter, category, deferredQuery, products]);
   const isCategoryLanding =
     !category && deferredQuery.trim().length === 0 && availabilityFilter === "all";
+  const activeFilterLabel =
+    availabilityFilters.find((filter) => filter.value === availabilityFilter)?.label ??
+    "Фильтр";
 
   function showPreviousHero() {
     if (heroProducts.length === 0) {
@@ -171,9 +176,6 @@ export function CatalogExplorer({
     <div className="rounded-[2.35rem] bg-white px-4 py-5 shadow-[0_30px_90px_rgba(61,93,74,0.12)] ring-1 ring-white/80 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-            Витрина
-          </p>
           <h1 className="font-serif text-4xl font-semibold leading-none md:text-5xl">
             Каталог
           </h1>
@@ -183,44 +185,65 @@ export function CatalogExplorer({
         </div>
 
         <div className="flex w-full flex-col gap-3 lg:w-[22rem]">
-          <label className="relative w-full lg:w-[22rem]">
-            <Search
-              size={18}
-              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)]"
-            />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Поиск по товарам"
-              className="h-12 w-full rounded-2xl bg-[var(--surface-muted)] pl-11 pr-4 text-sm outline-none ring-1 ring-[var(--line)] transition focus:bg-white focus:ring-[var(--accent)]"
-            />
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {availabilityFilters.map((filter) => {
-              const isActive = availabilityFilter === filter.value;
-              const count = availabilityFilterCounts[filter.value];
-
-              return (
-                <button
-                  key={filter.value}
-                  type="button"
-                  onClick={() => setAvailabilityFilter(filter.value)}
-                  className={cn(
-                    "rounded-full px-3 py-2 text-xs font-semibold transition ring-1",
-                    isActive
-                      ? "bg-[var(--accent)] text-white ring-[var(--accent)]"
-                      : "bg-white text-[var(--muted)] ring-[var(--line)] hover:text-[var(--foreground)]",
-                  )}
-                >
-                  {filter.label}
-                  <span className="ml-1 opacity-75">{count}</span>
-                </button>
-              );
-            })}
+          <div className="flex gap-2">
+            <label className="relative min-w-0 flex-1">
+              <Search
+                size={18}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+              />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Поиск по товарам"
+                className="h-12 w-full rounded-2xl bg-[var(--surface-muted)] pl-11 pr-4 text-sm outline-none ring-1 ring-[var(--line)] transition focus:bg-white focus:ring-[var(--accent)]"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => setIsFilterOpen((current) => !current)}
+              className={cn(
+                "inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold ring-1 transition",
+                isFilterOpen || availabilityFilter !== "all"
+                  ? "bg-[var(--accent)] text-white ring-[var(--accent)]"
+                  : "bg-white text-[var(--foreground)] ring-[var(--line)] hover:bg-[var(--surface-muted)]",
+              )}
+              aria-expanded={isFilterOpen}
+            >
+              <SlidersHorizontal size={17} />
+              <span className="hidden sm:inline">{activeFilterLabel}</span>
+            </button>
           </div>
-          <p className="text-xs leading-5 text-[var(--muted)]">
-            “Можно сегодня” показывает только остатки мини-склада на сегодня.
-          </p>
+
+          {isFilterOpen && (
+            <div className="rounded-[1.5rem] bg-white p-3 shadow-[0_18px_48px_rgba(61,93,74,0.10)] ring-1 ring-[var(--line)]">
+              <p className="px-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+                Фильтр
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {availabilityFilters.map((filter) => {
+                  const isActive = availabilityFilter === filter.value;
+                  const count = availabilityFilterCounts[filter.value];
+
+                  return (
+                    <button
+                      key={filter.value}
+                      type="button"
+                      onClick={() => setAvailabilityFilter(filter.value)}
+                      className={cn(
+                        "rounded-full px-3 py-2 text-xs font-semibold transition ring-1",
+                        isActive
+                          ? "bg-[var(--accent)] text-white ring-[var(--accent)]"
+                          : "bg-[var(--surface-muted)] text-[var(--muted)] ring-[var(--line)] hover:bg-white hover:text-[var(--foreground)]",
+                      )}
+                    >
+                      {filter.label}
+                      <span className="ml-1 opacity-75">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
