@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type Ref } from "react";
 import { Button } from "@/components/ui/button";
 
 function getRedirectByRole(role: string) {
@@ -49,10 +49,18 @@ function canEditPhone(event: KeyboardEvent<HTMLInputElement>) {
 function PhoneDigitsInput({
   value,
   onChange,
+  autoComplete = "tel-national",
+  id,
+  inputRef,
+  name = "phone",
   placeholder = "9991234567",
 }: {
   value: string;
   onChange: (value: string) => void;
+  autoComplete?: string;
+  id?: string;
+  inputRef?: Ref<HTMLInputElement>;
+  name?: string;
   placeholder?: string;
 }) {
   function updatePhoneDigits(rawValue: string) {
@@ -65,6 +73,9 @@ function PhoneDigitsInput({
         +7
       </span>
       <input
+        ref={inputRef}
+        id={id}
+        name={name}
         value={value}
         onInput={(event) => updatePhoneDigits(event.currentTarget.value)}
         onChange={(event) => updatePhoneDigits(event.currentTarget.value)}
@@ -92,7 +103,7 @@ function PhoneDigitsInput({
         type="tel"
         inputMode="numeric"
         pattern="[0-9]*"
-        autoComplete="tel-national"
+        autoComplete={autoComplete}
         placeholder={placeholder}
         className="min-w-0 flex-1 bg-transparent px-4 outline-none"
       />
@@ -347,16 +358,72 @@ type PhoneCheckStatus = "idle" | "checking" | "available" | "exists";
 
 export function LoginForm() {
   const router = useRouter();
+  const phoneInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ phoneDigits: "", password: "" });
   const [phoneStatus, setPhoneStatus] = useState<PhoneCheckStatus>("idle");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const isPhoneKnown = phoneStatus === "exists";
 
+  useEffect(() => {
+    function syncBrowserAutofill() {
+      const phoneDigits = getRussianPhoneDigits(phoneInputRef.current?.value ?? "");
+      const password = passwordInputRef.current?.value ?? "";
+
+      if (!phoneDigits && !password) {
+        return;
+      }
+
+      setForm((current) => {
+        const nextPhoneDigits = phoneDigits || current.phoneDigits;
+        const nextPassword = password || current.password;
+
+        if (
+          current.phoneDigits === nextPhoneDigits &&
+          current.password === nextPassword
+        ) {
+          return current;
+        }
+
+        return {
+          phoneDigits: nextPhoneDigits,
+          password: nextPassword,
+        };
+      });
+    }
+
+    const timers = [150, 600, 1200].map((delay) =>
+      window.setTimeout(syncBrowserAutofill, delay),
+    );
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, []);
+
+  function getCredentialsFromFields() {
+    const phoneDigits = getRussianPhoneDigits(
+      phoneInputRef.current?.value || form.phoneDigits,
+    );
+    const password = passwordInputRef.current?.value || form.password;
+
+    setForm((current) => {
+      if (current.phoneDigits === phoneDigits && current.password === password) {
+        return current;
+      }
+
+      return { phoneDigits, password };
+    });
+
+    return { phoneDigits, password };
+  }
+
   async function checkPhone() {
+    const { phoneDigits } = getCredentialsFromFields();
     setError("");
 
-    if (form.phoneDigits.length !== 10) {
+    if (phoneDigits.length !== 10) {
       setError("Укажите 10 цифр телефона после +7.");
       return;
     }
@@ -365,7 +432,7 @@ export function LoginForm() {
     const response = await fetch("/api/auth/login/check-phone", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: `+7${form.phoneDigits}` }),
+      body: JSON.stringify({ phone: `+7${phoneDigits}` }),
     });
     const result = await response.json();
 
@@ -379,9 +446,10 @@ export function LoginForm() {
   }
 
   async function submit() {
+    const credentials = getCredentialsFromFields();
     setError("");
 
-    if (form.phoneDigits.length !== 10) {
+    if (credentials.phoneDigits.length !== 10) {
       setError("Укажите 10 цифр телефона после +7.");
       return;
     }
@@ -395,7 +463,10 @@ export function LoginForm() {
     const response = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: `+7${form.phoneDigits}`, password: form.password }),
+      body: JSON.stringify({
+        phone: `+7${credentials.phoneDigits}`,
+        password: credentials.password,
+      }),
     });
     const result = await response.json();
     setIsLoading(false);
@@ -413,21 +484,39 @@ export function LoginForm() {
     setForm((current) => ({
       ...current,
       phoneDigits,
-      password: current.phoneDigits === phoneDigits ? current.password : "",
     }));
     setPhoneStatus("idle");
     setError("");
   }
 
+  function updatePassword(password: string) {
+    setForm((current) => ({ ...current, password }));
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (isPhoneKnown) {
+      void submit();
+      return;
+    }
+
+    void checkPhone();
+  }
+
   return (
-    <div className="space-y-4">
-      <label className="block">
+    <form className="space-y-4" autoComplete="on" onSubmit={handleSubmit}>
+      <label className="block" htmlFor="login-phone">
         <span className="mb-2 block text-sm font-medium text-[var(--muted)]">
           Телефон
         </span>
         <PhoneDigitsInput
+          id="login-phone"
+          name="username"
+          inputRef={phoneInputRef}
           value={form.phoneDigits}
           onChange={updatePhoneDigits}
+          autoComplete="username"
         />
       </label>
 
@@ -440,38 +529,42 @@ export function LoginForm() {
         </div>
       )}
 
-      {isPhoneKnown && (
-        <>
-          <input
-            value={form.password}
-            onChange={(event) =>
-              setForm((current) => ({ ...current, password: event.target.value }))
-            }
-            type="password"
-            placeholder="Пароль"
-            autoComplete="current-password"
-            className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
-          />
-          <MessengerAuthPanel phoneDigits={form.phoneDigits} />
-        </>
-      )}
+      <div
+        className={isPhoneKnown ? "space-y-3" : "sr-only"}
+        aria-hidden={!isPhoneKnown}
+      >
+        <input
+          ref={passwordInputRef}
+          id="login-password"
+          name="password"
+          value={form.password}
+          onInput={(event) => updatePassword(event.currentTarget.value)}
+          onChange={(event) => updatePassword(event.target.value)}
+          type="password"
+          placeholder="Пароль"
+          autoComplete="current-password"
+          tabIndex={isPhoneKnown ? undefined : -1}
+          className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
+        />
+        {isPhoneKnown && <MessengerAuthPanel phoneDigits={form.phoneDigits} />}
+      </div>
 
       {error && <p className="text-sm text-rose-700">{error}</p>}
 
       {!isPhoneKnown ? (
         <Button
+          type="submit"
           className="w-full"
-          onClick={() => void checkPhone()}
           disabled={phoneStatus === "checking"}
         >
           {phoneStatus === "checking" ? "Проверяем..." : "Продолжить"}
         </Button>
       ) : (
-        <Button className="w-full" onClick={() => void submit()} disabled={isLoading}>
+        <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? "Входим..." : "Войти по паролю"}
         </Button>
       )}
-    </div>
+    </form>
   );
 }
 
