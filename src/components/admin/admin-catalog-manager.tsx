@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useDeferredValue, useMemo, useRef, useState, useTransition } from "react";
 import {
@@ -12,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CatalogImage } from "@/components/ui/catalog-image";
 import { unitLabels } from "@/lib/constants";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -567,12 +567,11 @@ export function AdminCatalogManager({
                 <div className="grid gap-2">
                   {productForm.imageUrl ? (
                     <div className="relative h-28 overflow-hidden rounded-2xl bg-[var(--surface-muted)] ring-1 ring-[var(--line)]">
-                      <Image
+                      <CatalogImage
                         key={getPreviewImageUrl(productForm.imageUrl, previewVersion)}
                         src={getPreviewImageUrl(productForm.imageUrl, previewVersion)}
                         alt="Фото товара"
                         fill
-                        unoptimized
                         className="object-cover"
                         sizes="320px"
                       />
@@ -698,12 +697,11 @@ export function AdminCatalogManager({
             <div className="grid gap-3 md:grid-cols-[160px_1fr]">
               <div className="relative h-32 overflow-hidden rounded-[1.5rem] bg-white/70 ring-1 ring-[var(--line)]">
                 {categoryForm.imageUrl ? (
-                  <Image
+                  <CatalogImage
                     key={getPreviewImageUrl(categoryForm.imageUrl, previewVersion)}
                     src={getPreviewImageUrl(categoryForm.imageUrl, previewVersion)}
                     alt={categoryForm.name || "Категория"}
                     fill
-                    unoptimized
                     className="object-cover"
                     sizes="160px"
                   />
@@ -775,7 +773,7 @@ export function AdminCatalogManager({
               >
                 <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
                   {category.imageUrl ? (
-                    <Image
+                    <CatalogImage
                       src={category.imageUrl}
                       alt={category.name}
                       fill
@@ -867,9 +865,9 @@ export function AdminCatalogManager({
               >
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="flex gap-4">
-                    <div className="relative h-18 w-18 overflow-hidden rounded-[1.25rem] bg-[var(--surface-muted)]">
+                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[1.25rem] bg-[var(--surface-muted)]">
                       {product.imageUrl ? (
-                        <Image
+                        <CatalogImage
                           src={product.imageUrl}
                           alt={product.name}
                           fill

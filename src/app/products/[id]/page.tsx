@@ -1,10 +1,10 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, MessageCircle, Star } from "lucide-react";
 import { MainShell } from "@/components/layout/main-shell";
 import { AddToCartButton } from "@/components/storefront/add-to-cart-button";
 import { ProductCard } from "@/components/storefront/product-card";
+import { CatalogImage } from "@/components/ui/catalog-image";
 import { unitLabels } from "@/lib/constants";
 import { getCurrentUser } from "@/lib/auth";
 import { getBusinessDateKey } from "@/lib/delivery-rules";
@@ -129,7 +129,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
             <div className="relative min-h-[22rem] overflow-hidden rounded-[2rem] bg-[var(--surface-muted)] md:min-h-[32rem]">
               {productWithAvailability.imageUrl ? (
-                <Image
+                <CatalogImage
                   src={productWithAvailability.imageUrl}
                   alt={productWithAvailability.name}
                   fill
@@ -282,7 +282,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                           rel="noreferrer"
                           className="relative h-24 overflow-hidden rounded-[1.1rem] ring-1 ring-[var(--line)]"
                         >
-                          <Image
+                          <CatalogImage
                             src={photo.url}
                             alt="Фото из отзыва"
                             fill

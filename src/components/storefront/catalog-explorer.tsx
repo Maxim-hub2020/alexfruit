@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useDeferredValue, useMemo, useState } from "react";
 import {
   Apple,
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 import { ProductCard } from "@/components/storefront/product-card";
 import { AddToCartButton } from "@/components/storefront/add-to-cart-button";
+import { CatalogImage } from "@/components/ui/catalog-image";
 import { unitLabels } from "@/lib/constants";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -316,7 +316,7 @@ export function CatalogExplorer({
                 >
                   <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-[1rem] bg-white text-[var(--accent-strong)] ring-1 ring-[var(--line)] transition group-hover:bg-[var(--accent-soft)] sm:h-12 sm:w-12">
                     {item.imageUrl ? (
-                      <Image
+                      <CatalogImage
                         src={item.imageUrl}
                         alt={item.name}
                         fill
@@ -407,7 +407,7 @@ export function CatalogExplorer({
 
           <div className="relative h-[22rem] sm:h-[25rem]">
             {activeHero?.imageUrl ? (
-              <Image
+              <CatalogImage
                 src={activeHero.imageUrl}
                 alt={activeHero.name}
                 fill
@@ -493,7 +493,7 @@ export function CatalogExplorer({
               >
                 <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[1rem] bg-[var(--surface-muted)]">
                   {product.imageUrl ? (
-                    <Image
+                    <CatalogImage
                       src={product.imageUrl}
                       alt={product.name}
                       fill

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useDeferredValue, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -14,6 +13,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { SharedCartCheckoutPanel } from "@/components/storefront/shared-cart-checkout-panel";
+import { CatalogImage } from "@/components/ui/catalog-image";
 import { unitLabels } from "@/lib/constants";
 import { formatCurrency } from "@/lib/utils";
 
@@ -442,7 +442,7 @@ export function SharedCartClient({
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
                         {item.product.imageUrl ? (
-                          <Image
+                          <CatalogImage
                             src={item.product.imageUrl}
                             alt={item.productName}
                             fill
@@ -543,7 +543,7 @@ export function SharedCartClient({
                 >
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
                     {product.imageUrl ? (
-                      <Image
+                      <CatalogImage
                         src={product.imageUrl}
                         alt={product.name}
                         fill

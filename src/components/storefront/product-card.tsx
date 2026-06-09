@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Clock3, Flame, Sparkles, Star, Tag } from "lucide-react";
 import { AddToCartButton } from "@/components/storefront/add-to-cart-button";
+import { CatalogImage } from "@/components/ui/catalog-image";
 import { unitLabels } from "@/lib/constants";
 import { formatCurrency } from "@/lib/utils";
 
@@ -102,7 +102,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
           aria-label={`Открыть карточку товара ${product.name}`}
         >
           {product.imageUrl ? (
-            <Image
+            <CatalogImage
               src={product.imageUrl}
               alt={product.name}
               fill
@@ -175,7 +175,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
         aria-label={`Открыть карточку товара ${product.name}`}
       >
         {product.imageUrl ? (
-          <Image
+          <CatalogImage
             src={product.imageUrl}
             alt={product.name}
             fill

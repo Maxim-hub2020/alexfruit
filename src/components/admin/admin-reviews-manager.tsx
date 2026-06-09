@@ -1,10 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Eye, EyeOff, MessageSquareReply, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CatalogImage } from "@/components/ui/catalog-image";
 import { cn, formatDateLabel } from "@/lib/utils";
 
 export type AdminReviewRecord = {
@@ -178,7 +178,7 @@ export function AdminReviewsManager({
               <div className="space-y-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                   {review.product.imageUrl ? (
-                    <Image
+                    <CatalogImage
                       src={review.product.imageUrl}
                       alt={review.product.name}
                       width={96}
@@ -248,7 +248,7 @@ export function AdminReviewsManager({
                         rel="noreferrer"
                         className="overflow-hidden rounded-[1.3rem] ring-1 ring-[var(--line)]"
                       >
-                        <Image
+                        <CatalogImage
                           src={photo.url}
                           alt="Фото из отзыва"
                           width={260}

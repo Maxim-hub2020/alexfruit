@@ -1,10 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useDeferredValue, useMemo, useState, useTransition } from "react";
 import { PackageCheck, Save, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CatalogImage } from "@/components/ui/catalog-image";
 import { unitLabels } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -247,14 +247,14 @@ export function AdminInventoryManager({
               >
                 <div className="grid gap-4 lg:grid-cols-[1fr_18rem] lg:items-center">
                   <div className="flex gap-4">
-                    <div className="relative h-18 w-18 shrink-0 overflow-hidden rounded-[1.25rem] bg-[var(--surface-muted)]">
+                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[1.25rem] bg-[var(--surface-muted)]">
                       {product.imageUrl ? (
-                        <Image
+                        <CatalogImage
                           src={product.imageUrl}
                           alt={product.name}
                           fill
                           className="object-cover"
-                          sizes="72px"
+                          sizes="80px"
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center">

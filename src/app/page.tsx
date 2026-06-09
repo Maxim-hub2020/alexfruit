@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { MainShell } from "@/components/layout/main-shell";
 import { CollectionCartButton } from "@/components/storefront/collection-cart-button";
+import { CatalogImage } from "@/components/ui/catalog-image";
 import { unitLabels } from "@/lib/constants";
 import { getCurrentUser } from "@/lib/auth";
 import { getStorefrontData } from "@/lib/orders";
@@ -98,7 +98,7 @@ export default async function HomePage() {
               <div className="relative overflow-hidden rounded-[1.9rem] bg-[#dbeed8]">
                 {heroProduct?.imageUrl ? (
                   <div className="relative h-[320px]">
-                    <Image
+                    <CatalogImage
                       src={heroProduct.imageUrl}
                       alt={heroProduct.name}
                       fill
@@ -223,7 +223,7 @@ export default async function HomePage() {
                     <div className="mt-5 flex items-center gap-4 rounded-[1.7rem] bg-white/86 p-4">
                       <div className="relative h-24 w-24 overflow-hidden rounded-[1.3rem] bg-[var(--surface-muted)]">
                         {cover?.imageUrl ? (
-                          <Image
+                          <CatalogImage
                             src={cover.imageUrl}
                             alt={cover.name}
                             fill

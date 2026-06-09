@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { OrderStatus, Role } from "@/generated/prisma";
 import { MainShell } from "@/components/layout/main-shell";
 import { CustomerCourierLocation } from "@/components/orders/customer-courier-location";
@@ -6,6 +5,7 @@ import { CustomerOrderActions } from "@/components/orders/customer-order-actions
 import { ProductReviewPrompt } from "@/components/orders/product-review-prompt";
 import { RepeatOrderButton } from "@/components/orders/repeat-order-button";
 import { RescheduleOrderDelivery } from "@/components/orders/reschedule-order-delivery";
+import { CatalogImage } from "@/components/ui/catalog-image";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getUserAddresses } from "@/lib/addresses";
 import { formatCurrency, formatDateInputValue, formatDateTimeLabel } from "@/lib/utils";
@@ -205,7 +205,7 @@ export default async function OrdersPage() {
                         {review.photos.length > 0 ? (
                           <div className="mt-3 flex gap-2 overflow-x-auto">
                             {review.photos.map((photo) => (
-                              <Image
+                              <CatalogImage
                                 key={photo.id}
                                 src={photo.url}
                                 alt="Фото из вашего отзыва"
