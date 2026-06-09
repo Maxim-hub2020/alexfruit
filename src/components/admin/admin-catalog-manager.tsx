@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useDeferredValue, useMemo, useState, useTransition } from "react";
+import { useDeferredValue, useMemo, useRef, useState, useTransition } from "react";
 import {
   PencilLine,
   Plus,
@@ -94,6 +94,14 @@ function priceToInputValue(price: ProductRecord["price"]) {
 
 function parsePriceInput(value: string) {
   return Number(value.trim().replace(",", "."));
+}
+
+function getPreviewImageUrl(url: string, version: number) {
+  if (!url || version <= 0) {
+    return url;
+  }
+
+  return `${url}${url.includes("?") ? "&" : "?"}preview=${version}`;
 }
 
 function QuickPriceEditor({
@@ -223,7 +231,10 @@ export function AdminCatalogManager({
   const [isSubmittingProduct, setIsSubmittingProduct] = useState(false);
   const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
   const [uploadingField, setUploadingField] = useState<"category" | "product" | null>(null);
+  const [previewVersion, setPreviewVersion] = useState(0);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+  const productFileInputRef = useRef<HTMLInputElement>(null);
+  const categoryFileInputRef = useRef<HTMLInputElement>(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const resolvedCategoryId = productForm.categoryId || categories[0]?.id || "";
 
@@ -289,30 +300,39 @@ export function AdminCatalogManager({
     setUploadingField(target);
     setFeedback(null);
 
-    const formData = new FormData();
-    formData.set("file", file);
-    const response = await fetch("/api/admin/uploads", {
-      method: "POST",
-      body: formData,
-    });
-    const result = await response.json().catch(() => ({}));
-    setUploadingField(null);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      const response = await fetch("/api/admin/uploads", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json().catch(() => ({}));
 
-    if (!response.ok) {
+      if (!response.ok || typeof result.url !== "string") {
+        setFeedback({
+          type: "error",
+          message: result.error ?? "Не удалось загрузить изображение.",
+        });
+        return;
+      }
+
+      if (target === "category") {
+        setCategoryForm((current) => ({ ...current, imageUrl: result.url }));
+      } else {
+        setProductForm((current) => ({ ...current, imageUrl: result.url }));
+      }
+
+      setPreviewVersion(Date.now());
+      setFeedback({ type: "success", message: "Изображение загружено на сервер." });
+    } catch {
       setFeedback({
         type: "error",
-        message: result.error ?? "Не удалось загрузить изображение.",
+        message: "Не удалось загрузить изображение. Проверьте соединение и попробуйте еще раз.",
       });
-      return;
+    } finally {
+      setUploadingField(null);
     }
-
-    if (target === "category") {
-      setCategoryForm((current) => ({ ...current, imageUrl: result.url ?? "" }));
-    } else {
-      setProductForm((current) => ({ ...current, imageUrl: result.url ?? "" }));
-    }
-
-    setFeedback({ type: "success", message: "Изображение загружено на сервер." });
   }
 
   function beginEditing(product: ProductRecord) {
@@ -542,29 +562,40 @@ export function AdminCatalogManager({
                 сможет добавить товар как “под заказ”.
               </div>
 
-              <label className="space-y-2">
+              <div className="space-y-2">
                 <span className="text-sm font-medium text-[var(--muted)]">Фото товара</span>
                 <div className="grid gap-2">
                   {productForm.imageUrl ? (
                     <div className="relative h-28 overflow-hidden rounded-2xl bg-[var(--surface-muted)] ring-1 ring-[var(--line)]">
                       <Image
-                        src={productForm.imageUrl}
+                        key={getPreviewImageUrl(productForm.imageUrl, previewVersion)}
+                        src={getPreviewImageUrl(productForm.imageUrl, previewVersion)}
                         alt="Фото товара"
                         fill
+                        unoptimized
                         className="object-cover"
                         sizes="320px"
                       />
                     </div>
                   ) : null}
                   <input
+                    ref={productFileInputRef}
                     type="file"
                     accept="image/avif,image/jpeg,image/png,image/webp"
                     onChange={(event) => {
                       void uploadCatalogImage(event.target.files?.[0], "product");
                       event.target.value = "";
                     }}
-                    className="text-sm file:mr-3 file:h-10 file:rounded-2xl file:border-0 file:bg-[var(--accent)] file:px-4 file:text-sm file:font-semibold file:text-white"
+                    className="hidden"
                   />
+                  <Button
+                    variant="secondary"
+                    className="w-fit"
+                    onClick={() => productFileInputRef.current?.click()}
+                    disabled={uploadingField === "product"}
+                  >
+                    {uploadingField === "product" ? "Загружаем..." : "Выбрать фото"}
+                  </Button>
                   <input
                     value={productForm.imageUrl}
                     onChange={(event) =>
@@ -577,7 +608,7 @@ export function AdminCatalogManager({
                     <span className="text-xs text-[var(--muted)]">Загружаем фото...</span>
                   ) : null}
                 </div>
-              </label>
+              </div>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
@@ -668,9 +699,11 @@ export function AdminCatalogManager({
               <div className="relative h-32 overflow-hidden rounded-[1.5rem] bg-white/70 ring-1 ring-[var(--line)]">
                 {categoryForm.imageUrl ? (
                   <Image
-                    src={categoryForm.imageUrl}
+                    key={getPreviewImageUrl(categoryForm.imageUrl, previewVersion)}
+                    src={getPreviewImageUrl(categoryForm.imageUrl, previewVersion)}
                     alt={categoryForm.name || "Категория"}
                     fill
+                    unoptimized
                     className="object-cover"
                     sizes="160px"
                   />
@@ -678,19 +711,28 @@ export function AdminCatalogManager({
                   <div className="flex h-full items-center justify-center text-4xl">🍓</div>
                 )}
               </div>
-              <label className="grid content-center gap-2">
+              <div className="grid content-center gap-2">
                 <span className="text-sm font-medium text-[var(--muted)]">
                   Картинка категории
                 </span>
                 <input
+                  ref={categoryFileInputRef}
                   type="file"
                   accept="image/avif,image/jpeg,image/png,image/webp"
                   onChange={(event) => {
                     void uploadCatalogImage(event.target.files?.[0], "category");
                     event.target.value = "";
                   }}
-                  className="text-sm file:mr-3 file:h-10 file:rounded-2xl file:border-0 file:bg-[var(--accent)] file:px-4 file:text-sm file:font-semibold file:text-white"
+                  className="hidden"
                 />
+                <Button
+                  variant="secondary"
+                  className="w-fit"
+                  onClick={() => categoryFileInputRef.current?.click()}
+                  disabled={uploadingField === "category"}
+                >
+                  {uploadingField === "category" ? "Загружаем..." : "Выбрать фото"}
+                </Button>
                 <input
                   value={categoryForm.imageUrl}
                   onChange={(event) =>
@@ -702,7 +744,7 @@ export function AdminCatalogManager({
                 {uploadingField === "category" ? (
                   <span className="text-xs text-[var(--muted)]">Загружаем картинку...</span>
                 ) : null}
-              </label>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => submitCategory()} disabled={isSubmittingCategory}>
