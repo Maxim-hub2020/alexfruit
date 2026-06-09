@@ -11,6 +11,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  await handleTelegramWebhook(await request.json());
-  return NextResponse.json({ ok: true });
+  const response = await handleTelegramWebhook(await request.json());
+
+  return NextResponse.json(response ?? { ok: true });
 }

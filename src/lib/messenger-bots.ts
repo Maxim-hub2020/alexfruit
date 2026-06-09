@@ -16,6 +16,13 @@ type TelegramUpdate = {
   };
 };
 
+type TelegramWebhookResponse = {
+  method: "sendMessage";
+  chat_id: string | number;
+  text: string;
+  reply_markup?: Record<string, unknown>;
+};
+
 type MaxUser = {
   user_id?: number | string;
 };
@@ -47,10 +54,6 @@ type MaxUpdate = {
   recipient?: MaxMessage["recipient"];
 };
 
-function getTelegramToken() {
-  return process.env.TELEGRAM_BOT_TOKEN?.trim();
-}
-
 function getMaxToken() {
   return process.env.MAX_BOT_TOKEN?.trim();
 }
@@ -60,26 +63,17 @@ function readStartToken(text?: string | null) {
   return match?.[1]?.trim() || null;
 }
 
-async function sendTelegramMessage(
+function telegramWebhookMessage(
   chatId: string | number,
   text: string,
   replyMarkup?: Record<string, unknown>,
-) {
-  const token = getTelegramToken();
-
-  if (!token) {
-    throw new Error("TELEGRAM_BOT_TOKEN is not configured");
-  }
-
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
-    }),
-  });
+): TelegramWebhookResponse {
+  return {
+    method: "sendMessage",
+    chat_id: chatId,
+    text,
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  };
 }
 
 function contactReplyKeyboard() {
@@ -101,7 +95,9 @@ function removeTelegramKeyboard() {
   return { remove_keyboard: true };
 }
 
-export async function handleTelegramWebhook(update: TelegramUpdate) {
+export async function handleTelegramWebhook(
+  update: TelegramUpdate,
+): Promise<TelegramWebhookResponse | undefined> {
   const message = update.message;
 
   if (!message?.chat?.id || !message.from?.id) {
@@ -119,19 +115,17 @@ export async function handleTelegramWebhook(update: TelegramUpdate) {
     );
 
     if ("reason" in result) {
-      await sendTelegramMessage(
+      return telegramWebhookMessage(
         message.chat.id,
         result.reason ?? "Не удалось начать подтверждение телефона",
       );
-      return;
     }
 
-    await sendTelegramMessage(
+    return telegramWebhookMessage(
       message.chat.id,
       "Нажмите кнопку ниже, чтобы подтвердить номер телефона для входа или регистрации в АлексФрут.",
       contactReplyKeyboard(),
     );
-    return;
   }
 
   if (message.contact?.phone_number) {
@@ -143,7 +137,7 @@ export async function handleTelegramWebhook(update: TelegramUpdate) {
       telegramContactUserId: message.contact.user_id,
     });
 
-    await sendTelegramMessage(
+    return telegramWebhookMessage(
       message.chat.id,
       result.ok
         ? "Телефон подтверждён. Вернитесь на сайт, чтобы завершить вход или регистрацию."
