@@ -116,7 +116,10 @@ type MessengerProvider = "TELEGRAM" | "MAX";
 type MessengerChallenge = {
   id: string;
   provider: MessengerProvider;
+  phone: string;
   deepLink: string;
+  appLink?: string | null;
+  startCommand?: string | null;
   status: string;
   expiresAt: string;
 };
@@ -140,6 +143,7 @@ const messengerProviderLabels: Record<MessengerProvider, string> = {
 };
 
 const defaultMessengerProviders = ["TELEGRAM", "MAX"] as const;
+const messengerChallengeStorageKey = "alexfruit.messenger-auth-challenge";
 
 function isAppleMobileDevice() {
   if (typeof window === "undefined") {
@@ -162,6 +166,18 @@ function shouldUseSameWindowDeepLink(provider: MessengerProvider) {
   return provider === "TELEGRAM" && isAppleMobileDevice();
 }
 
+function getMessengerLaunchLink(challenge: MessengerChallenge) {
+  if (
+    challenge.provider === "TELEGRAM" &&
+    challenge.appLink &&
+    isAppleMobileDevice()
+  ) {
+    return challenge.appLink;
+  }
+
+  return challenge.deepLink;
+}
+
 function MessengerAuthPanel({
   phoneDigits,
   mode = "login",
@@ -172,6 +188,7 @@ function MessengerAuthPanel({
   const [challenge, setChallenge] = useState<MessengerChallenge | null>(null);
   const [loadingProvider, setLoadingProvider] = useState<MessengerProvider | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [copiedCommand, setCopiedCommand] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const onVerifiedRef = useRef(onVerified);
@@ -179,6 +196,18 @@ function MessengerAuthPanel({
   useEffect(() => {
     onVerifiedRef.current = onVerified;
   }, [onVerified]);
+
+  useEffect(() => {
+    if (challenge) {
+      window.sessionStorage.setItem(
+        messengerChallengeStorageKey,
+        JSON.stringify(challenge),
+      );
+      return;
+    }
+
+    window.sessionStorage.removeItem(messengerChallengeStorageKey);
+  }, [challenge]);
 
   useEffect(() => {
     if (!challenge?.id) {
@@ -209,6 +238,7 @@ function MessengerAuthPanel({
 
       if (result.status === "VERIFIED") {
         completed = true;
+        window.sessionStorage.removeItem(messengerChallengeStorageKey);
 
         if (mode === "register") {
           setError("");
@@ -249,6 +279,7 @@ function MessengerAuthPanel({
 
       if (result.status === "EXPIRED" || result.status === "FAILED") {
         setChallenge(null);
+        setCopiedCommand(false);
         setMessage("");
         setError(
           result.status === "EXPIRED"
@@ -269,12 +300,98 @@ function MessengerAuthPanel({
     };
   }, [challenge, mode, phoneDigits, router]);
 
+  function openMessengerChallenge(nextChallenge: MessengerChallenge) {
+    const launchLink = getMessengerLaunchLink(nextChallenge);
+
+    window.sessionStorage.setItem(
+      messengerChallengeStorageKey,
+      JSON.stringify(nextChallenge),
+    );
+    setMessage(
+      `Откройте ${messengerProviderLabels[nextChallenge.provider]}, нажмите “Поделиться телефоном” и вернитесь сюда.`,
+    );
+
+    if (shouldUseSameWindowDeepLink(nextChallenge.provider)) {
+      window.location.assign(launchLink);
+      return;
+    }
+
+    const popup = window.open(launchLink, "_blank", "noopener,noreferrer");
+
+    if (!popup) {
+      setMessage(
+        `Браузер заблокировал открытие ${messengerProviderLabels[nextChallenge.provider]}. Откройте ссылку ниже вручную.`,
+      );
+    }
+  }
+
+  async function copyStartCommand() {
+    if (!challenge?.startCommand) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(challenge.startCommand);
+      setCopiedCommand(true);
+      setError("");
+      setMessage("Команда скопирована. Вставьте её в чат с ботом Telegram после включения VPN.");
+    } catch {
+      setCopiedCommand(false);
+      setError("Не удалось скопировать команду. Выделите её вручную и отправьте боту.");
+    }
+  }
+
+  function readStoredChallenge(provider: MessengerProvider) {
+    const savedChallenge = window.sessionStorage.getItem(messengerChallengeStorageKey);
+
+    if (!savedChallenge) {
+      return null;
+    }
+
+    try {
+      const restoredChallenge = JSON.parse(savedChallenge) as MessengerChallenge;
+
+      if (
+        restoredChallenge.provider === provider &&
+        restoredChallenge.phone === `+7${phoneDigits}` &&
+        providers.includes(restoredChallenge.provider)
+      ) {
+        return restoredChallenge;
+      }
+    } catch {
+      // Broken session data should not block a fresh messenger challenge.
+    }
+
+    window.sessionStorage.removeItem(messengerChallengeStorageKey);
+    return null;
+  }
+
   async function startMessenger(provider: MessengerProvider) {
     setError("");
     setMessage("");
+    setCopiedCommand(false);
 
     if (phoneDigits.length !== 10) {
       setError("Укажите 10 цифр телефона после +7.");
+      return;
+    }
+
+    if (
+      challenge?.provider === provider &&
+      challenge.phone === `+7${phoneDigits}`
+    ) {
+      openMessengerChallenge(challenge);
+      return;
+    }
+
+    const restoredChallenge = readStoredChallenge(provider);
+
+    if (restoredChallenge) {
+      setChallenge(restoredChallenge);
+      setMessage(
+        `Подтверждение уже создано. Откройте ${messengerProviderLabels[restoredChallenge.provider]} повторно или отправьте команду вручную.`,
+      );
+      openMessengerChallenge(restoredChallenge);
       return;
     }
 
@@ -294,22 +411,7 @@ function MessengerAuthPanel({
     }
 
     setChallenge(result);
-    setMessage(
-      `Откройте ${messengerProviderLabels[provider]}, нажмите “Поделиться телефоном” и вернитесь сюда.`,
-    );
-
-    if (shouldUseSameWindowDeepLink(provider)) {
-      window.location.assign(result.deepLink);
-      return;
-    }
-
-    const popup = window.open(result.deepLink, "_blank", "noopener,noreferrer");
-
-    if (!popup) {
-      setMessage(
-        `Браузер заблокировал открытие ${messengerProviderLabels[provider]}. Откройте ссылку ниже вручную.`,
-      );
-    }
+    openMessengerChallenge(result);
   }
 
   return (
@@ -339,14 +441,44 @@ function MessengerAuthPanel({
         ))}
       </div>
       {challenge?.deepLink && (
-        <a
-          href={challenge.deepLink}
-          target={shouldUseSameWindowDeepLink(challenge.provider) ? "_self" : "_blank"}
-          rel="noreferrer"
-          className="mt-3 block text-center text-sm font-semibold text-[var(--accent-strong)]"
-        >
-          Открыть мессенджер вручную
-        </a>
+        <div className="mt-3 space-y-3 rounded-2xl bg-white/65 p-3 ring-1 ring-[var(--line)]">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button
+              variant="secondary"
+              className="min-h-11"
+              disabled={isCompleting}
+              onClick={() => openMessengerChallenge(challenge)}
+            >
+              Открыть {messengerProviderLabels[challenge.provider]} ещё раз
+            </Button>
+            <a
+              href={challenge.deepLink}
+              target={shouldUseSameWindowDeepLink(challenge.provider) ? "_self" : "_blank"}
+              rel="noreferrer"
+              className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-white px-4 text-sm font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--line)] transition hover:bg-[var(--accent-soft)]"
+            >
+              Web-ссылка
+            </a>
+          </div>
+
+          {challenge.provider === "TELEGRAM" && challenge.startCommand && (
+            <div className="rounded-2xl bg-emerald-50 p-3 text-sm text-emerald-900 ring-1 ring-emerald-100">
+              <p className="font-semibold">
+                Если Telegram открылся без кнопки, отправьте боту команду:
+              </p>
+              <code className="mt-2 block break-all rounded-xl bg-white px-3 py-2 font-mono text-xs text-[var(--foreground)] ring-1 ring-emerald-100">
+                {challenge.startCommand}
+              </code>
+              <Button
+                variant="ghost"
+                className="mt-2 w-full"
+                onClick={() => void copyStartCommand()}
+              >
+                {copiedCommand ? "Команда скопирована" : "Скопировать команду"}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
       {message && <p className="mt-3 text-sm text-[var(--muted)]">{message}</p>}
       {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}

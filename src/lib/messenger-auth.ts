@@ -14,7 +14,7 @@ import {
   messengerAuthStartSchema,
 } from "@/lib/validators";
 
-const messengerAuthTtlMs = 10 * 60 * 1000;
+const messengerAuthTtlMs = 30 * 60 * 1000;
 const phoneRegex = /^\+7\d{10}$/;
 
 type ContactVerificationResult =
@@ -85,6 +85,11 @@ function appendStartPayload(base: string, token: string) {
   const url = new URL(normalizedBase);
   url.searchParams.set("start", token);
   return url.toString();
+}
+
+function createTelegramAppLink(token: string) {
+  const username = getTelegramBotUsername();
+  return `tg://resolve?domain=${encodeURIComponent(username)}&start=${encodeURIComponent(token)}`;
 }
 
 function createDeepLink(provider: MessengerAuthProvider, token: string) {
@@ -163,6 +168,14 @@ export async function startMessengerPhoneAuth(input: unknown) {
     status: challenge.status,
     expiresAt: challenge.expiresAt.toISOString(),
     deepLink,
+    appLink:
+      provider === MessengerAuthProvider.TELEGRAM
+        ? createTelegramAppLink(token)
+        : null,
+    startCommand:
+      provider === MessengerAuthProvider.TELEGRAM
+        ? `/start ${token}`
+        : null,
   };
 }
 
