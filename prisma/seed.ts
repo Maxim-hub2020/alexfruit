@@ -180,6 +180,15 @@ async function main() {
 
   const categories = seasonalCategories;
 
+  await prisma.$transaction([
+    prisma.sharedCartItem.deleteMany(),
+    prisma.dailyInventory.deleteMany(),
+    prisma.productReviewPhoto.deleteMany(),
+    prisma.productReview.deleteMany(),
+    prisma.product.deleteMany(),
+    prisma.category.deleteMany(),
+  ]);
+
   for (const category of categories) {
     await prisma.category.upsert({
       where: { slug: category.slug },
@@ -209,6 +218,7 @@ async function main() {
         data: {
           categoryId: categoryMap.get(product.categorySlug)!,
           description: product.description,
+          price: product.price,
           unit: product.unit,
           imageUrl: product.imageUrl,
           isActive: true,
@@ -236,20 +246,6 @@ async function main() {
       });
     }
   }
-
-  await prisma.product.updateMany({
-    where: {
-      name: {
-        in: [
-          "Яблоки Гренни Смит",
-          "Черешня отборная",
-          "Клубника фермерская",
-          "Томаты розовые",
-        ],
-      },
-    },
-    data: { isActive: false },
-  });
 
   const timeSlots = [
     { title: "09:00-11:00", startTime: "09:00", endTime: "11:00", maxOrders: 5 },
