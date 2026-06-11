@@ -25,30 +25,37 @@ type ProductCardProps = {
   variant?: "default" | "catalog";
 };
 
-function ProductBadges({ product }: { product: ProductCardProps["product"] }) {
+function ProductBadges({ product, compact = false }: {
+  product: ProductCardProps["product"];
+  compact?: boolean;
+}) {
+  const badgeClass = compact
+    ? "rounded-full px-2 py-1 text-[10px] font-semibold shadow-sm"
+    : "rounded-full px-3 py-1 text-xs font-semibold shadow-sm";
+
   return (
-    <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+    <div className="absolute left-2 top-2 flex max-w-[calc(100%-1rem)] flex-wrap gap-1.5">
       {product.isHit && (
-        <span className="rounded-full bg-white/88 px-3 py-1 text-xs font-semibold text-[var(--foreground)] shadow-sm">
-          <Flame className="mr-1 inline-block" size={12} />
+        <span className={`${badgeClass} bg-white/88 text-[var(--foreground)]`}>
+          <Flame className="mr-1 inline-block" size={compact ? 10 : 12} />
           Хит
         </span>
       )}
       {product.isNew && (
-        <span className="rounded-full bg-emerald-100/95 px-3 py-1 text-xs font-semibold text-emerald-900 shadow-sm">
-          <Sparkles className="mr-1 inline-block" size={12} />
+        <span className={`${badgeClass} bg-emerald-100/95 text-emerald-900`}>
+          <Sparkles className="mr-1 inline-block" size={compact ? 10 : 12} />
           Новинка
         </span>
       )}
       {product.isPromo && (
-        <span className="rounded-full bg-orange-100/95 px-3 py-1 text-xs font-semibold text-orange-900 shadow-sm">
-          <Tag className="mr-1 inline-block" size={12} />
+        <span className={`${badgeClass} bg-orange-100/95 text-orange-900`}>
+          <Tag className="mr-1 inline-block" size={compact ? 10 : 12} />
           Акция
         </span>
       )}
       {product.isAvailableForDate === false && (
-        <span className="rounded-full bg-amber-100/95 px-3 py-1 text-xs font-semibold text-amber-900 shadow-sm">
-          <Clock3 className="mr-1 inline-block" size={12} />
+        <span className={`${badgeClass} bg-amber-100/95 text-amber-900`}>
+          <Clock3 className="mr-1 inline-block" size={compact ? 10 : 12} />
           Под заказ
         </span>
       )}
@@ -63,7 +70,10 @@ function ProductRating({ product }: { product: ProductCardProps["product"] }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
-      <span className="flex items-center gap-0.5" aria-label={rating ? `Рейтинг ${rating}` : "Пока нет отзывов"}>
+      <span
+        className="flex items-center gap-0.5"
+        aria-label={rating ? `Рейтинг ${rating}` : "Пока нет отзывов"}
+      >
         {Array.from({ length: 5 }).map((_, index) => (
           <Star
             key={index}
@@ -90,15 +100,15 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
     isPreorder
       ? "Под заказ"
       : product.hasDailyInventory && product.availableQuantity !== null
-      ? `В наличии: ${product.availableQuantity}`
-      : "В наличии";
+        ? `В наличии: ${product.availableQuantity}`
+        : "В наличии";
 
   if (variant === "catalog") {
     return (
-      <article className="group w-full max-w-full overflow-hidden rounded-[1.6rem] bg-white shadow-[0_18px_42px_rgba(61,93,74,0.1)] ring-1 ring-[var(--line)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_56px_rgba(61,93,74,0.14)]">
+      <article className="group min-w-0 overflow-hidden rounded-[1.45rem] bg-white/88 shadow-[0_14px_34px_rgba(61,93,74,0.08)] ring-1 ring-[var(--line)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_48px_rgba(61,93,74,0.13)]">
         <Link
           href={`/products/${product.id}`}
-          className="relative block h-44 bg-white"
+          className="relative block aspect-square bg-white"
           aria-label={`Открыть карточку товара ${product.name}`}
         >
           {product.imageUrl ? (
@@ -107,60 +117,47 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
               alt={product.name}
               fill
               className="object-contain p-2 transition duration-500 group-hover:scale-[1.02]"
-              sizes="(max-width: 768px) 50vw, 25vw"
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
             />
           ) : (
-            <div className="flex h-full items-center justify-center text-6xl">🍎</div>
+            <div className="flex h-full items-center justify-center text-5xl">🍎</div>
           )}
-          <ProductBadges product={product} />
+          <ProductBadges product={product} compact />
         </Link>
 
-        <div className="space-y-3 p-4">
-          <div className="min-h-[5rem]">
-            <div className="flex items-start justify-between gap-3">
-              <Link
-                href={`/products/${product.id}`}
-                className="text-base font-semibold leading-6 transition hover:text-[var(--accent-strong)]"
-              >
-                {product.name}
-              </Link>
-              <p className="shrink-0 text-lg font-bold text-[var(--accent-strong)]">
-                {formatCurrency(product.price)}
-              </p>
-            </div>
-            <p className="mt-1 text-xs text-[var(--muted)]">
-              за {unitLabels[product.unit] ?? product.unit}
-            </p>
-            <div className="mt-2">
-              <ProductRating product={product} />
-            </div>
-            <p className="mt-2 text-sm leading-5 text-[var(--muted)]">
-              {product.description || "Свежая поставка с ежедневным обновлением."}
-            </p>
-          </div>
+        <div className="flex min-h-[11.5rem] flex-col p-3">
+          <Link
+            href={`/products/${product.id}`}
+            className="text-sm font-semibold leading-5 transition hover:text-[var(--accent-strong)] sm:text-base"
+          >
+            {product.name}
+          </Link>
+          <p className="mt-1 max-h-10 overflow-hidden text-xs leading-5 text-[var(--muted)]">
+            {product.description || "Свежая поставка с ежедневным обновлением."}
+          </p>
 
-          <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-3">
-            <div className="space-y-1">
-              <span className="block text-xs font-semibold text-[var(--accent-strong)]">
-                {availabilityLabel}
-              </span>
-              <Link
-                href={`/products/${product.id}`}
-                className="text-xs font-semibold text-[var(--muted)] underline-offset-4 transition hover:text-[var(--accent-strong)] hover:underline"
-              >
-                Подробнее и отзывы
-              </Link>
+          <div className="mt-auto space-y-2 pt-3">
+            <span className="block text-xs font-semibold text-[var(--accent-strong)]">
+              {availabilityLabel}
+            </span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="rounded-full bg-[var(--accent)] px-3 py-2 text-sm font-bold text-white shadow-[0_12px_24px_rgba(47,143,79,0.2)]">
+                {formatCurrency(product.price)}
+                <span className="ml-1 text-[10px] font-semibold text-white/75">
+                  за {unitLabels[product.unit] ?? product.unit}
+                </span>
+              </div>
+              <AddToCartButton
+                productId={product.id}
+                name={product.name}
+                price={Number(product.price)}
+                unit={product.unit}
+                imageUrl={product.imageUrl}
+                variant="compact"
+                maxQuantity={isPreorder ? null : product.availableQuantity}
+                isPreorder={isPreorder}
+              />
             </div>
-            <AddToCartButton
-              productId={product.id}
-              name={product.name}
-              price={Number(product.price)}
-              unit={product.unit}
-              imageUrl={product.imageUrl}
-              variant="compact"
-              maxQuantity={isPreorder ? null : product.availableQuantity}
-              isPreorder={isPreorder}
-            />
           </div>
         </div>
       </article>
