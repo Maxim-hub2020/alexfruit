@@ -95,10 +95,10 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
 
   if (variant === "catalog") {
     return (
-      <article className="group overflow-hidden rounded-[1.6rem] bg-white shadow-[0_18px_42px_rgba(61,93,74,0.1)] ring-1 ring-[var(--line)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_56px_rgba(61,93,74,0.14)]">
+      <article className="group w-full max-w-full overflow-hidden rounded-[1.6rem] bg-white shadow-[0_18px_42px_rgba(61,93,74,0.1)] ring-1 ring-[var(--line)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_56px_rgba(61,93,74,0.14)]">
         <Link
           href={`/products/${product.id}`}
-          className="relative block h-44 bg-[#edf5e9]"
+          className="relative block h-44 bg-white"
           aria-label={`Открыть карточку товара ${product.name}`}
         >
           {product.imageUrl ? (
@@ -106,7 +106,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
               src={product.imageUrl}
               alt={product.name}
               fill
-              className="object-cover transition duration-500 group-hover:scale-[1.04]"
+              className="object-contain p-2 transition duration-500 group-hover:scale-[1.02]"
               sizes="(max-width: 768px) 50vw, 25vw"
             />
           ) : (
@@ -168,10 +168,10 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
   }
 
   return (
-    <article className="soft-card overflow-hidden rounded-[2rem]">
+    <article className="soft-card w-full max-w-full overflow-hidden rounded-[2rem]">
       <Link
         href={`/products/${product.id}`}
-        className="relative block h-52 bg-[var(--surface-muted)]"
+        className="relative block h-52 bg-white"
         aria-label={`Открыть карточку товара ${product.name}`}
       >
         {product.imageUrl ? (
@@ -179,7 +179,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
             src={product.imageUrl}
             alt={product.name}
             fill
-            className="object-cover"
+            className="object-contain p-3"
             sizes="(max-width: 768px) 100vw, 33vw"
           />
         ) : (

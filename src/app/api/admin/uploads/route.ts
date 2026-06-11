@@ -17,8 +17,11 @@ export async function POST(request: Request) {
       throw new ApiError("Передайте файл изображения", 400);
     }
 
+    const kind = formData.get("kind");
+    const catalogKind = kind === "category" ? "category" : "product";
+
     return NextResponse.json({
-      url: await saveUploadedImage(file, "catalog"),
+      url: await saveUploadedImage(file, "catalog", { catalogKind }),
     });
   } catch (error) {
     return jsonError(error);

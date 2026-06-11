@@ -95,7 +95,7 @@ export default async function HomePage() {
 
           <aside className="grid gap-4">
             <div className="glass-panel rounded-[2.3rem] p-4">
-              <div className="relative overflow-hidden rounded-[1.9rem] bg-[#dbeed8]">
+              <div className="relative overflow-hidden rounded-[1.9rem] bg-white">
                 {heroProduct?.imageUrl ? (
                   <div className="relative h-[320px]">
                     <CatalogImage
@@ -103,7 +103,7 @@ export default async function HomePage() {
                       alt={heroProduct.name}
                       fill
                       loading="eager"
-                      className="object-cover"
+                      className="object-contain p-4"
                       sizes="(max-width: 1024px) 100vw, 40vw"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#163023]/75 via-transparent to-transparent" />
@@ -221,13 +221,13 @@ export default async function HomePage() {
                     </p>
 
                     <div className="mt-5 flex items-center gap-4 rounded-[1.7rem] bg-white/86 p-4">
-                      <div className="relative h-24 w-24 overflow-hidden rounded-[1.3rem] bg-[var(--surface-muted)]">
+                      <div className="relative h-24 w-24 overflow-hidden rounded-[1.3rem] bg-white">
                         {cover?.imageUrl ? (
                           <CatalogImage
                             src={cover.imageUrl}
                             alt={cover.name}
                             fill
-                            className="object-cover"
+                            className="object-contain p-2"
                             sizes="96px"
                           />
                         ) : (

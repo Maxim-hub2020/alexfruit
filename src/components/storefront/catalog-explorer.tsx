@@ -173,7 +173,7 @@ export function CatalogExplorer({
   }
 
   return (
-    <div className="rounded-[2.35rem] bg-white px-4 py-5 shadow-[0_30px_90px_rgba(61,93,74,0.12)] ring-1 ring-white/80 sm:px-6 lg:px-8">
+    <div className="w-full max-w-full overflow-hidden rounded-[2.35rem] bg-white px-4 py-5 shadow-[0_30px_90px_rgba(61,93,74,0.12)] ring-1 ring-white/80 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
           <h1 className="font-serif text-4xl font-semibold leading-none md:text-5xl">
@@ -314,14 +314,14 @@ export function CatalogExplorer({
                   onClick={() => setCategory(item.slug)}
                   className="group rounded-[1.35rem] bg-[var(--surface-muted)] p-3 text-left ring-1 ring-[var(--line)] transition hover:-translate-y-1 hover:bg-white hover:shadow-[0_18px_48px_rgba(61,93,74,0.12)] sm:p-4"
                 >
-                  <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-[1rem] bg-white text-[var(--accent-strong)] ring-1 ring-[var(--line)] transition group-hover:bg-[var(--accent-soft)] sm:h-12 sm:w-12">
+                  <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-[1.15rem] bg-[linear-gradient(145deg,#ffffff_0%,#eff8e9_100%)] text-[var(--accent-strong)] shadow-inner ring-1 ring-white transition group-hover:bg-[var(--accent-soft)] sm:h-14 sm:w-14">
                     {item.imageUrl ? (
                       <CatalogImage
                         src={item.imageUrl}
                         alt={item.name}
                         fill
-                        className="object-cover"
-                        sizes="48px"
+                        className="object-contain p-1.5"
+                        sizes="56px"
                       />
                     ) : (
                       <Icon size={24} />
@@ -412,7 +412,7 @@ export function CatalogExplorer({
                 alt={activeHero.name}
                 fill
                 loading="eager"
-                className="object-cover"
+                className="object-contain p-4"
                 sizes="(max-width: 1024px) 100vw, 60vw"
               />
             ) : (
@@ -497,7 +497,7 @@ export function CatalogExplorer({
                       src={product.imageUrl}
                       alt={product.name}
                       fill
-                      className="object-cover"
+                      className="object-contain p-2"
                       sizes="64px"
                     />
                   ) : (

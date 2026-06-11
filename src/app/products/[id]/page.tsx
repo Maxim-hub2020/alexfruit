@@ -125,16 +125,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
           Назад в каталог
         </Link>
 
-        <article className="glass-panel overflow-hidden rounded-[2.6rem] p-4 md:p-6">
-          <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-            <div className="relative min-h-[22rem] overflow-hidden rounded-[2rem] bg-[var(--surface-muted)] md:min-h-[32rem]">
+        <article className="glass-panel w-full max-w-full overflow-hidden rounded-[2.6rem] p-4 md:p-6">
+          <div className="grid min-w-0 gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+            <div className="relative h-[clamp(20rem,48vw,34rem)] overflow-hidden rounded-[2rem] bg-white">
               {productWithAvailability.imageUrl ? (
                 <CatalogImage
                   src={productWithAvailability.imageUrl}
                   alt={productWithAvailability.name}
                   fill
                   priority
-                  className="object-cover"
+                  className="object-contain p-3 md:p-5"
                   sizes="(max-width: 1024px) 100vw, 48vw"
                 />
               ) : (

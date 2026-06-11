@@ -303,6 +303,7 @@ export function AdminCatalogManager({
     try {
       const formData = new FormData();
       formData.set("file", file);
+      formData.set("kind", target);
       const response = await fetch("/api/admin/uploads", {
         method: "POST",
         body: formData,
@@ -572,7 +573,7 @@ export function AdminCatalogManager({
                         src={getPreviewImageUrl(productForm.imageUrl, previewVersion)}
                         alt="Фото товара"
                         fill
-                        className="object-cover"
+                        className="object-contain p-2"
                         sizes="320px"
                       />
                     </div>
@@ -702,7 +703,7 @@ export function AdminCatalogManager({
                     src={getPreviewImageUrl(categoryForm.imageUrl, previewVersion)}
                     alt={categoryForm.name || "Категория"}
                     fill
-                    className="object-cover"
+                    className="object-contain p-2"
                     sizes="160px"
                   />
                 ) : (
@@ -777,7 +778,7 @@ export function AdminCatalogManager({
                       src={category.imageUrl}
                       alt={category.name}
                       fill
-                      className="object-cover"
+                      className="object-contain p-1.5"
                       sizes="48px"
                     />
                   ) : (
@@ -871,7 +872,7 @@ export function AdminCatalogManager({
                           src={product.imageUrl}
                           alt={product.name}
                           fill
-                          className="object-cover"
+                          className="object-contain p-1"
                           sizes="72px"
                         />
                       ) : (
