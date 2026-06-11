@@ -50,3 +50,6 @@ next-dev*.log
 next-env.d.ts
 
 /src/generated/prisma
+
+# runtime uploads are persisted by the Docker volume, not Git
+/public/uploads/*
