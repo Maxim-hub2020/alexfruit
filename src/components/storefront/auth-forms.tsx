@@ -3,6 +3,15 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type Ref } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  canCompleteMessengerReturn,
+  clearMessengerLaunchContext,
+  messengerChallengeStorageKey,
+  messengerReturnWrongContextMessage,
+  rememberMessengerLaunchContext,
+  type MessengerMode,
+  type MessengerProvider,
+} from "@/lib/messenger-client";
 
 function getRedirectByRole(role: string) {
   if (role === "ADMIN") {
@@ -111,8 +120,6 @@ function PhoneDigitsInput({
   );
 }
 
-type MessengerProvider = "TELEGRAM" | "MAX";
-
 type MessengerStatusResponse = {
   id: string;
   provider: MessengerProvider;
@@ -141,7 +148,7 @@ type VerifiedMessengerChallenge = {
 
 type MessengerAuthPanelProps = {
   phoneDigits: string;
-  mode?: "login" | "register";
+  mode?: MessengerMode;
   onVerified?: (challenge: VerifiedMessengerChallenge) => void;
   providers?: readonly MessengerProvider[];
 };
@@ -152,7 +159,6 @@ const messengerProviderLabels: Record<MessengerProvider, string> = {
 };
 
 const defaultMessengerProviders = ["MAX"] as const;
-const messengerChallengeStorageKey = "alexfruit.messenger-auth-challenge";
 
 function MaxMessengerIcon({ className = "h-7 w-7" }: { className?: string }) {
   return (
@@ -296,6 +302,7 @@ function MessengerAuthPanel({
         window.sessionStorage.removeItem(messengerChallengeStorageKey);
 
         if (mode === "register") {
+          clearMessengerLaunchContext(challenge.id);
           setError("");
           setMessage("Телефон подтверждён. Теперь задайте пароль и создайте аккаунт.");
           onVerifiedRef.current?.({
@@ -327,6 +334,7 @@ function MessengerAuthPanel({
           return;
         }
 
+        clearMessengerLaunchContext(challenge.id);
         router.push(getRedirectByRole(completeResult.role));
         router.refresh();
         return;
@@ -348,10 +356,24 @@ function MessengerAuthPanel({
     const intervalId = window.setInterval(() => {
       void pollStatus();
     }, 2000);
+    const pollWhenVisible = () => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+
+      void pollStatus();
+    };
+
+    window.addEventListener("focus", pollWhenVisible);
+    window.addEventListener("pageshow", pollWhenVisible);
+    document.addEventListener("visibilitychange", pollWhenVisible);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+      window.removeEventListener("focus", pollWhenVisible);
+      window.removeEventListener("pageshow", pollWhenVisible);
+      document.removeEventListener("visibilitychange", pollWhenVisible);
     };
   }, [challenge, mode, phoneDigits, router]);
 
@@ -362,8 +384,9 @@ function MessengerAuthPanel({
       messengerChallengeStorageKey,
       JSON.stringify(nextChallenge),
     );
+    rememberMessengerLaunchContext(nextChallenge, mode);
     setMessage(
-      `Откройте ${messengerProviderLabels[nextChallenge.provider]}, нажмите «Поделиться телефоном». После подтверждения бот отправит ссылку возврата в приложение.`,
+      `Откройте ${messengerProviderLabels[nextChallenge.provider]} и нажмите «Поделиться телефоном». После подтверждения вернитесь в АлексФрут — вход завершится автоматически.`,
     );
 
     if (shouldUseSameWindowDeepLink(nextChallenge.provider)) {
@@ -559,6 +582,7 @@ export function LoginForm() {
   const [form, setForm] = useState({ phoneDigits: "", password: "" });
   const [phoneStatus, setPhoneStatus] = useState<PhoneCheckStatus>("idle");
   const [error, setError] = useState("");
+  const [returnNotice, setReturnNotice] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const isPhoneKnown = phoneStatus === "exists";
   const returnChallengeId = searchParams.get("messengerChallengeId")?.trim() ?? "";
@@ -572,7 +596,15 @@ export function LoginForm() {
     handledReturnChallengeRef.current = returnChallengeId;
 
     async function completeReturnedChallenge() {
+      if (!canCompleteMessengerReturn(returnChallengeId)) {
+        setError("");
+        setReturnNotice(messengerReturnWrongContextMessage);
+        clearMessengerReturnParam();
+        return;
+      }
+
       setError("");
+      setReturnNotice("");
       setIsLoading(true);
 
       try {
@@ -600,6 +632,7 @@ export function LoginForm() {
         }
 
         clearMessengerReturnParam();
+        clearMessengerLaunchContext(returnChallengeId);
         router.push(getRedirectByRole(completeResult.role));
         router.refresh();
       } catch (caughtError) {
@@ -680,6 +713,7 @@ export function LoginForm() {
   async function checkPhone() {
     const { phoneDigits } = getCredentialsFromFields();
     setError("");
+    setReturnNotice("");
 
     if (phoneDigits.length !== 10) {
       setError("Укажите 10 цифр телефона после +7.");
@@ -706,6 +740,7 @@ export function LoginForm() {
   async function submit() {
     const credentials = getCredentialsFromFields();
     setError("");
+    setReturnNotice("");
 
     if (credentials.phoneDigits.length !== 10) {
       setError("Укажите 10 цифр телефона после +7.");
@@ -745,6 +780,7 @@ export function LoginForm() {
     }));
     setPhoneStatus("idle");
     setError("");
+    setReturnNotice("");
   }
 
   function updatePassword(password: string) {
@@ -807,6 +843,12 @@ export function LoginForm() {
         {isPhoneKnown && <MessengerAuthPanel phoneDigits={form.phoneDigits} />}
       </div>
 
+      {returnNotice && (
+        <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-100">
+          {returnNotice}
+        </p>
+      )}
+
       {error && <p className="text-sm text-rose-700">{error}</p>}
 
       {!isPhoneKnown ? (
@@ -838,6 +880,7 @@ export function RegisterForm() {
   const [verifiedChallenge, setVerifiedChallenge] =
     useState<VerifiedMessengerChallenge | null>(null);
   const [error, setError] = useState("");
+  const [returnNotice, setReturnNotice] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const isPhoneVerified =
     phoneStatus === "available" && verifiedChallenge?.phoneDigits === form.phoneDigits;
@@ -852,7 +895,15 @@ export function RegisterForm() {
     handledReturnChallengeRef.current = returnChallengeId;
 
     async function applyReturnedChallenge() {
+      if (!canCompleteMessengerReturn(returnChallengeId)) {
+        setError("");
+        setReturnNotice(messengerReturnWrongContextMessage);
+        clearMessengerReturnParam();
+        return;
+      }
+
       setError("");
+      setReturnNotice("");
 
       try {
         const status = await fetchMessengerStatus(returnChallengeId);
@@ -885,6 +936,7 @@ export function RegisterForm() {
           provider: status.provider,
         });
         clearMessengerReturnParam();
+        clearMessengerLaunchContext(returnChallengeId);
       } catch (caughtError) {
         if (!cancelled) {
           setError(
@@ -905,6 +957,7 @@ export function RegisterForm() {
 
   async function checkPhone() {
     setError("");
+    setReturnNotice("");
     setVerifiedChallenge(null);
 
     if (form.phoneDigits.length !== 10) {
@@ -932,6 +985,7 @@ export function RegisterForm() {
   async function submit() {
     setIsLoading(true);
     setError("");
+    setReturnNotice("");
 
     if (form.phoneDigits.length !== 10) {
       setIsLoading(false);
@@ -987,6 +1041,7 @@ export function RegisterForm() {
     }));
     setPhoneStatus("idle");
     setError("");
+    setReturnNotice("");
     setVerifiedChallenge((current) =>
       current?.phoneDigits === phoneDigits ? current : null,
     );
@@ -1041,6 +1096,12 @@ export function RegisterForm() {
             className="h-12 w-full rounded-2xl bg-white px-4 outline-none ring-1 ring-[var(--line)]"
           />
         </>
+      )}
+
+      {returnNotice && (
+        <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-100">
+          {returnNotice}
+        </p>
       )}
 
       {error && <p className="text-sm text-rose-700">{error}</p>}

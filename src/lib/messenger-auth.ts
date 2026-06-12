@@ -86,8 +86,8 @@ function getAppBaseUrl() {
   ).replace(/\/$/, "");
 }
 
-function createMessengerReturnUrl(pathname: "/login" | "/register", challengeId: string) {
-  const url = new URL(pathname, `${getAppBaseUrl()}/`);
+function createMessengerReturnUrl(challengeId: string) {
+  const url = new URL("/auth/messenger-return", `${getAppBaseUrl()}/`);
   url.searchParams.set("messengerChallengeId", challengeId);
   return url.toString();
 }
@@ -244,23 +244,7 @@ export async function getMessengerPhoneAuthStatus(id: string) {
 }
 
 export async function getMessengerPhoneAuthReturnUrl(id: string) {
-  const challenge = await prisma.messengerAuthChallenge.findUnique({
-    where: { id },
-    select: {
-      phone: true,
-    },
-  });
-
-  if (!challenge) {
-    return createMessengerReturnUrl("/login", id);
-  }
-
-  const existingUser = await prisma.user.findUnique({
-    where: { phone: challenge.phone },
-    select: { id: true },
-  });
-
-  return createMessengerReturnUrl(existingUser ? "/login" : "/register", id);
+  return createMessengerReturnUrl(id);
 }
 
 export async function completeMessengerPhoneAuth(input: unknown) {
