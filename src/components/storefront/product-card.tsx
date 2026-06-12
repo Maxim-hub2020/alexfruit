@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clock3, Flame, Sparkles, Star, Tag } from "lucide-react";
+import { Flame, Sparkles, Star, Tag } from "lucide-react";
 import { AddToCartButton } from "@/components/storefront/add-to-cart-button";
 import { CatalogImage } from "@/components/ui/catalog-image";
 import { unitLabels } from "@/lib/constants";
@@ -29,34 +29,33 @@ function ProductBadges({ product, compact = false }: {
   product: ProductCardProps["product"];
   compact?: boolean;
 }) {
+  const hasBadges = product.isHit || product.isNew || product.isPromo;
   const badgeClass = compact
-    ? "rounded-full px-2 py-1 text-[10px] font-semibold shadow-sm"
-    : "rounded-full px-3 py-1 text-xs font-semibold shadow-sm";
+    ? "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold shadow-sm"
+    : "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold shadow-sm";
+
+  if (!hasBadges) {
+    return null;
+  }
 
   return (
-    <div className="absolute left-2 top-2 flex max-w-[calc(100%-1rem)] flex-wrap gap-1.5">
+    <div className="mt-2 flex flex-wrap gap-1.5">
       {product.isHit && (
         <span className={`${badgeClass} bg-white/88 text-[var(--foreground)]`}>
-          <Flame className="mr-1 inline-block" size={compact ? 10 : 12} />
+          <Flame size={compact ? 10 : 12} />
           Хит
         </span>
       )}
       {product.isNew && (
         <span className={`${badgeClass} bg-emerald-100/95 text-emerald-900`}>
-          <Sparkles className="mr-1 inline-block" size={compact ? 10 : 12} />
+          <Sparkles size={compact ? 10 : 12} />
           Новинка
         </span>
       )}
       {product.isPromo && (
         <span className={`${badgeClass} bg-orange-100/95 text-orange-900`}>
-          <Tag className="mr-1 inline-block" size={compact ? 10 : 12} />
+          <Tag size={compact ? 10 : 12} />
           Акция
-        </span>
-      )}
-      {product.isAvailableForDate === false && (
-        <span className={`${badgeClass} bg-amber-100/95 text-amber-900`}>
-          <Clock3 className="mr-1 inline-block" size={compact ? 10 : 12} />
-          Под заказ
         </span>
       )}
     </div>
@@ -122,7 +121,6 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
           ) : (
             <div className="flex h-full items-center justify-center text-5xl">🍎</div>
           )}
-          <ProductBadges product={product} compact />
         </Link>
 
         <div className="flex min-h-[11.5rem] flex-col p-3">
@@ -135,6 +133,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
           <p className="mt-1 max-h-10 overflow-hidden text-xs leading-5 text-[var(--muted)]">
             {product.description || "Свежая поставка с ежедневным обновлением."}
           </p>
+          <ProductBadges product={product} compact />
 
           <div className="mt-auto space-y-2 pt-3">
             <span className="block text-xs font-semibold text-[var(--accent-strong)]">
@@ -182,7 +181,6 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
         ) : (
           <div className="flex h-full items-center justify-center text-5xl">🍎</div>
         )}
-        <ProductBadges product={product} />
       </Link>
 
       <div className="space-y-4 p-5">
@@ -206,6 +204,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
           <p className="text-sm leading-6 text-[var(--muted)]">
             {product.description || "Свежая поставка с ежедневным обновлением."}
           </p>
+          <ProductBadges product={product} />
           <ProductRating product={product} />
           <p className="text-xs font-semibold text-[var(--accent-strong)]">
             {availabilityLabel}
