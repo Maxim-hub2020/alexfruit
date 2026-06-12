@@ -78,6 +78,20 @@ function getMaxBotLinkBase() {
   return `https://max.ru/${username}`;
 }
 
+function getAppBaseUrl() {
+  return (
+    process.env.APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    "https://alexfruit.ru"
+  ).replace(/\/$/, "");
+}
+
+function createMessengerReturnUrl(pathname: "/login" | "/register", challengeId: string) {
+  const url = new URL(pathname, `${getAppBaseUrl()}/`);
+  url.searchParams.set("messengerChallengeId", challengeId);
+  return url.toString();
+}
+
 function appendStartPayload(base: string, token: string) {
   const normalizedBase = /^https?:\/\//i.test(base)
     ? base
@@ -185,6 +199,7 @@ export async function getMessengerPhoneAuthStatus(id: string) {
     select: {
       id: true,
       provider: true,
+      phone: true,
       status: true,
       expiresAt: true,
       verifiedAt: true,
@@ -205,6 +220,7 @@ export async function getMessengerPhoneAuthStatus(id: string) {
       select: {
         id: true,
         provider: true,
+        phone: true,
         status: true,
         expiresAt: true,
         verifiedAt: true,
@@ -213,6 +229,7 @@ export async function getMessengerPhoneAuthStatus(id: string) {
 
     return {
       ...expired,
+      phone: null,
       expiresAt: expired.expiresAt.toISOString(),
       verifiedAt: expired.verifiedAt?.toISOString() ?? null,
     };
@@ -220,9 +237,30 @@ export async function getMessengerPhoneAuthStatus(id: string) {
 
   return {
     ...challenge,
+    phone: challenge.status === MessengerAuthStatus.VERIFIED ? challenge.phone : null,
     expiresAt: challenge.expiresAt.toISOString(),
     verifiedAt: challenge.verifiedAt?.toISOString() ?? null,
   };
+}
+
+export async function getMessengerPhoneAuthReturnUrl(id: string) {
+  const challenge = await prisma.messengerAuthChallenge.findUnique({
+    where: { id },
+    select: {
+      phone: true,
+    },
+  });
+
+  if (!challenge) {
+    return createMessengerReturnUrl("/login", id);
+  }
+
+  const existingUser = await prisma.user.findUnique({
+    where: { phone: challenge.phone },
+    select: { id: true },
+  });
+
+  return createMessengerReturnUrl(existingUser ? "/login" : "/register", id);
 }
 
 export async function completeMessengerPhoneAuth(input: unknown) {

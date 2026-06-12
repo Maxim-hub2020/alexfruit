@@ -23,7 +23,7 @@ export const registerSchema = z.object({
   password: z.string().min(6, "Минимум 6 символов"),
   messengerChallengeId: z.preprocess(
     (value) => (typeof value === "string" ? value.trim() : ""),
-    z.string().min(1, "Подтвердите телефон через Max или Telegram"),
+    z.string().min(1, "Подтвердите телефон через MAX"),
   ),
 });
 

@@ -178,7 +178,7 @@ export async function registerAndLogin(input: unknown) {
     }
 
     if (challenge.status !== MessengerAuthStatus.VERIFIED) {
-      throw new ApiError("Сначала подтвердите телефон через Max или Telegram", 409);
+      throw new ApiError("Сначала подтвердите телефон через MAX", 409);
     }
 
     if (challenge.expiresAt <= now) {

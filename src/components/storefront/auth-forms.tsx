@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type Ref } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -113,6 +113,15 @@ function PhoneDigitsInput({
 
 type MessengerProvider = "TELEGRAM" | "MAX";
 
+type MessengerStatusResponse = {
+  id: string;
+  provider: MessengerProvider;
+  phone?: string | null;
+  status: string;
+  expiresAt: string;
+  verifiedAt?: string | null;
+};
+
 type MessengerChallenge = {
   id: string;
   provider: MessengerProvider;
@@ -139,11 +148,57 @@ type MessengerAuthPanelProps = {
 
 const messengerProviderLabels: Record<MessengerProvider, string> = {
   TELEGRAM: "Telegram",
-  MAX: "Max",
+  MAX: "MAX",
 };
 
-const defaultMessengerProviders = ["TELEGRAM", "MAX"] as const;
+const defaultMessengerProviders = ["MAX"] as const;
 const messengerChallengeStorageKey = "alexfruit.messenger-auth-challenge";
+
+function MaxMessengerIcon({ className = "h-7 w-7" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 48 48" aria-hidden="true">
+      <defs>
+        <linearGradient id="maxMessengerIconGradient" x1="7" y1="7" x2="41" y2="41">
+          <stop offset="0" stopColor="#1EC8FF" />
+          <stop offset="0.52" stopColor="#236BFF" />
+          <stop offset="1" stopColor="#8F3BFF" />
+        </linearGradient>
+      </defs>
+      <path
+        fill="url(#maxMessengerIconGradient)"
+        d="M24 5C13.5 5 5 12.7 5 22.3c0 5.8 3.1 10.9 7.9 14.1L9.8 43c-.4.9.6 1.8 1.5 1.3l7.2-4.2c1.8.5 3.6.8 5.5.8 10.5 0 19-7.7 19-17.3S34.5 5 24 5Z"
+      />
+      <path
+        fill="white"
+        fillOpacity="0.96"
+        d="M15.7 24.2c0-4.8 3.8-8.5 8.9-8.5 4.9 0 8.2 3.2 8.2 7.6 0 4.8-3.7 8.4-8.9 8.4-5 0-8.2-3.1-8.2-7.5Zm8.6 3.1c2.2 0 3.9-1.7 3.9-3.8 0-2-1.4-3.3-3.5-3.3-2.3 0-4 1.7-4 3.8 0 2 1.4 3.3 3.6 3.3Z"
+      />
+    </svg>
+  );
+}
+
+async function fetchMessengerStatus(id: string) {
+  const response = await fetch(`/api/auth/messenger/status/${id}`, {
+    cache: "no-store",
+  });
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.error ?? "Не удалось проверить подтверждение телефона");
+  }
+
+  return result as MessengerStatusResponse;
+}
+
+function clearMessengerReturnParam() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("messengerChallengeId");
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
 
 function isAppleMobileDevice() {
   if (typeof window === "undefined") {
@@ -232,7 +287,7 @@ function MessengerAuthPanel({
       }
 
       if (!response.ok) {
-        setError(result.error ?? "Не удалось проверить подтверждение");
+        setError(result.error ?? "Не удалось проверить подтверждение телефона");
         return;
       }
 
@@ -308,7 +363,7 @@ function MessengerAuthPanel({
       JSON.stringify(nextChallenge),
     );
     setMessage(
-      `Откройте ${messengerProviderLabels[nextChallenge.provider]}, нажмите “Поделиться телефоном” и вернитесь сюда.`,
+      `Откройте ${messengerProviderLabels[nextChallenge.provider]}, нажмите «Поделиться телефоном». После подтверждения бот отправит ссылку возврата в приложение.`,
     );
 
     if (shouldUseSameWindowDeepLink(nextChallenge.provider)) {
@@ -389,7 +444,7 @@ function MessengerAuthPanel({
     if (restoredChallenge) {
       setChallenge(restoredChallenge);
       setMessage(
-        `Подтверждение уже создано. Откройте ${messengerProviderLabels[restoredChallenge.provider]} повторно или отправьте команду вручную.`,
+        `Подтверждение уже создано. Откройте ${messengerProviderLabels[restoredChallenge.provider]} повторно.`,
       );
       openMessengerChallenge(restoredChallenge);
       return;
@@ -432,11 +487,18 @@ function MessengerAuthPanel({
             disabled={Boolean(loadingProvider) || isCompleting}
             onClick={() => void startMessenger(provider)}
           >
-            {loadingProvider === provider
-              ? "Открываем..."
-              : mode === "register"
-                ? `Подтвердить номер телефона через ${messengerProviderLabels[provider]}`
-                : messengerProviderLabels[provider]}
+            {loadingProvider === provider ? (
+              "Открываем..."
+            ) : (
+              <span className="flex items-center justify-center gap-3">
+                {provider === "MAX" && <MaxMessengerIcon />}
+                <span>
+                  {mode === "register"
+                    ? "Подтвердить номер"
+                    : "Войти"}
+                </span>
+              </span>
+            )}
           </Button>
         ))}
       </div>
@@ -490,13 +552,77 @@ type PhoneCheckStatus = "idle" | "checking" | "available" | "exists";
 
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const phoneInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
+  const handledReturnChallengeRef = useRef("");
   const [form, setForm] = useState({ phoneDigits: "", password: "" });
   const [phoneStatus, setPhoneStatus] = useState<PhoneCheckStatus>("idle");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const isPhoneKnown = phoneStatus === "exists";
+  const returnChallengeId = searchParams.get("messengerChallengeId")?.trim() ?? "";
+
+  useEffect(() => {
+    if (!returnChallengeId || handledReturnChallengeRef.current === returnChallengeId) {
+      return;
+    }
+
+    let cancelled = false;
+    handledReturnChallengeRef.current = returnChallengeId;
+
+    async function completeReturnedChallenge() {
+      setError("");
+      setIsLoading(true);
+
+      try {
+        const status = await fetchMessengerStatus(returnChallengeId);
+
+        if (status.status !== "VERIFIED") {
+          setError("Подтверждение MAX ещё не завершено. Вернитесь в MAX и поделитесь телефоном.");
+          return;
+        }
+
+        const completeResponse = await fetch("/api/auth/messenger/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: returnChallengeId }),
+        });
+        const completeResult = await completeResponse.json();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!completeResponse.ok) {
+          setError(completeResult.error ?? "Не удалось завершить вход через MAX");
+          return;
+        }
+
+        clearMessengerReturnParam();
+        router.push(getRedirectByRole(completeResult.role));
+        router.refresh();
+      } catch (caughtError) {
+        if (!cancelled) {
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Не удалось завершить вход через MAX",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void completeReturnedChallenge();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [returnChallengeId, router]);
 
   useEffect(() => {
     function syncBrowserAutofill() {
@@ -702,6 +828,8 @@ export function LoginForm() {
 
 export function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const handledReturnChallengeRef = useRef("");
   const [form, setForm] = useState({
     phoneDigits: "",
     password: "",
@@ -713,6 +841,67 @@ export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const isPhoneVerified =
     phoneStatus === "available" && verifiedChallenge?.phoneDigits === form.phoneDigits;
+  const returnChallengeId = searchParams.get("messengerChallengeId")?.trim() ?? "";
+
+  useEffect(() => {
+    if (!returnChallengeId || handledReturnChallengeRef.current === returnChallengeId) {
+      return;
+    }
+
+    let cancelled = false;
+    handledReturnChallengeRef.current = returnChallengeId;
+
+    async function applyReturnedChallenge() {
+      setError("");
+
+      try {
+        const status = await fetchMessengerStatus(returnChallengeId);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (status.status !== "VERIFIED") {
+          setError("Подтверждение MAX ещё не завершено. Вернитесь в MAX и поделитесь телефоном.");
+          return;
+        }
+
+        const phoneDigits = getRussianPhoneDigits(status.phone ?? "");
+
+        if (phoneDigits.length !== 10) {
+          setError("MAX подтвердил номер, но приложение не смогло прочитать телефон. Начните регистрацию заново.");
+          return;
+        }
+
+        setForm((current) => ({
+          ...current,
+          phoneDigits,
+          password: current.phoneDigits === phoneDigits ? current.password : "",
+        }));
+        setPhoneStatus("available");
+        setVerifiedChallenge({
+          id: status.id,
+          phoneDigits,
+          provider: status.provider,
+        });
+        clearMessengerReturnParam();
+      } catch (caughtError) {
+        if (!cancelled) {
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Не удалось применить подтверждение MAX",
+          );
+        }
+      }
+    }
+
+    void applyReturnedChallenge();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [returnChallengeId]);
 
   async function checkPhone() {
     setError("");
@@ -757,7 +946,7 @@ export function RegisterForm() {
 
     if (!verifiedChallengeId) {
       setIsLoading(false);
-      setError("Сначала подтвердите этот номер через Telegram или Max.");
+      setError("Сначала подтвердите этот номер через MAX.");
       return;
     }
 
@@ -824,7 +1013,7 @@ export function RegisterForm() {
       {phoneStatus === "available" && !isPhoneVerified && (
         <>
           <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-100">
-            Телефон свободен. Подтвердите номер через Telegram или Max, чтобы продолжить.
+            Телефон свободен. Подтвердите номер через MAX, чтобы продолжить.
           </p>
           <MessengerAuthPanel
             phoneDigits={form.phoneDigits}
