@@ -43,6 +43,10 @@ const prisma = new PrismaClient({ adapter });
 const shouldSeedDemoAccounts =
   process.env.SEED_DEMO_ACCOUNTS === "true" ||
   (process.env.NODE_ENV !== "production" && process.env.SEED_DEMO_ACCOUNTS !== "false");
+const shouldSeedCatalog = process.env.SEED_CATALOG !== "false";
+const shouldResetCatalog =
+  process.env.RESET_CATALOG === "true" ||
+  (process.env.NODE_ENV !== "production" && process.env.RESET_CATALOG !== "false");
 
 async function upsertUser(params: {
   email: string;
@@ -178,72 +182,84 @@ async function main() {
     demoAddressId = address.id;
   }
 
-  const categories = seasonalCategories;
+  if (shouldSeedCatalog) {
+    const categories = seasonalCategories;
 
-  await prisma.$transaction([
-    prisma.sharedCartItem.deleteMany(),
-    prisma.dailyInventory.deleteMany(),
-    prisma.productReviewPhoto.deleteMany(),
-    prisma.productReview.deleteMany(),
-    prisma.product.deleteMany(),
-    prisma.category.deleteMany(),
-  ]);
+    if (shouldResetCatalog) {
+      await prisma.$transaction([
+        prisma.sharedCartItem.deleteMany(),
+        prisma.dailyInventory.deleteMany(),
+        prisma.productReviewPhoto.deleteMany(),
+        prisma.productReview.deleteMany(),
+        prisma.product.deleteMany(),
+        prisma.category.deleteMany(),
+      ]);
+    }
 
-  for (const category of categories) {
-    await prisma.category.upsert({
-      where: { slug: category.slug },
-      update: category,
-      create: category,
-    });
-  }
-
-  const categoryMap = new Map(
-    (
-      await prisma.category.findMany({
-        where: { slug: { in: categories.map((category) => category.slug) } },
-      })
-    ).map((category) => [category.slug, category.id]),
-  );
-
-  const products = seasonalProducts;
-
-  for (const product of products) {
-    const existing = await prisma.product.findFirst({
-      where: { name: product.name },
-    });
-
-    if (existing) {
-      await prisma.product.update({
-        where: { id: existing.id },
-        data: {
-          categoryId: categoryMap.get(product.categorySlug)!,
-          description: product.description,
-          price: product.price,
-          unit: product.unit,
-          imageUrl: product.imageUrl,
-          isActive: true,
-          isHit: product.isHit,
-          isNew: product.isNew,
-          isPromo: product.isPromo,
-          stockStatus: StockStatus.IN_STOCK,
-        },
+    for (const category of categories) {
+      const existing = await prisma.category.findUnique({
+        where: { slug: category.slug },
+        select: { imageUrl: true },
       });
-    } else {
-      await prisma.product.create({
-        data: {
-          categoryId: categoryMap.get(product.categorySlug)!,
-          name: product.name,
-          description: product.description,
-          price: product.price,
-          unit: product.unit,
-          imageUrl: product.imageUrl,
-          isActive: true,
-          isHit: product.isHit,
-          isNew: product.isNew,
-          isPromo: product.isPromo,
-          stockStatus: StockStatus.IN_STOCK,
+      const shouldUpdateImage = shouldResetCatalog || !existing?.imageUrl;
+
+      await prisma.category.upsert({
+        where: { slug: category.slug },
+        update: {
+          name: category.name,
+          sortOrder: category.sortOrder,
+          isActive: category.isActive,
+          ...(shouldUpdateImage ? { imageUrl: category.imageUrl } : {}),
         },
+        create: category,
       });
+    }
+
+    const categoryMap = new Map(
+      (
+        await prisma.category.findMany({
+          where: { slug: { in: categories.map((category) => category.slug) } },
+        })
+      ).map((category) => [category.slug, category.id]),
+    );
+
+    const products = seasonalProducts;
+
+    for (const product of products) {
+      const existing = await prisma.product.findFirst({
+        where: { name: product.name },
+        select: { id: true, imageUrl: true },
+      });
+      const shouldUpdateImage =
+        shouldResetCatalog ||
+        !existing?.imageUrl ||
+        !existing.imageUrl.startsWith("/uploads/");
+      const productData = {
+        categoryId: categoryMap.get(product.categorySlug)!,
+        description: product.description,
+        price: product.price,
+        unit: product.unit,
+        isActive: true,
+        isHit: product.isHit,
+        isNew: product.isNew,
+        isPromo: product.isPromo,
+        stockStatus: StockStatus.IN_STOCK,
+        ...(shouldUpdateImage ? { imageUrl: product.imageUrl } : {}),
+      };
+
+      if (existing) {
+        await prisma.product.update({
+          where: { id: existing.id },
+          data: productData,
+        });
+      } else {
+        await prisma.product.create({
+          data: {
+            ...productData,
+            name: product.name,
+          },
+        });
+      }
     }
   }
 

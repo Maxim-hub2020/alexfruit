@@ -91,18 +91,22 @@ jobs:
             set -eu
             cd /opt/alexfruit
             docker compose -p alexfruit -f docker-compose.prod.yml up -d --force-recreate db app proxy
-            seeded=0
-            for i in 1 2 3 4 5 6; do
-              if docker compose -p alexfruit -f docker-compose.prod.yml exec -T app npm run db:seed; then
-                seeded=1
-                break
+            if grep -q "^RUN_PRODUCTION_SEED=true$" .env; then
+              seeded=0
+              for i in 1 2 3 4 5 6; do
+                if docker compose -p alexfruit -f docker-compose.prod.yml exec -T app npm run db:seed; then
+                  seeded=1
+                  break
+                fi
+                echo "Seed failed or app is still starting, retrying..."
+                sleep 10
+              done
+              if [ "$seeded" != "1" ]; then
+                echo "Catalog seed failed after retries."
+                exit 1
               fi
-              echo "Seed failed or app is still starting, retrying..."
-              sleep 10
-            done
-            if [ "$seeded" != "1" ]; then
-              echo "Catalog seed failed after retries."
-              exit 1
+            else
+              echo "Skipping catalog seed. Set RUN_PRODUCTION_SEED=true in /opt/alexfruit/.env to run it intentionally."
             fi
             docker image prune -f
             docker compose -p alexfruit -f docker-compose.prod.yml ps

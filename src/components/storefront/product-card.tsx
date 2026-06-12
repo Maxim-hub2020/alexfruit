@@ -108,7 +108,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
       <article className="group min-w-0 overflow-hidden rounded-[1.45rem] bg-white/88 shadow-[0_14px_34px_rgba(61,93,74,0.08)] ring-1 ring-[var(--line)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_48px_rgba(61,93,74,0.13)]">
         <Link
           href={`/products/${product.id}`}
-          className="relative block aspect-square bg-white"
+          className="relative block aspect-[4/3] bg-white"
           aria-label={`Открыть карточку товара ${product.name}`}
         >
           {product.imageUrl ? (
@@ -116,7 +116,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
               src={product.imageUrl}
               alt={product.name}
               fill
-              className="object-contain p-2 transition duration-500 group-hover:scale-[1.02]"
+              className="object-contain p-1 transition duration-500 group-hover:scale-[1.02]"
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
             />
           ) : (
