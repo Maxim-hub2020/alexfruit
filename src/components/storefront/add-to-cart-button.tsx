@@ -87,7 +87,7 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
       <div
         className={cn(
           "relative flex min-h-11 items-center gap-2 overflow-hidden rounded-2xl bg-[var(--accent)] px-2 text-white shadow-[0_16px_30px_rgba(47,143,79,0.26)] transition-[transform,box-shadow] duration-300",
-          isCompact && "min-w-[7.25rem] rounded-[1rem] shadow-[0_12px_24px_rgba(47,143,79,0.2)]",
+          isCompact && "min-h-9 min-w-[6.25rem] gap-1.5 rounded-[0.9rem] px-1.5 shadow-[0_12px_24px_rgba(47,143,79,0.2)]",
           justAdded && "shadow-[0_20px_38px_rgba(35,105,58,0.32)]",
         )}
         role="group"
@@ -106,11 +106,11 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
           onClick={handleDecrease}
           className={cn(
             "relative z-[1] inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/14 transition hover:bg-white/22 active:scale-95",
-            isCompact && "h-8 w-8",
+            isCompact && "h-7 w-7",
           )}
           aria-label={`Уменьшить количество товара ${props.name}`}
         >
-          <Minus size={15} />
+          <Minus size={isCompact ? 13 : 15} />
         </button>
 
         <div
@@ -124,7 +124,9 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
             <Check size={15} className={cn("opacity-80 transition", justAdded && "opacity-100")} />
           )}
           <div className="flex flex-col items-center leading-none">
-            <span className="text-base font-semibold tabular-nums">{quantity}</span>
+            <span className={cn("text-base font-semibold tabular-nums", isCompact && "text-sm")}>
+              {quantity}
+            </span>
             {!isCompact && (
               <span className="mt-1 text-[10px] uppercase tracking-[0.18em] text-white/78">
                 в корзине
@@ -139,11 +141,11 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
           disabled={reachedLimit}
           className={cn(
             "relative z-[1] inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/14 transition hover:bg-white/22 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45",
-            isCompact && "h-8 w-8",
+            isCompact && "h-7 w-7",
           )}
           aria-label={`Увеличить количество товара ${props.name}`}
         >
-          <Plus size={15} />
+          <Plus size={isCompact ? 13 : 15} />
         </button>
       </div>
     );
@@ -155,10 +157,10 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
         type="button"
         onClick={handleAdd}
         disabled={isDisabled || reachedLimit}
-        className="group inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-1 ring-[var(--line-strong)] transition hover:-translate-y-0.5 hover:bg-[#d2eacc] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+        className="group inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.9rem] bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-1 ring-[var(--line-strong)] transition hover:-translate-y-0.5 hover:bg-[#d2eacc] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         aria-label={`Добавить товар ${props.name} в корзину`}
       >
-        <Plus size={20} className="transition-transform group-active:scale-90" />
+        <Plus size={16} className="transition-transform group-active:scale-90" />
       </button>
     );
   }

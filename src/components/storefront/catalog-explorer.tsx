@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useDeferredValue, useMemo, useState } from "react";
 import {
   Apple,
@@ -8,17 +7,14 @@ import {
   Carrot,
   CircleDot,
   Leaf,
-  MoreVertical,
   PackageOpen,
   Search,
   SlidersHorizontal,
   Sparkles,
-  ShoppingBasket,
 } from "lucide-react";
-import { useCart } from "@/components/providers/cart-provider";
 import { ProductCard } from "@/components/storefront/product-card";
 import { CatalogImage } from "@/components/ui/catalog-image";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 type CatalogProduct = {
   id: string;
@@ -92,7 +88,6 @@ export function CatalogExplorer({
   const [availabilityFilter, setAvailabilityFilter] =
     useState<AvailabilityFilter>("all");
   const deferredQuery = useDeferredValue(query);
-  const { count, subtotal, hydrated } = useCart();
 
   const activeCategorySlug = category ?? firstCategorySlug;
   const selectedCategory = useMemo(
@@ -289,26 +284,6 @@ export function CatalogExplorer({
         )}
       </section>
 
-      {hydrated && count > 0 ? (
-        <Link
-          href="/cart"
-          className="fixed inset-x-4 bottom-24 z-40 mx-auto flex min-h-16 max-w-md items-center gap-3 rounded-[1.45rem] bg-[var(--accent)] px-5 text-white shadow-[0_24px_60px_rgba(35,105,58,0.34)] ring-1 ring-white/40 md:bottom-8"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/16">
-            <ShoppingBasket size={20} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-base font-semibold">Корзина</span>
-            <span className="block text-xs text-white/76">
-              {count} поз. в заказе
-            </span>
-          </span>
-          <span className="text-lg font-bold">{formatCurrency(subtotal)}</span>
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/14">
-            <MoreVertical size={20} />
-          </span>
-        </Link>
-      ) : null}
     </div>
   );
 }

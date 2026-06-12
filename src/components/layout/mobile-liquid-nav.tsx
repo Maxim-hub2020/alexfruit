@@ -18,6 +18,7 @@ import {
   Truck,
   UserRound,
 } from "lucide-react";
+import { useCart } from "@/components/providers/cart-provider";
 import { cn } from "@/lib/utils";
 
 const NAV_STATE_KEY = "alexfrut-mobile-nav-index";
@@ -95,6 +96,7 @@ export function MobileLiquidNav({
   role?: string | null;
 }) {
   const mobileNavItems = getNavItems(role);
+  const { count, hydrated } = useCart();
   const activeIndex = getActiveIndex(mobileNavItems, active);
   const [motion, setMotion] = useState(() => ({
     visualIndex: activeIndex,
@@ -170,6 +172,8 @@ export function MobileLiquidNav({
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.key;
+          const cartCountLabel = count > 99 ? "99+" : String(count);
+          const showCartCount = item.key === "cart" && hydrated && count > 0;
 
           return (
             <Link
@@ -183,8 +187,13 @@ export function MobileLiquidNav({
                 globalThis.sessionStorage.setItem(NAV_STATE_KEY, String(activeIndex));
               }}
             >
-              <span className="mobile-liquid-icon">
+              <span className="mobile-liquid-icon relative">
                 <Icon size={18} />
+                {showCartCount ? (
+                  <span className="absolute -right-2 -top-2 flex min-w-5 items-center justify-center rounded-full bg-[#f08a24] px-1 text-[10px] font-bold leading-5 text-white shadow-[0_8px_18px_rgba(240,138,36,0.35)] ring-2 ring-white">
+                    {cartCountLabel}
+                  </span>
+                ) : null}
               </span>
               {item.label}
             </Link>
