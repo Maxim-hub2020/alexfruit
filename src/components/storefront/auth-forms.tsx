@@ -237,6 +237,30 @@ function isAppleMobileDevice() {
   );
 }
 
+function isAndroidDevice() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return /Android/i.test(window.navigator.userAgent);
+}
+
+function getMessengerClientPlatform() {
+  if (isAndroidDevice()) {
+    return "ANDROID";
+  }
+
+  if (isAppleMobileDevice()) {
+    return "IOS";
+  }
+
+  if (isMobileDevice()) {
+    return "OTHER";
+  }
+
+  return "DESKTOP";
+}
+
 function isMobileDevice() {
   if (typeof window === "undefined") {
     return false;
@@ -551,7 +575,11 @@ function MessengerAuthPanel({
     const response = await fetch("/api/auth/messenger/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider, phone: `+7${phoneDigits}` }),
+      body: JSON.stringify({
+        provider,
+        phone: `+7${phoneDigits}`,
+        clientPlatform: getMessengerClientPlatform(),
+      }),
     });
     const result = await response.json();
     setLoadingProvider(null);
@@ -807,7 +835,13 @@ export function LoginForm() {
       return;
     }
 
-    setPhoneStatus(result.exists ? "exists" : "available");
+    if (!result.exists) {
+      setPhoneStatus("available");
+      router.replace(`/register?phone=${phoneDigits}&fromLogin=1`);
+      return;
+    }
+
+    setPhoneStatus("exists");
   }
 
   async function submit() {
@@ -887,15 +921,6 @@ export function LoginForm() {
         />
       </label>
 
-      {phoneStatus === "available" && (
-        <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-100">
-          <p className="font-semibold">Аккаунт с этим телефоном не найден.</p>
-          <a href="/register" className="mt-1 inline-block font-semibold text-[var(--accent-strong)]">
-            Зарегистрироваться
-          </a>
-        </div>
-      )}
-
       <div
         className={isPhoneKnown ? "space-y-3" : "sr-only"}
         aria-hidden={!isPhoneKnown}
@@ -945,6 +970,7 @@ export function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const handledReturnChallengeRef = useRef("");
+  const handledPrefilledPhoneRef = useRef("");
   const [form, setForm] = useState({
     phoneDigits: "",
     password: "",
@@ -959,6 +985,7 @@ export function RegisterForm() {
     phoneStatus === "available" && verifiedChallenge?.phoneDigits === form.phoneDigits;
   const returnChallengeId = searchParams.get("messengerChallengeId")?.trim() ?? "";
   const isTrustedMaxReturn = searchParams.get("maxReturn") === "1";
+  const prefilledPhoneDigits = getRussianPhoneDigits(searchParams.get("phone") ?? "");
 
   useEffect(() => {
     if (!returnChallengeId || handledReturnChallengeRef.current === returnChallengeId) {
@@ -1028,6 +1055,67 @@ export function RegisterForm() {
       cancelled = true;
     };
   }, [isTrustedMaxReturn, returnChallengeId]);
+
+  useEffect(() => {
+    if (
+      prefilledPhoneDigits.length !== 10 ||
+      handledPrefilledPhoneRef.current === prefilledPhoneDigits
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    handledPrefilledPhoneRef.current = prefilledPhoneDigits;
+
+    setForm((current) => ({
+      ...current,
+      phoneDigits: prefilledPhoneDigits,
+      password:
+        current.phoneDigits === prefilledPhoneDigits ? current.password : "",
+    }));
+    setError("");
+    setReturnNotice("");
+    setVerifiedChallenge(null);
+    setPhoneStatus("checking");
+
+    async function checkPrefilledPhone() {
+      try {
+        const response = await fetch("/api/auth/register/check-phone", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: `+7${prefilledPhoneDigits}` }),
+        });
+        const result = await response.json();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.ok) {
+          setPhoneStatus("idle");
+          setError(result.error ?? "Не удалось проверить телефон");
+          return;
+        }
+
+        setPhoneStatus(result.exists ? "exists" : "available");
+      } catch (caughtError) {
+        if (!cancelled) {
+          setPhoneStatus("idle");
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Не удалось проверить телефон",
+          );
+        }
+      }
+    }
+
+    void checkPrefilledPhone();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [prefilledPhoneDigits]);
 
   async function checkPhone() {
     setError("");

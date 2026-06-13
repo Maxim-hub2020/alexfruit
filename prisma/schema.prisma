@@ -412,6 +412,7 @@ model MessengerAuthChallenge {
   userId          String?
   messengerUserId String?
   messengerChatId String?
+  clientPlatform  String?
   contactPhone    String?
   verifiedAt      DateTime?
   returnTokenHash   String?            @unique

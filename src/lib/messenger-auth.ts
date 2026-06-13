@@ -208,6 +208,7 @@ export async function startMessengerPhoneAuth(input: unknown) {
       provider,
       phone,
       tokenHash,
+      clientPlatform: data.clientPlatform ?? null,
       expiresAt,
     },
   });
@@ -235,6 +236,7 @@ export async function startMaxPhoneAuth(input: unknown) {
   const challenge = await startMessengerPhoneAuth({
     provider: "MAX",
     phone: data.phone,
+    clientPlatform: data.clientPlatform,
   });
 
   return {
@@ -349,6 +351,30 @@ export async function getMessengerPhoneAuthReturnUrl(id: string) {
   });
 
   return createMaxReturnUrl(challenge.id, returnToken);
+}
+
+export async function getMaxPhoneAuthReturnAction(id: string) {
+  const challenge = await prisma.messengerAuthChallenge.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      provider: true,
+      clientPlatform: true,
+    },
+  });
+
+  if (!challenge || challenge.provider !== MessengerAuthProvider.MAX) {
+    return { shouldSendButton: false, returnUrl: null };
+  }
+
+  if (challenge.clientPlatform !== "ANDROID") {
+    return { shouldSendButton: false, returnUrl: null };
+  }
+
+  return {
+    shouldSendButton: true,
+    returnUrl: await getMessengerPhoneAuthReturnUrl(challenge.id),
+  };
 }
 
 export async function claimMaxPhoneAuthReturn(input: unknown) {

@@ -1,7 +1,7 @@
 import { MessengerAuthProvider } from "@/generated/prisma";
 import {
   bindMessengerStart,
-  getMessengerPhoneAuthReturnUrl,
+  getMaxPhoneAuthReturnAction,
   verifyMessengerContact,
 } from "@/lib/messenger-auth";
 
@@ -309,11 +309,15 @@ export async function handleMaxWebhook(update: MaxUpdate) {
     return;
   }
 
-  const returnUrl = await getMessengerPhoneAuthReturnUrl(result.challengeId);
+  const returnAction = await getMaxPhoneAuthReturnAction(result.challengeId);
 
   await sendMaxMessage(
     userId,
-    "Телефон подтверждён. Нажмите кнопку ниже, чтобы вернуться в приложение АлексФрут. Если откроется браузер, можно просто открыть установленное приложение — оно завершит вход автоматически.",
-    maxReturnKeyboard(returnUrl),
+    returnAction.shouldSendButton && returnAction.returnUrl
+      ? "Телефон подтверждён. Нажмите кнопку ниже, чтобы вернуться в приложение АлексФрут."
+      : "Телефон подтверждён. Откройте ещё раз веб-приложение АлексФрут, чтобы завершить вход или регистрацию.",
+    returnAction.shouldSendButton && returnAction.returnUrl
+      ? maxReturnKeyboard(returnAction.returnUrl)
+      : undefined,
   );
 }

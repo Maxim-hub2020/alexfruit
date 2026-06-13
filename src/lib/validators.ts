@@ -37,10 +37,17 @@ export const loginSchema = z.object({
 });
 
 export const messengerAuthProviderSchema = z.enum(["TELEGRAM", "MAX"]);
+export const messengerClientPlatformSchema = z.enum([
+  "ANDROID",
+  "IOS",
+  "DESKTOP",
+  "OTHER",
+]);
 
 export const messengerAuthStartSchema = z.object({
   provider: messengerAuthProviderSchema,
   phone: z.string().trim().min(10, "Укажите телефон"),
+  clientPlatform: messengerClientPlatformSchema.optional(),
 });
 
 export const messengerAuthCompleteSchema = z.object({
@@ -49,6 +56,7 @@ export const messengerAuthCompleteSchema = z.object({
 
 export const maxAuthStartSchema = z.object({
   phone: z.string().trim().min(10, "Укажите телефон"),
+  clientPlatform: messengerClientPlatformSchema.optional(),
 });
 
 export const maxAuthClaimReturnSchema = z.object({
