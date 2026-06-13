@@ -47,6 +47,15 @@ export const messengerAuthCompleteSchema = z.object({
   id: z.string().trim().min(1),
 });
 
+export const maxAuthStartSchema = z.object({
+  phone: z.string().trim().min(10, "Укажите телефон"),
+});
+
+export const maxAuthClaimReturnSchema = z.object({
+  state: z.string().trim().min(1),
+  token: z.string().trim().min(20),
+});
+
 export const addressSchema = z.object({
   title: z.string().trim().min(2),
   city: z.string().trim().min(2),

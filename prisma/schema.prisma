@@ -414,6 +414,8 @@ model MessengerAuthChallenge {
   messengerChatId String?
   contactPhone    String?
   verifiedAt      DateTime?
+  returnTokenHash   String?            @unique
+  returnTokenUsedAt DateTime?
   expiresAt       DateTime
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt

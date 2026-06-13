@@ -1,7 +1,13 @@
 import type { MetadataRoute } from "next";
 
+type ManifestWithLaunchHandler = MetadataRoute.Manifest & {
+  launch_handler?: {
+    client_mode: "focus-existing";
+  };
+};
+
 export default function manifest(): MetadataRoute.Manifest {
-  return {
+  const appManifest: ManifestWithLaunchHandler = {
     id: "/",
     name: "АлексФрут",
     short_name: "АлексФрут",
@@ -26,5 +32,10 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "any",
       },
     ],
+    launch_handler: {
+      client_mode: "focus-existing",
+    },
   };
+
+  return appManifest;
 }

@@ -10,11 +10,13 @@ import {
 } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
+  maxAuthClaimReturnSchema,
+  maxAuthStartSchema,
   messengerAuthCompleteSchema,
   messengerAuthStartSchema,
 } from "@/lib/validators";
 
-const messengerAuthTtlMs = 30 * 60 * 1000;
+const messengerAuthTtlMs = 10 * 60 * 1000;
 const phoneRegex = /^\+7\d{10}$/;
 
 type ContactVerificationResult =
@@ -92,6 +94,29 @@ function createMessengerReturnUrl(challengeId: string) {
   return url.toString();
 }
 
+function createMaxReturnUrl(state: string, token: string) {
+  const url = new URL("/auth/max/return", `${getAppBaseUrl()}/`);
+  url.searchParams.set("state", state);
+  url.searchParams.set("token", token);
+  return url.toString();
+}
+
+function getRedirectByRole(role: string) {
+  if (role === "ADMIN") {
+    return "/admin";
+  }
+
+  if (role === "COURIER") {
+    return "/courier";
+  }
+
+  if (role === "PICKER") {
+    return "/picker";
+  }
+
+  return "/";
+}
+
 function appendStartPayload(base: string, token: string) {
   const normalizedBase = /^https?:\/\//i.test(base)
     ? base
@@ -157,6 +182,18 @@ function verifyMaxContactHash(vcfInfo: string, contactHash: string) {
   return safeEqualText(contactHash, hex) || safeEqualText(contactHash, base64);
 }
 
+function toMaxAuthStatus(status: MessengerAuthStatus) {
+  if (status === MessengerAuthStatus.VERIFIED) {
+    return "confirmed";
+  }
+
+  if (status === MessengerAuthStatus.CONSUMED) {
+    return "claimed";
+  }
+
+  return status.toLowerCase();
+}
+
 export async function startMessengerPhoneAuth(input: unknown) {
   const data = messengerAuthStartSchema.parse(input);
   const provider = getProvider(data.provider);
@@ -190,6 +227,21 @@ export async function startMessengerPhoneAuth(input: unknown) {
       provider === MessengerAuthProvider.TELEGRAM
         ? `/start ${token}`
         : null,
+  };
+}
+
+export async function startMaxPhoneAuth(input: unknown) {
+  const data = maxAuthStartSchema.parse(input);
+  const challenge = await startMessengerPhoneAuth({
+    provider: "MAX",
+    phone: data.phone,
+  });
+
+  return {
+    state: challenge.id,
+    status: "pending",
+    expiresAt: challenge.expiresAt,
+    maxBotUrl: challenge.deepLink,
   };
 }
 
@@ -243,8 +295,145 @@ export async function getMessengerPhoneAuthStatus(id: string) {
   };
 }
 
+export async function getMaxPhoneAuthStatus(state: string) {
+  const challenge = await getMessengerPhoneAuthStatus(state);
+
+  return {
+    state: challenge.id,
+    status: toMaxAuthStatus(challenge.status),
+    phone: challenge.phone,
+    expiresAt: challenge.expiresAt,
+    verifiedAt: challenge.verifiedAt,
+  };
+}
+
 export async function getMessengerPhoneAuthReturnUrl(id: string) {
-  return createMessengerReturnUrl(id);
+  const returnToken = createToken();
+  const now = new Date();
+  const challenge = await prisma.messengerAuthChallenge.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      provider: true,
+      status: true,
+      expiresAt: true,
+    },
+  });
+
+  if (!challenge) {
+    throw new ApiError("Попытка входа не найдена", 404);
+  }
+
+  if (challenge.provider !== MessengerAuthProvider.MAX) {
+    return createMessengerReturnUrl(id);
+  }
+
+  if (challenge.status !== MessengerAuthStatus.VERIFIED) {
+    throw new ApiError("Телефон ещё не подтверждён", 409);
+  }
+
+  if (challenge.expiresAt <= now) {
+    await prisma.messengerAuthChallenge.update({
+      where: { id: challenge.id },
+      data: { status: MessengerAuthStatus.EXPIRED },
+    });
+    throw new ApiError("Время подтверждения истекло", 410);
+  }
+
+  await prisma.messengerAuthChallenge.update({
+    where: { id: challenge.id },
+    data: {
+      returnTokenHash: hashToken(returnToken),
+      returnTokenUsedAt: null,
+    },
+  });
+
+  return createMaxReturnUrl(challenge.id, returnToken);
+}
+
+export async function claimMaxPhoneAuthReturn(input: unknown) {
+  const data = maxAuthClaimReturnSchema.parse(input);
+  const tokenHash = hashToken(data.token);
+  const now = new Date();
+
+  const result = await prisma.$transaction(async (tx) => {
+    const challenge = await tx.messengerAuthChallenge.findUnique({
+      where: { id: data.state },
+    });
+
+    if (!challenge || challenge.provider !== MessengerAuthProvider.MAX) {
+      throw new ApiError("Попытка входа через MAX не найдена", 404);
+    }
+
+    if (challenge.status !== MessengerAuthStatus.VERIFIED) {
+      throw new ApiError("Телефон ещё не подтверждён в MAX", 409);
+    }
+
+    if (challenge.expiresAt <= now) {
+      await tx.messengerAuthChallenge.update({
+        where: { id: challenge.id },
+        data: { status: MessengerAuthStatus.EXPIRED },
+      });
+      throw new ApiError("Время подтверждения истекло, начните вход заново", 410);
+    }
+
+    if (!challenge.returnTokenHash || !safeEqualText(challenge.returnTokenHash, tokenHash)) {
+      throw new ApiError("Ссылка возврата недействительна", 401);
+    }
+
+    if (challenge.returnTokenUsedAt) {
+      throw new ApiError("Ссылка возврата уже использована", 409);
+    }
+
+    const existingUser = await tx.user.findUnique({
+      where: { phone: challenge.phone },
+    });
+
+    await tx.messengerAuthChallenge.update({
+      where: { id: challenge.id },
+      data: {
+        returnTokenUsedAt: now,
+        userId: existingUser?.id ?? challenge.userId,
+      },
+    });
+
+    if (!existingUser) {
+      return {
+        mode: "register" as const,
+        phone: challenge.phone,
+        redirectTo: `/register?messengerChallengeId=${encodeURIComponent(challenge.id)}&maxReturn=1`,
+        user: null,
+      };
+    }
+
+    return {
+      mode: "login" as const,
+      phone: challenge.phone,
+      redirectTo: getRedirectByRole(existingUser.role),
+      user: existingUser,
+    };
+  });
+
+  if (result.user) {
+    await createSession({
+      userId: result.user.id,
+      role: result.user.role,
+      name: result.user.name,
+    });
+  }
+
+  return {
+    mode: result.mode,
+    phone: result.phone,
+    redirectTo: result.redirectTo,
+    user: result.user
+      ? {
+          id: result.user.id,
+          role: result.user.role,
+          name: result.user.name,
+        }
+      : null,
+  };
 }
 
 export async function completeMessengerPhoneAuth(input: unknown) {

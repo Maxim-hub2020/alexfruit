@@ -216,6 +216,7 @@ function clearMessengerReturnParam() {
 
   const url = new URL(window.location.href);
   url.searchParams.delete("messengerChallengeId");
+  url.searchParams.delete("maxReturn");
   window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -957,6 +958,7 @@ export function RegisterForm() {
   const isPhoneVerified =
     phoneStatus === "available" && verifiedChallenge?.phoneDigits === form.phoneDigits;
   const returnChallengeId = searchParams.get("messengerChallengeId")?.trim() ?? "";
+  const isTrustedMaxReturn = searchParams.get("maxReturn") === "1";
 
   useEffect(() => {
     if (!returnChallengeId || handledReturnChallengeRef.current === returnChallengeId) {
@@ -967,7 +969,7 @@ export function RegisterForm() {
     handledReturnChallengeRef.current = returnChallengeId;
 
     async function applyReturnedChallenge() {
-      if (!canCompleteMessengerReturn(returnChallengeId)) {
+      if (!isTrustedMaxReturn && !canCompleteMessengerReturn(returnChallengeId)) {
         setError("");
         setReturnNotice(messengerReturnWrongContextMessage);
         clearMessengerReturnParam();
@@ -1025,7 +1027,7 @@ export function RegisterForm() {
     return () => {
       cancelled = true;
     };
-  }, [returnChallengeId]);
+  }, [isTrustedMaxReturn, returnChallengeId]);
 
   async function checkPhone() {
     setError("");

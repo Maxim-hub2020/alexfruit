@@ -115,6 +115,7 @@ function getRateLimitPolicy(pathname: string): RateLimitPolicy {
     pathname.startsWith("/api/auth/login/") ||
     pathname === "/api/auth/register" ||
     pathname.startsWith("/api/auth/register/") ||
+    pathname.startsWith("/api/auth/max/") ||
     pathname.startsWith("/api/auth/messenger/")
   ) {
     return policies.auth;
