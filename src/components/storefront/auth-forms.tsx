@@ -306,91 +306,134 @@ function MessengerAuthPanel({
 
     let cancelled = false;
     let completed = false;
+    let pollInFlight = false;
+    let lastPollAt = 0;
+    const regularPollIntervalMs = 12_000;
+    const returnPollMinGapMs = 3_000;
 
-    async function pollStatus() {
-      if (!challenge?.id || completed) {
+    async function pollStatus({ force = false }: { force?: boolean } = {}) {
+      if (!challenge?.id || completed || pollInFlight) {
         return;
       }
 
-      const response = await fetch(`/api/auth/messenger/status/${challenge.id}`, {
-        cache: "no-store",
-      });
-      const result = await response.json();
+      const now = Date.now();
+      const minGap = force ? returnPollMinGapMs : regularPollIntervalMs - 250;
 
-      if (cancelled) {
+      if (now - lastPollAt < minGap) {
         return;
       }
 
-      if (!response.ok) {
-        setError(result.error ?? "Не удалось проверить подтверждение телефона");
-        return;
-      }
+      pollInFlight = true;
+      lastPollAt = now;
 
-      if (result.status === "VERIFIED") {
-        completed = true;
-        window.sessionStorage.removeItem(messengerChallengeStorageKey);
-
-        if (mode === "register") {
-          clearMessengerLaunchContext(challenge.id);
-          setError("");
-          setMessage("Телефон подтверждён. Теперь задайте пароль и создайте аккаунт.");
-          onVerifiedRef.current?.({
-            id: challenge.id,
-            phoneDigits,
-            provider: challenge.provider,
-          });
-          return;
-        }
-
-        setIsCompleting(true);
-        setMessage("Телефон подтверждён. Входим в приложение...");
-
-        const completeResponse = await fetch("/api/auth/messenger/complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: challenge.id }),
+      try {
+        const response = await fetch(`/api/auth/messenger/status/${challenge.id}`, {
+          cache: "no-store",
         });
-        const completeResult = await completeResponse.json();
+        const result = await response.json();
 
         if (cancelled) {
           return;
         }
 
-        setIsCompleting(false);
+        if (!response.ok) {
+          if (response.status === 429) {
+            setError("");
+            setMessage(
+              "MAX уже подтверждает номер. Подождите несколько секунд, приложение продолжит вход автоматически.",
+            );
+            return;
+          }
 
-        if (!completeResponse.ok) {
-          setError(completeResult.error ?? "Не удалось завершить вход");
+          setError(result.error ?? "Не удалось проверить подтверждение телефона");
           return;
         }
 
-        clearMessengerLaunchContext(challenge.id);
-        router.push(getRedirectByRole(completeResult.role));
-        router.refresh();
-        return;
-      }
+        if (result.status === "VERIFIED") {
+          completed = true;
+          window.sessionStorage.removeItem(messengerChallengeStorageKey);
 
-      if (result.status === "EXPIRED" || result.status === "FAILED") {
-        setChallenge(null);
-        setCopiedCommand(false);
-        setMessage("");
-        setError(
-          result.status === "EXPIRED"
-            ? "Время подтверждения истекло. Запустите вход ещё раз."
-            : "Подтверждение не прошло. Проверьте номер и попробуйте заново.",
-        );
+          if (mode === "register") {
+            clearMessengerLaunchContext(challenge.id);
+            setError("");
+            setMessage("Телефон подтверждён. Теперь задайте пароль и создайте аккаунт.");
+            onVerifiedRef.current?.({
+              id: challenge.id,
+              phoneDigits,
+              provider: challenge.provider,
+            });
+            return;
+          }
+
+          setIsCompleting(true);
+          setMessage("Телефон подтверждён. Входим в приложение...");
+
+          const completeResponse = await fetch("/api/auth/messenger/complete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: challenge.id }),
+          });
+          const completeResult = await completeResponse.json();
+
+          if (cancelled) {
+            return;
+          }
+
+          setIsCompleting(false);
+
+          if (!completeResponse.ok) {
+            if (completeResponse.status === 429) {
+              setError("");
+              setMessage(
+                "Вход уже завершается. Подождите несколько секунд, приложение продолжит автоматически.",
+              );
+              completed = false;
+              return;
+            }
+
+            setError(completeResult.error ?? "Не удалось завершить вход");
+            return;
+          }
+
+          clearMessengerLaunchContext(challenge.id);
+          router.push(getRedirectByRole(completeResult.role));
+          router.refresh();
+          return;
+        }
+
+        if (result.status === "EXPIRED" || result.status === "FAILED") {
+          setChallenge(null);
+          setCopiedCommand(false);
+          setMessage("");
+          setError(
+            result.status === "EXPIRED"
+              ? "Время подтверждения истекло. Запустите вход ещё раз."
+              : "Подтверждение не прошло. Проверьте номер и попробуйте заново.",
+          );
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setError(
+            error instanceof Error
+              ? error.message
+              : "Не удалось проверить подтверждение телефона",
+          );
+        }
+      } finally {
+        pollInFlight = false;
       }
     }
 
-    void pollStatus();
+    void pollStatus({ force: true });
     const intervalId = window.setInterval(() => {
       void pollStatus();
-    }, 2000);
+    }, regularPollIntervalMs);
     const pollWhenVisible = () => {
       if (document.visibilityState === "hidden") {
         return;
       }
 
-      void pollStatus();
+      void pollStatus({ force: true });
     };
 
     window.addEventListener("focus", pollWhenVisible);

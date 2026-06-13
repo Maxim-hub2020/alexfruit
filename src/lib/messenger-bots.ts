@@ -1,7 +1,6 @@
 import { MessengerAuthProvider } from "@/generated/prisma";
 import {
   bindMessengerStart,
-  getMessengerPhoneAuthReturnUrl,
   verifyMessengerContact,
 } from "@/lib/messenger-auth";
 
@@ -197,25 +196,6 @@ function maxContactKeyboard() {
   ];
 }
 
-function maxReturnKeyboard(returnUrl: string) {
-  return [
-    {
-      type: "inline_keyboard",
-      payload: {
-        buttons: [
-          [
-            {
-              type: "link",
-              text: "Вернуться в приложение",
-              url: returnUrl,
-            },
-          ],
-        ],
-      },
-    },
-  ];
-}
-
 function getMaxMessage(update: MaxUpdate): MaxMessage {
   return update.message ?? {
     sender: update.sender ?? update.user,
@@ -309,11 +289,8 @@ export async function handleMaxWebhook(update: MaxUpdate) {
     return;
   }
 
-  const returnUrl = await getMessengerPhoneAuthReturnUrl(result.challengeId);
-
   await sendMaxMessage(
     userId,
-    "Телефон подтверждён. Вернитесь в приложение, чтобы продолжить автоматически.",
-    maxReturnKeyboard(returnUrl),
+    "Телефон подтверждён. Откройте веб-приложение АлексФрут — вход или регистрация продолжится автоматически.",
   );
 }

@@ -16,7 +16,7 @@ type MessengerLaunchContext = MessengerLaunchChallenge & {
 
 export const messengerChallengeStorageKey = "alexfruit.messenger-auth-challenge";
 export const messengerReturnWrongContextMessage =
-  "Телефон подтверждён. Вернитесь в установленное приложение АлексФрут — вход завершится там автоматически.";
+  "Телефон подтверждён. Откройте веб-приложение АлексФрут — вход завершится там автоматически.";
 
 const messengerLaunchContextStorageKey = "alexfruit.messenger-auth-launch-context";
 const messengerLaunchContextMaxAgeMs = 20 * 60 * 1000;
