@@ -162,22 +162,35 @@ const defaultMessengerProviders = ["MAX"] as const;
 
 function MaxMessengerIcon({ className = "h-7 w-7" }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 48 48" aria-hidden="true">
+    <svg className={className} viewBox="0 0 64 64" aria-hidden="true">
       <defs>
-        <linearGradient id="maxMessengerIconGradient" x1="7" y1="7" x2="41" y2="41">
-          <stop offset="0" stopColor="#1EC8FF" />
-          <stop offset="0.52" stopColor="#236BFF" />
-          <stop offset="1" stopColor="#8F3BFF" />
+        <linearGradient id="maxMessengerIconGradient" x1="8" y1="52" x2="56" y2="10">
+          <stop offset="0" stopColor="#21C8F6" />
+          <stop offset="0.36" stopColor="#246BFF" />
+          <stop offset="0.72" stopColor="#6127E8" />
+          <stop offset="1" stopColor="#B332D7" />
+        </linearGradient>
+        <linearGradient id="maxMessengerIconHighlight" x1="14" y1="12" x2="44" y2="44">
+          <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.48" />
+          <stop offset="0.42" stopColor="#FFFFFF" stopOpacity="0" />
+          <stop offset="0.75" stopColor="#FFFFFF" stopOpacity="0.22" />
+          <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
         </linearGradient>
       </defs>
       <path
-        fill="url(#maxMessengerIconGradient)"
-        d="M24 5C13.5 5 5 12.7 5 22.3c0 5.8 3.1 10.9 7.9 14.1L9.8 43c-.4.9.6 1.8 1.5 1.3l7.2-4.2c1.8.5 3.6.8 5.5.8 10.5 0 19-7.7 19-17.3S34.5 5 24 5Z"
+        d="M14.5 50.5 12 39.3C8.7 23.8 19.9 9.8 35.6 9.8c13 0 23.1 9.3 23.1 21.9 0 13.2-10.4 23-23.8 23-7.4 0-13.9-2.9-18.1-7.7l-7 6.2"
+        fill="none"
+        stroke="url(#maxMessengerIconGradient)"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="10.8"
       />
       <path
-        fill="white"
-        fillOpacity="0.96"
-        d="M15.7 24.2c0-4.8 3.8-8.5 8.9-8.5 4.9 0 8.2 3.2 8.2 7.6 0 4.8-3.7 8.4-8.9 8.4-5 0-8.2-3.1-8.2-7.5Zm8.6 3.1c2.2 0 3.9-1.7 3.9-3.8 0-2-1.4-3.3-3.5-3.3-2.3 0-4 1.7-4 3.8 0 2 1.4 3.3 3.6 3.3Z"
+        d="M16.9 26.9c2.7-7.2 9.5-12 17.8-12 7.7 0 14.5 4.2 17.6 10.4"
+        fill="none"
+        stroke="url(#maxMessengerIconHighlight)"
+        strokeLinecap="round"
+        strokeWidth="5"
       />
     </svg>
   );
@@ -223,8 +236,24 @@ function isAppleMobileDevice() {
   );
 }
 
+function isMobileDevice() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const navigatorWithTouch = window.navigator as Navigator & {
+    maxTouchPoints?: number;
+  };
+
+  return (
+    /Android|iPad|iPhone|iPod|Mobile/i.test(navigatorWithTouch.userAgent) ||
+    navigatorWithTouch.maxTouchPoints > 1
+  );
+}
+
 function shouldUseSameWindowDeepLink(provider: MessengerProvider) {
-  return provider === "TELEGRAM" && isAppleMobileDevice();
+  return (provider === "MAX" && isMobileDevice()) ||
+    (provider === "TELEGRAM" && isAppleMobileDevice());
 }
 
 function getMessengerLaunchLink(challenge: MessengerChallenge) {
