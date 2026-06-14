@@ -56,7 +56,7 @@ const categoryIcons = {
 } as const;
 
 const availabilityFilters: Array<{ value: AvailabilityFilter; label: string }> = [
-  { value: "all", label: "Все товары" },
+  { value: "all", label: "Все статусы" },
   { value: "today", label: "В наличии" },
   { value: "preorder", label: "Под заказ" },
   { value: "promo", label: "Акции и хиты" },
@@ -81,15 +81,14 @@ export function CatalogExplorer({
   categories: Array<{ id: string; name: string; slug: string; imageUrl?: string | null }>;
   products: CatalogProduct[];
 }) {
-  const firstCategorySlug = categories[0]?.slug ?? null;
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<string | null>(() => firstCategorySlug);
+  const [category, setCategory] = useState<string | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [availabilityFilter, setAvailabilityFilter] =
     useState<AvailabilityFilter>("all");
   const deferredQuery = useDeferredValue(query);
 
-  const activeCategorySlug = category ?? firstCategorySlug;
+  const activeCategorySlug = category;
   const selectedCategory = useMemo(
     () => categories.find((item) => item.slug === activeCategorySlug) ?? null,
     [activeCategorySlug, categories],
@@ -216,6 +215,24 @@ export function CatalogExplorer({
 
       <section className="sticky top-20 z-20 -mx-3 mt-5 border-y border-white/80 bg-white/76 px-3 py-3 backdrop-blur-xl sm:-mx-5 sm:px-5 md:top-24 lg:-mx-7 lg:px-7">
         <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <button
+            type="button"
+            onClick={() => setCategory(null)}
+            className={cn(
+              "group inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ring-1",
+              activeCategorySlug === null
+                ? "bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-[var(--accent-soft)] shadow-sm"
+                : "bg-white/64 text-[var(--muted)] ring-transparent hover:bg-white hover:text-[var(--foreground)]",
+            )}
+          >
+            <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-[var(--accent-strong)]">
+              <PackageOpen size={15} />
+            </span>
+            <span className="whitespace-nowrap">Все товары</span>
+            <span className="rounded-full bg-white/64 px-1.5 py-0.5 text-[10px] text-[var(--muted)]">
+              {products.length}
+            </span>
+          </button>
           {categories.map((item) => {
             const Icon = categoryIcons[item.slug as keyof typeof categoryIcons] ?? CircleDot;
             const isActive = activeCategorySlug === item.slug;
@@ -263,7 +280,7 @@ export function CatalogExplorer({
               Товары
             </p>
             <h2 className="mt-1 font-serif text-3xl font-semibold md:text-4xl">
-              {selectedCategory ? selectedCategory.name : "Результаты поиска"}
+              {selectedCategory ? selectedCategory.name : "Все товары"}
             </h2>
           </div>
           <p className="text-sm text-[var(--muted)]">

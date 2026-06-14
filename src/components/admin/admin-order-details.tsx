@@ -318,7 +318,7 @@ export function AdminOrderDetails({
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-4 text-sm font-semibold text-white"
               >
                 <FileText size={16} />
-                Этикетка 40×50 мм
+                Этикетка CT221B 40×50
               </Link>
             ) : (
               <span className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white/70 px-4 text-sm font-semibold text-[var(--muted)] ring-1 ring-[var(--line)]">

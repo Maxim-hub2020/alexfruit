@@ -273,7 +273,7 @@ export function PickerAssemblyDashboard({
               className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-4 text-sm font-semibold text-white"
             >
               <FileText size={16} />
-              Все этикетки
+              Все этикетки CT221B
             </Link>
           </div>
         </div>

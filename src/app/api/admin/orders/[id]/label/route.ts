@@ -2,7 +2,7 @@ import { Role } from "@/generated/prisma";
 import { ApiError, jsonError } from "@/lib/api";
 import { requireApiUser } from "@/lib/auth";
 import { canPrintOrderLabelStatus } from "@/lib/constants";
-import { createOrderLabelPdf } from "@/lib/label-pdf";
+import { createOrderLabelPdf, LABEL_PDF_PRESET } from "@/lib/label-pdf";
 import { getAdminOrder } from "@/lib/orders";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +34,7 @@ export async function GET(
     return new Response(pdfBody, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${order.orderNumber}-label-40x50.pdf"`,
+        "Content-Disposition": `inline; filename="${order.orderNumber}-label-${LABEL_PDF_PRESET.fileSuffix}.pdf"`,
         "Cache-Control": "no-store",
       },
     });

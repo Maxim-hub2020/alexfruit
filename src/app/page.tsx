@@ -294,7 +294,7 @@ export default async function HomePage() {
                 href={user ? "/orders" : "/login"}
                 className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/22 bg-white/10 px-4 text-sm font-semibold text-white transition hover:bg-white/16"
               >
-                {user ? "Мои заказы" : "Войти и сохранить адрес"}
+                {user ? "Мои заказы" : "Сохранить адрес"}
               </Link>
             </div>
           </div>

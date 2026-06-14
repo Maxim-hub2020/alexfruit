@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { MainShell } from "@/components/layout/main-shell";
 import { LoginForm } from "@/components/storefront/auth-forms";
 import { getCurrentUser } from "@/lib/auth";
@@ -54,19 +53,13 @@ export default async function LoginPage() {
         </div>
 
         <div className="relative z-[60] mx-auto max-w-xl rounded-[2.5rem] border border-white/72 bg-white/86 p-8 shadow-[0_34px_100px_rgba(23,50,38,0.22)] backdrop-blur-2xl">
-          <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">Вход</p>
+          <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">АлексФрут</p>
           <h1 className="mt-3 font-serif text-5xl font-semibold">
             Фрукты для вас уже созрели
           </h1>
           <div className="mt-6">
             <LoginForm />
           </div>
-          <p className="mt-5 text-sm text-[var(--muted)]">
-            Нет аккаунта?{" "}
-            <Link href="/register" className="font-semibold text-[var(--accent-strong)]">
-              Зарегистрироваться
-            </Link>
-          </p>
         </div>
       </section>
     </MainShell>

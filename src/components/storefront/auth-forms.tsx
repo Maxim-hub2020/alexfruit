@@ -391,7 +391,7 @@ function MessengerAuthPanel({
           }
 
           setIsCompleting(true);
-          setMessage("Телефон подтверждён. Входим в приложение...");
+          setMessage("Телефон подтверждён. Открываем приложение...");
 
           const completeResponse = await fetch("/api/auth/messenger/complete", {
             method: "POST",
@@ -410,7 +410,7 @@ function MessengerAuthPanel({
             if (completeResponse.status === 429) {
               setError("");
               setMessage(
-                "Вход уже завершается. Подождите несколько секунд, приложение продолжит автоматически.",
+                "Сессия уже завершается. Подождите несколько секунд, приложение продолжит автоматически.",
               );
               completed = false;
               return;
@@ -598,7 +598,7 @@ function MessengerAuthPanel({
       <div className="flex items-center gap-3">
         <span className="h-px flex-1 bg-[var(--line)]" />
         <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-          {mode === "register" ? "Подтверждение телефона" : "Быстрый вход"}
+          {mode === "register" ? "Подтверждение телефона" : "Подтверждение через MAX"}
         </span>
         <span className="h-px flex-1 bg-[var(--line)]" />
       </div>
@@ -619,7 +619,7 @@ function MessengerAuthPanel({
                 <span>
                   {mode === "register"
                     ? "Подтвердить номер"
-                    : "Войти"}
+                    : "Продолжить"}
                 </span>
               </span>
             )}
@@ -959,7 +959,7 @@ export function LoginForm() {
         </Button>
       ) : (
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? "Входим..." : "Войти по паролю"}
+          {isLoading ? "Проверяем..." : "Продолжить по паролю"}
         </Button>
       )}
     </form>
@@ -1222,7 +1222,7 @@ export function RegisterForm() {
         <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-100">
           <p className="font-semibold">Этот телефон уже зарегистрирован.</p>
           <a href="/login" className="mt-1 inline-block font-semibold text-[var(--accent-strong)]">
-            Войти в аккаунт
+            Продолжить
           </a>
         </div>
       )}
@@ -1245,7 +1245,7 @@ export function RegisterForm() {
         <>
           <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-100">
             Телефон подтверждён через {messengerProviderLabels[verifiedChallenge.provider]}.
-            Задайте пароль для входа.
+            Задайте пароль для следующего посещения.
           </p>
           <input
             value={form.password}
@@ -1278,7 +1278,7 @@ export function RegisterForm() {
         </Button>
       ) : (
         <Button className="w-full" onClick={() => void submit()} disabled={isLoading}>
-          {isLoading ? "Создаём..." : "Создать аккаунт"}
+          {isLoading ? "Сохраняем..." : "Сохранить"}
         </Button>
       )}
     </div>

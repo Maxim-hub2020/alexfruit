@@ -149,7 +149,7 @@ export function AppHeader({
               href="/login"
               className="rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white shadow-[0_14px_32px_rgba(47,143,79,0.24)]"
             >
-              Войти
+              Продолжить
             </Link>
           )}
         </div>

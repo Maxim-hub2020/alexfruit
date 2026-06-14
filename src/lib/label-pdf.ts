@@ -4,8 +4,16 @@ import { PDFDocument, PDFPage, PDFFont, rgb } from "pdf-lib";
 import { getAddressLabel } from "@/lib/utils";
 
 const MM_TO_PT = 72 / 25.4;
-const LABEL_WIDTH = 40 * MM_TO_PT;
-const LABEL_HEIGHT = 50 * MM_TO_PT;
+
+export const LABEL_PDF_PRESET = {
+  printerModel: "CT221B-BLH2.0",
+  widthMm: 40,
+  heightMm: 50,
+  fileSuffix: "ct221b-40x50",
+} as const;
+
+const LABEL_WIDTH = LABEL_PDF_PRESET.widthMm * MM_TO_PT;
+const LABEL_HEIGHT = LABEL_PDF_PRESET.heightMm * MM_TO_PT;
 const LABEL_MARGIN = 4.5;
 const BORDER_INSET = 1.8;
 const PRINT_BLACK = rgb(0, 0, 0);
@@ -381,6 +389,11 @@ export async function createOrdersLabelsPdf(
 ) {
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
+  pdfDoc.setTitle(
+    `AlexFruit labels ${LABEL_PDF_PRESET.printerModel} ${LABEL_PDF_PRESET.widthMm}x${LABEL_PDF_PRESET.heightMm}mm`,
+  );
+  pdfDoc.setCreator("AlexFruit");
+  pdfDoc.setProducer(`AlexFruit label preset ${LABEL_PDF_PRESET.printerModel}`);
 
   const fallbackFont = await embedFont(pdfDoc, regularFontCandidates);
   const boldFont = await embedFont(pdfDoc, boldFontCandidates).catch(() => fallbackFont);

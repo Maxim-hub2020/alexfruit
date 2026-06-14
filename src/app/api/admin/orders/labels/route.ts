@@ -1,7 +1,7 @@
 import { Role } from "@/generated/prisma";
 import { ApiError, jsonError } from "@/lib/api";
 import { requireApiUser } from "@/lib/auth";
-import { createOrdersLabelsPdf } from "@/lib/label-pdf";
+import { createOrdersLabelsPdf, LABEL_PDF_PRESET } from "@/lib/label-pdf";
 import { getOrdersForLabels } from "@/lib/orders";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     return new Response(pdfBody, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="alexfrut-labels-${date}-40x50.pdf"`,
+        "Content-Disposition": `inline; filename="alexfrut-labels-${date}-${LABEL_PDF_PRESET.fileSuffix}.pdf"`,
         "Cache-Control": "no-store",
       },
     });

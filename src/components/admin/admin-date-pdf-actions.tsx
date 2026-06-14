@@ -116,7 +116,7 @@ export function AdminDatePdfActions({
 
           <PdfActionLink href={labelsUrl} enabled={canGenerateLabels} variant="accent">
             <FileText size={16} />
-            Этикетки 40×50
+            Этикетки CT221B 40×50
           </PdfActionLink>
 
           <PdfActionLink href={assemblyUrl} enabled={canGenerate} variant="light">

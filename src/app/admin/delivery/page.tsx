@@ -122,7 +122,7 @@ export default async function AdminDeliveryPage({
                       rel="noreferrer"
                     >
                       <FileText size={16} />
-                      Этикетка 40×50
+                      Этикетка CT221B 40×50
                     </Link>
                   ) : (
                     <span className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/70 px-4 py-3 text-sm font-semibold text-[var(--muted)] ring-1 ring-[var(--line)]">
