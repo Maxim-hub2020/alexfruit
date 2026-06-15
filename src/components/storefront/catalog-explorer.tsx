@@ -11,6 +11,7 @@ import {
   Search,
   SlidersHorizontal,
   Sparkles,
+  Truck,
 } from "lucide-react";
 import { ProductCard } from "@/components/storefront/product-card";
 import { CatalogImage } from "@/components/ui/catalog-image";
@@ -76,13 +77,19 @@ function isPromotedProduct(product: CatalogProduct) {
 
 export function CatalogExplorer({
   categories,
+  initialCategory,
   products,
 }: {
   categories: Array<{ id: string; name: string; slug: string; imageUrl?: string | null }>;
+  initialCategory?: string | null;
   products: CatalogProduct[];
 }) {
+  const initialCategorySlug =
+    initialCategory && categories.some((item) => item.slug === initialCategory)
+      ? initialCategory
+      : null;
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<string | null>(null);
+  const [category, setCategory] = useState<string | null>(initialCategorySlug);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [availabilityFilter, setAvailabilityFilter] =
     useState<AvailabilityFilter>("all");
@@ -137,83 +144,126 @@ export function CatalogExplorer({
   const activeFilterLabel =
     availabilityFilters.find((filter) => filter.value === availabilityFilter)?.label ??
     "Фильтр";
+  const todayProductsCount = availabilityFilterCounts.today;
+  const preorderProductsCount = availabilityFilterCounts.preorder;
+  const promotedProductsCount = availabilityFilterCounts.promo;
 
   return (
-    <div className="w-full max-w-full overflow-hidden rounded-[2rem] bg-white/86 px-3 py-4 shadow-[0_30px_90px_rgba(61,93,74,0.12)] ring-1 ring-white/80 sm:px-5 lg:px-7">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-2">
-          <h1 className="font-serif text-3xl font-semibold leading-none md:text-5xl">
-            Каталог
+    <div className="lavka-storefront-shell">
+      <section className="lavka-market-head">
+        <div className="min-w-0">
+          <p className="inline-flex items-center gap-2 rounded-full bg-white/76 px-3 py-1.5 text-xs font-semibold text-[var(--accent-strong)] ring-1 ring-white/80">
+            <Truck size={14} />
+            Доставка по Ростову-на-Дону
+          </p>
+          <h1 className="mt-3 text-3xl font-black tracking-[-0.04em] sm:text-5xl">
+            Что положим в корзину?
           </h1>
-          <p className="max-w-xl text-sm leading-6 text-[var(--muted)] max-sm:hidden">
-            Свежие овощи, фрукты, ягоды и сезонные позиции для быстрой корзины.
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
+            Свежие овощи, фрукты, ягоды и сезонные позиции в понятной витрине.
           </p>
         </div>
 
-        <div className="flex w-full flex-col gap-3 lg:w-[22rem]">
-          <div className="flex gap-2">
-            <label className="relative min-w-0 flex-1">
-              <Search
-                size={18}
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)]"
-              />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Поиск по товарам"
-                className="h-12 w-full rounded-2xl bg-[var(--surface-muted)] pl-11 pr-4 text-sm outline-none ring-1 ring-[var(--line)] transition focus:bg-white focus:ring-[var(--accent)]"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() => setIsFilterOpen((current) => !current)}
-              className={cn(
-                "inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold ring-1 transition",
-                isFilterOpen || availabilityFilter !== "all"
-                  ? "bg-[var(--accent)] text-white ring-[var(--accent)]"
-                  : "bg-white text-[var(--foreground)] ring-[var(--line)] hover:bg-[var(--surface-muted)]",
-              )}
-              aria-expanded={isFilterOpen}
-            >
-              <SlidersHorizontal size={17} />
-              <span className="hidden sm:inline">{activeFilterLabel}</span>
-            </button>
-          </div>
-
-          {isFilterOpen && (
-            <div className="rounded-[1.5rem] bg-white p-3 shadow-[0_18px_48px_rgba(61,93,74,0.10)] ring-1 ring-[var(--line)]">
-              <p className="px-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
-                Фильтр
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {availabilityFilters.map((filter) => {
-                  const isActive = availabilityFilter === filter.value;
-                  const filterCount = availabilityFilterCounts[filter.value];
-
-                  return (
-                    <button
-                      key={filter.value}
-                      type="button"
-                      onClick={() => setAvailabilityFilter(filter.value)}
-                      className={cn(
-                        "rounded-full px-3 py-2 text-xs font-semibold transition ring-1",
-                        isActive
-                          ? "bg-[var(--accent)] text-white ring-[var(--accent)]"
-                          : "bg-[var(--surface-muted)] text-[var(--muted)] ring-[var(--line)] hover:bg-white hover:text-[var(--foreground)]",
-                      )}
-                    >
-                      {filter.label}
-                      <span className="ml-1 opacity-75">{filterCount}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+        <div className="lavka-market-head__stats">
+          <button
+            type="button"
+            onClick={() => {
+              setAvailabilityFilter("today");
+              setIsFilterOpen(false);
+            }}
+            className="lavka-stat-card bg-[#eff8e8]"
+          >
+            <span>{todayProductsCount}</span>
+            <small>можно сегодня</small>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAvailabilityFilter("preorder");
+              setIsFilterOpen(false);
+            }}
+            className="lavka-stat-card bg-[#fff4df]"
+          >
+            <span>{preorderProductsCount}</span>
+            <small>под заказ</small>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAvailabilityFilter("promo");
+              setIsFilterOpen(false);
+            }}
+            className="lavka-stat-card bg-[#eef5ff]"
+          >
+            <span>{promotedProductsCount}</span>
+            <small>хиты и акции</small>
+          </button>
         </div>
-      </div>
+      </section>
 
-      <section className="sticky top-20 z-20 -mx-3 mt-5 border-y border-white/80 bg-white/76 px-3 py-3 backdrop-blur-xl sm:-mx-5 sm:px-5 md:top-24 lg:-mx-7 lg:px-7">
+      <section className="lavka-search-dock">
+        <div className="flex gap-2">
+          <label className="relative min-w-0 flex-1">
+            <Search
+              size={18}
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+            />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Найти ягоды, овощи или зелень"
+              className="h-12 w-full rounded-[1.15rem] bg-white pl-11 pr-4 text-sm outline-none ring-1 ring-[var(--line)] transition focus:ring-[var(--accent)]"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => setIsFilterOpen((current) => !current)}
+            className={cn(
+              "inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[1.15rem] px-4 text-sm font-semibold ring-1 transition",
+              isFilterOpen || availabilityFilter !== "all"
+                ? "bg-[var(--accent)] text-white ring-[var(--accent)]"
+                : "bg-white text-[var(--foreground)] ring-[var(--line)] hover:bg-[var(--surface-muted)]",
+            )}
+            aria-expanded={isFilterOpen}
+          >
+            <SlidersHorizontal size={17} />
+            <span className="hidden sm:inline">{activeFilterLabel}</span>
+          </button>
+        </div>
+
+        {isFilterOpen && (
+          <div className="mt-3 rounded-[1.4rem] bg-white p-3 shadow-[0_18px_48px_rgba(61,93,74,0.10)] ring-1 ring-[var(--line)]">
+            <p className="px-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+              Фильтр
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {availabilityFilters.map((filter) => {
+                const isActive = availabilityFilter === filter.value;
+                const filterCount = availabilityFilterCounts[filter.value];
+
+                return (
+                  <button
+                    key={filter.value}
+                    type="button"
+                    onClick={() => setAvailabilityFilter(filter.value)}
+                    className={cn(
+                      "rounded-full px-3 py-2 text-xs font-semibold transition ring-1",
+                      isActive
+                        ? "bg-[var(--accent)] text-white ring-[var(--accent)]"
+                        : "bg-[var(--surface-muted)] text-[var(--muted)] ring-[var(--line)] hover:bg-white hover:text-[var(--foreground)]",
+                    )}
+                  >
+                    {filter.label}
+                    <span className="ml-1 opacity-75">{filterCount}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="lavka-category-strip">
         <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             type="button"
@@ -274,22 +324,19 @@ export function CatalogExplorer({
       </section>
 
       <section className="mt-5 pb-24 md:pb-10">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mb-4 flex items-end justify-between gap-3">
           <div>
-            <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">
-              Товары
-            </p>
-            <h2 className="mt-1 font-serif text-3xl font-semibold md:text-4xl">
+            <h2 className="text-2xl font-black tracking-[-0.04em] md:text-4xl">
               {selectedCategory ? selectedCategory.name : "Все товары"}
             </h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              {filteredProducts.length} позиций
+            </p>
           </div>
-          <p className="text-sm text-[var(--muted)]">
-            {filteredProducts.length} товаров
-          </p>
         </div>
 
         {filteredProducts.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5">
             {filteredProducts.map((product) => (
               <ProductCard key={product.id} product={product} variant="catalog" />
             ))}
