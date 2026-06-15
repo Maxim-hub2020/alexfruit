@@ -140,7 +140,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
               {availabilityLabel}
             </span>
             <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0 rounded-full bg-[#eef7e8] px-3 py-2 text-sm font-black text-[var(--accent-strong)] ring-1 ring-[rgba(47,143,79,0.10)]">
+              <div className="shrink-0 whitespace-nowrap rounded-full bg-[#eef7e8] px-3 py-2 text-[13px] font-black text-[var(--accent-strong)] ring-1 ring-[rgba(47,143,79,0.10)] sm:text-sm">
                 {formatCurrency(product.price)}
                 <span className="ml-1 text-[10px] font-semibold text-[var(--muted)]">
                   за {unitLabels[product.unit] ?? product.unit}
@@ -192,7 +192,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
             >
               {product.name}
             </Link>
-            <div className="text-right">
+            <div className="shrink-0 whitespace-nowrap text-right">
               <p className="text-lg font-bold text-[var(--accent-strong)]">
                 {formatCurrency(product.price)}
               </p>
