@@ -1,7 +1,16 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  BadgePercent,
+  Clock3,
+  Search,
+  ShoppingBasket,
+  Sparkles,
+  Truck,
+} from "lucide-react";
 import { MainShell } from "@/components/layout/main-shell";
 import { CollectionCartButton } from "@/components/storefront/collection-cart-button";
+import { ProductCard } from "@/components/storefront/product-card";
 import { CatalogImage } from "@/components/ui/catalog-image";
 import { unitLabels } from "@/lib/constants";
 import { getCurrentUser } from "@/lib/auth";
@@ -11,163 +20,163 @@ import { formatCurrency } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 const categoryDescriptions: Record<string, string> = {
-  frukty: "Сладкое к завтраку",
-  ovoschi: "Основа для ужина",
-  kartofel: "Мешки и сорта",
-  zelen: "Зелёный акцент",
-  yagody: "Яркий сезон",
-  griby: "Свежие грибы",
-  ekzotika: "Тропики к столу",
-  orehi: "Для перекуса",
-  suhofrukty: "Полезный запас",
-  nabory: "Готовые решения",
-  aktsii: "Выгодные предложения",
+  frukty: "Фрукты",
+  ovoschi: "Овощи",
+  kartofel: "Картофель",
+  zelen: "Зелень",
+  yagody: "Ягоды",
+  griby: "Грибы",
+  ekzotika: "Экзотика",
+  orehi: "Орехи",
+  suhofrukty: "Сухофрукты",
+  nabory: "Наборы",
+  aktsii: "Акции",
 };
+
+const promoCards = [
+  {
+    title: "Свежая поставка",
+    text: "Сезонные позиции обновляем каждый день.",
+    href: "/catalog",
+    icon: Sparkles,
+    className: "bg-[#dfeec9]",
+  },
+  {
+    title: "Быстрая корзина",
+    text: "Выберите товары, а дату доставки укажете при оформлении.",
+    href: "/catalog",
+    icon: ShoppingBasket,
+    className: "bg-[#f7e7bd]",
+  },
+  {
+    title: "Хиты и акции",
+    text: "Собрали выгодные позиции в одном фильтре.",
+    href: "/catalog",
+    icon: BadgePercent,
+    className: "bg-[#e1eefc]",
+  },
+];
 
 export default async function HomePage() {
   const user = await getCurrentUser();
   const data = await getStorefrontData(user?.role === "CUSTOMER" ? user.id : undefined);
 
   const heroProduct = data.highlights.popular[0] ?? data.products[0];
-  const collections = data.collections;
+  const featuredProducts =
+    data.highlights.popular.length > 0
+      ? data.highlights.popular.slice(0, 6)
+      : data.products.slice(0, 6);
+  const collections = data.collections.slice(0, 3);
   const hasPersonalCollections = collections.some(
     (collection) => collection.source === "personal",
   );
 
   return (
     <MainShell active="home" user={user}>
-      <section className="section-shell py-8">
-        <div className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
-          <div className="relative overflow-hidden rounded-[2.75rem] bg-[linear-gradient(135deg,#fffdf7_0%,#eef8e8_52%,#daedd6_100%)] px-6 py-7 shadow-[0_30px_90px_rgba(49,85,60,0.14)] ring-1 ring-white/70 lg:px-8 lg:py-10">
-            <div className="absolute -right-10 top-8 h-40 w-40 rounded-full bg-[rgba(255,194,86,0.16)] blur-3xl" />
-            <div className="absolute -bottom-10 left-8 h-44 w-44 rounded-full bg-[rgba(47,143,79,0.12)] blur-3xl" />
+      <section className="section-shell pb-3 pt-4 md:pt-6">
+        <div className="lavka-home-shell">
+          <div className="lavka-home-top">
+            <div className="min-w-0 space-y-4">
+              <p className="inline-flex items-center gap-2 rounded-full bg-white/78 px-3 py-1.5 text-xs font-semibold text-[var(--accent-strong)] ring-1 ring-white/80">
+                <Truck size={14} />
+                Ростов-на-Дону, свежая доставка
+              </p>
 
-            <div className="relative space-y-6 md:space-y-7">
-              <div className="space-y-4">
-                <h1 className="max-w-3xl font-serif text-4xl leading-[1.02] font-semibold text-[var(--foreground)] sm:text-5xl md:text-6xl md:leading-[0.95]">
-                  <span className="block">Свежие</span>
-                  <span
-                    className="hero-word-rotator block text-[clamp(3.4rem,12vw,8.4rem)]"
-                    aria-hidden="true"
-                  >
-                    <span className="hero-word-track block">
-                      <span>ФРУКТЫ</span>
-                      <span>ОВОЩИ</span>
-                      <span>ЯГОДЫ</span>
-                    </span>
-                  </span>
-                  <span className="sr-only">фрукты, овощи и ягоды</span>
-                  <span className="block">с доставкой сегодня</span>
+              <div>
+                <h1 className="max-w-3xl text-4xl font-black leading-[0.94] tracking-[-0.065em] sm:text-6xl lg:text-7xl">
+                  Овощи, фрукты и ягоды без лишней суеты
                 </h1>
-                <p className="max-w-2xl text-base leading-7 text-[var(--muted)] md:text-lg md:leading-8">
-                  Собирайте корзину на день, на неделю или к семейному ужину: сезонные
-                  ягоды, зелень, готовые наборы и понятная доставка без лишней суеты.
+                <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--muted)] sm:text-base sm:leading-7">
+                  Выбирайте как в удобной лавке: категории рядом, товары крупно,
+                  корзина всегда под рукой, а доставка настраивается только при
+                  оформлении заказа.
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-3">
-                <Link
-                  href="/catalog"
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(47,143,79,0.26)] transition hover:bg-[var(--accent-strong)]"
-                >
-                  Открыть каталог
-                  <ArrowRight size={16} />
-                </Link>
-                <a
-                  href="#collections"
-                  className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-white/70 px-4 text-sm font-semibold text-[var(--foreground)] ring-1 ring-[var(--line)] transition hover:bg-white"
-                >
-                  Посмотреть подборки
-                </a>
-              </div>
-
-              {user?.role === "CUSTOMER" && (
-                <p className="text-sm text-[var(--muted)]">
-                  Уже заказывали раньше?{" "}
-                  <Link href="/orders" className="font-semibold text-[var(--accent-strong)]">
-                    Повторите любимую корзину
-                  </Link>{" "}
-                  за пару кликов.
-                </p>
-              )}
+              <Link href="/catalog" className="lavka-home-search">
+                <Search size={18} />
+                <span className="min-w-0 flex-1 truncate">
+                  Найти клубнику, помидоры или зелень
+                </span>
+                <ArrowRight size={18} />
+              </Link>
             </div>
-          </div>
 
-          <aside className="grid gap-4">
-            <div className="glass-panel rounded-[2.3rem] p-4">
-              <div className="relative overflow-hidden rounded-[1.9rem] bg-white">
+            <Link
+              href={heroProduct ? `/products/${heroProduct.id}` : "/catalog"}
+              className="lavka-hero-product"
+            >
+              <div className="relative h-56 overflow-hidden rounded-[2rem] bg-white sm:h-72">
                 {heroProduct?.imageUrl ? (
-                  <div className="relative h-[320px]">
-                    <CatalogImage
-                      src={heroProduct.imageUrl}
-                      alt={heroProduct.name}
-                      fill
-                      loading="eager"
-                      className="object-contain p-4"
-                      sizes="(max-width: 1024px) 100vw, 40vw"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#163023]/75 via-transparent to-transparent" />
-                  </div>
+                  <CatalogImage
+                    src={heroProduct.imageUrl}
+                    alt={heroProduct.name}
+                    fill
+                    loading="eager"
+                    className="object-contain p-4"
+                    sizes="(max-width: 1024px) 100vw, 34vw"
+                  />
                 ) : (
-                  <div className="flex h-[320px] items-center justify-center bg-[linear-gradient(135deg,#d9ecd5_0%,#edf7ea_100%)] text-7xl">
-                    🍏
-                  </div>
+                  <div className="flex h-full items-center justify-center text-7xl">🍓</div>
                 )}
-
-                <div className="absolute inset-x-0 bottom-0 p-5 text-white">
-                  <div className="mt-2 flex items-end justify-between gap-4">
-                    <div>
-                      <h2 className="font-serif text-4xl font-semibold leading-none">
-                        {heroProduct?.name}
-                      </h2>
-                      <p className="mt-2 text-sm text-white/82">
-                        {heroProduct?.description}
-                      </p>
-                    </div>
-                    <div className="rounded-[1.35rem] bg-white/14 px-4 py-3 text-right backdrop-blur-sm">
-                      <p className="text-2xl font-semibold">
-                        {formatCurrency(Number(heroProduct?.price ?? 0))}
-                      </p>
-                      <p className="text-xs uppercase tracking-[0.18em] text-white/78">
-                        за {unitLabels[heroProduct?.unit ?? ""] ?? heroProduct?.unit}
-                      </p>
-                    </div>
-                  </div>
+              </div>
+              <div className="mt-4 flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+                    Популярно сегодня
+                  </p>
+                  <h2 className="mt-1 line-clamp-2 text-xl font-black tracking-[-0.04em]">
+                    {heroProduct?.name ?? "Свежая поставка"}
+                  </h2>
+                </div>
+                <div className="shrink-0 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-black text-white">
+                  {formatCurrency(Number(heroProduct?.price ?? 0))}
+                  <span className="ml-1 text-[10px] font-semibold text-white/75">
+                    за {unitLabels[heroProduct?.unit ?? ""] ?? heroProduct?.unit}
+                  </span>
                 </div>
               </div>
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <section className="section-shell py-3">
-        <div className="glass-panel rounded-[2.2rem] p-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="font-serif text-4xl font-semibold">
-                Выберите настроение корзины
-              </h2>
-            </div>
-            <Link href="/catalog" className="text-sm font-semibold text-[var(--accent-strong)]">
-              Перейти ко всему каталогу
             </Link>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {data.categories.slice(0, 8).map((category) => (
+          <div className="lavka-promo-row">
+            {promoCards.map((card) => {
+              const Icon = card.icon;
+
+              return (
+                <Link key={card.title} href={card.href} className={`lavka-promo-card ${card.className}`}>
+                  <span className="lavka-promo-icon">
+                    <Icon size={18} />
+                  </span>
+                  <strong>{card.title}</strong>
+                  <span>{card.text}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="lavka-category-home">
+            {data.categories.slice(0, 10).map((category) => (
               <Link
                 key={category.id}
-                href="/catalog"
-                className="category-choice-button"
+                href={`/catalog?category=${category.slug}`}
+                className="lavka-category-home__item"
               >
-                <span>
-                  <h3 className="text-xl font-semibold">{category.name}</h3>
-                  <p className="mt-2 text-sm text-[var(--muted)]">
-                    {categoryDescriptions[category.slug] ?? "Свежие позиции"}
-                  </p>
+                <span className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-[1.35rem] bg-white">
+                  {category.imageUrl ? (
+                    <CatalogImage
+                      src={category.imageUrl}
+                      alt=""
+                      fill
+                      className="object-contain p-2"
+                      sizes="64px"
+                    />
+                  ) : (
+                    <span className="text-3xl">🥬</span>
+                  )}
                 </span>
-                <span className="category-choice-arrow" aria-hidden="true">
-                  <ArrowRight size={16} />
+                <span className="text-sm font-bold">
+                  {categoryDescriptions[category.slug] ?? category.name}
                 </span>
               </Link>
             ))}
@@ -175,128 +184,104 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <div className="relative my-2 overflow-hidden py-4">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-full bg-[linear-gradient(180deg,rgba(245,248,240,0)_0%,rgba(216,237,211,0.68)_48%,rgba(245,248,240,0)_100%)] blur-sm" />
+      <section className="section-shell py-4">
+        <div className="mb-4 flex items-end justify-between gap-3">
+          <div>
+            <p className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+              <Clock3 size={14} />
+              Быстрый выбор
+            </p>
+            <h2 className="mt-1 text-3xl font-black tracking-[-0.045em] md:text-5xl">
+              Популярное сейчас
+            </h2>
+          </div>
+          <Link
+            href="/catalog"
+            className="hidden rounded-full bg-white px-4 py-2 text-sm font-bold text-[var(--accent-strong)] ring-1 ring-[var(--line)] transition hover:bg-[var(--surface-muted)] sm:inline-flex"
+          >
+            Весь каталог
+          </Link>
+        </div>
 
-        <section id="collections" className="section-shell relative py-6">
-          <div className="mb-5 flex items-end justify-between gap-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-6">
+          {featuredProducts.map((product) => (
+            <ProductCard key={product.id} product={product} variant="catalog" />
+          ))}
+        </div>
+      </section>
+
+      <section id="collections" className="section-shell py-4">
+        <div className="rounded-[2rem] bg-white/72 p-4 shadow-[0_20px_70px_rgba(61,93,74,0.09)] ring-1 ring-white/82 sm:p-5">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">
-                {hasPersonalCollections ? "Подобрано под вас" : "Быстрые сценарии"}
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+                {hasPersonalCollections ? "Подобрано под вас" : "Готовые корзины"}
               </p>
-              <h2 className="mt-2 font-serif text-4xl font-semibold">
-                Подборки, с которых удобно начать
+              <h2 className="mt-1 text-3xl font-black tracking-[-0.045em]">
+                Подборки для быстрого старта
               </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-                {hasPersonalCollections
-                  ? "Система смотрит на ваши прошлые покупки и собирает корзины, которые можно добавить одним нажатием."
-                  : "Пока истории покупок мало, показываем готовые стартовые корзины."}
-              </p>
             </div>
-            <Link
-              href="/catalog"
-              className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl bg-white/82 px-4 text-sm font-semibold text-[var(--accent-strong)] shadow-sm ring-1 ring-[var(--line)] transition hover:-translate-y-0.5 hover:bg-white"
-            >
+            <Link href="/catalog" className="text-sm font-bold text-[var(--accent-strong)]">
               Открыть весь каталог
             </Link>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-3">
+          <div className="grid gap-3 lg:grid-cols-3">
             {collections.map((collection, index) => {
               const cover = collection.items[0];
 
               return (
                 <article
                   key={collection.key}
-                  className="relative overflow-hidden rounded-[2.2rem] bg-[linear-gradient(180deg,#ffffff_0%,#f1f7ef_100%)] p-5 ring-1 ring-[var(--line)] shadow-[0_18px_50px_rgba(61,93,74,0.09)]"
+                  className="rounded-[1.7rem] bg-[linear-gradient(180deg,#ffffff_0%,#f2f8ee_100%)] p-4 ring-1 ring-[var(--line)]"
                 >
-                  <div className="absolute -right-8 top-10 h-24 w-24 rounded-full bg-[rgba(47,143,79,0.09)] blur-2xl" />
-                  <div className="relative">
-                    <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">
-                      {collection.eyebrow}
-                    </p>
-                    <h3 className="mt-3 text-3xl font-semibold">{collection.title}</h3>
-                    <p className="mt-3 max-w-md text-sm leading-7 text-[var(--muted)]">
-                      {collection.text}
-                    </p>
-
-                    <div className="mt-5 flex items-center gap-4 rounded-[1.7rem] bg-white/86 p-4">
-                      <div className="relative h-24 w-24 overflow-hidden rounded-[1.3rem] bg-white">
-                        {cover?.imageUrl ? (
-                          <CatalogImage
-                            src={cover.imageUrl}
-                            alt={cover.name}
-                            fill
-                            className="object-contain p-2"
-                            sizes="96px"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center text-4xl">
-                            {index === 0 ? "🍊" : index === 1 ? "🍓" : "🥬"}
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="mt-2 truncate text-lg font-semibold">{cover?.name}</p>
-                        <p className="mt-1 text-sm text-[var(--accent-strong)]">
-                          {formatCurrency(Number(cover?.price ?? 0))}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 space-y-2">
-                      {collection.items.map((item) => (
-                        <div
-                          key={item.productId}
-                          className="flex items-center justify-between rounded-[1.25rem] bg-white/72 px-4 py-3 text-sm"
-                        >
-                          <span className="font-medium">{item.name}</span>
-                          <span className="text-[var(--muted)]">
-                            {formatCurrency(Number(item.price))}
-                          </span>
+                  <div className="flex gap-3">
+                    <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-[1.35rem] bg-white">
+                      {cover?.imageUrl ? (
+                        <CatalogImage
+                          src={cover.imageUrl}
+                          alt={cover.name}
+                          fill
+                          className="object-contain p-2"
+                          sizes="96px"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-4xl">
+                          {index === 0 ? "🍊" : index === 1 ? "🍓" : "🥬"}
                         </div>
-                      ))}
+                      )}
                     </div>
-
-                    <CollectionCartButton items={collection.items} />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--muted)]">
+                        {collection.eyebrow}
+                      </p>
+                      <h3 className="mt-1 line-clamp-2 text-xl font-black tracking-[-0.04em]">
+                        {collection.title}
+                      </h3>
+                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted)]">
+                        {collection.text}
+                      </p>
+                    </div>
                   </div>
+
+                  <div className="mt-4 space-y-2">
+                    {collection.items.slice(0, 3).map((item) => (
+                      <div
+                        key={item.productId}
+                        className="flex items-center justify-between rounded-[1rem] bg-white/72 px-3 py-2 text-sm"
+                      >
+                        <span className="truncate font-semibold">{item.name}</span>
+                        <span className="ml-3 shrink-0 text-[var(--muted)]">
+                          {formatCurrency(Number(item.price))}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <CollectionCartButton items={collection.items} />
                 </article>
               );
             })}
-          </div>
-        </section>
-      </div>
-
-      <section className="section-shell py-6">
-        <div className="rounded-[2.4rem] bg-[linear-gradient(135deg,#214e31_0%,#2f8f4f_100%)] px-6 py-7 text-white shadow-[0_24px_70px_rgba(25,66,40,0.2)] lg:px-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-sm uppercase tracking-[0.24em] text-white/70">
-                Честно и удобно
-              </p>
-              <h2 className="mt-3 font-serif text-4xl font-semibold">
-                Весовые товары уточним после сборки, а адрес и любимые позиции сохраним
-              </h2>
-              <p className="mt-3 text-sm leading-7 text-white/78">
-                Так вы видите реальный итог по овощам и фруктам, а следующий заказ занимает
-                уже заметно меньше времени.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href="/catalog"
-                className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-white px-4 text-sm font-semibold transition hover:bg-white/90"
-                style={{ color: "#23693a" }}
-              >
-                Перейти к покупкам
-              </Link>
-              <Link
-                href={user ? "/orders" : "/login"}
-                className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/22 bg-white/10 px-4 text-sm font-semibold text-white transition hover:bg-white/16"
-              >
-                {user ? "Мои заказы" : "Сохранить адрес"}
-              </Link>
-            </div>
           </div>
         </div>
       </section>

@@ -104,10 +104,10 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
 
   if (variant === "catalog") {
     return (
-      <article className="group min-w-0 overflow-hidden rounded-[1.45rem] bg-white/88 shadow-[0_14px_34px_rgba(61,93,74,0.08)] ring-1 ring-[var(--line)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_48px_rgba(61,93,74,0.13)]">
+      <article className="group min-w-0 overflow-hidden rounded-[1.35rem] bg-white/82 ring-1 ring-[var(--line)] transition duration-300 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_18px_42px_rgba(61,93,74,0.10)]">
         <Link
           href={`/products/${product.id}`}
-          className="relative block aspect-[4/3] bg-white"
+          className="relative block aspect-square overflow-hidden rounded-[1.2rem] bg-white"
           aria-label={`Открыть карточку товара ${product.name}`}
         >
           {product.imageUrl ? (
@@ -115,7 +115,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
               src={product.imageUrl}
               alt={product.name}
               fill
-              className="object-contain p-1 transition duration-500 group-hover:scale-[1.02]"
+              className="object-contain p-2 transition duration-500 group-hover:scale-[1.02]"
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
             />
           ) : (
@@ -123,26 +123,26 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
           )}
         </Link>
 
-        <div className="flex min-h-[11.5rem] flex-col p-3">
+        <div className="flex min-h-[10.75rem] flex-col px-2.5 pb-3 pt-2.5 sm:px-3">
           <Link
             href={`/products/${product.id}`}
-            className="text-sm font-semibold leading-5 transition hover:text-[var(--accent-strong)] sm:text-base"
+            className="line-clamp-2 text-[0.92rem] font-bold leading-5 tracking-[-0.02em] transition hover:text-[var(--accent-strong)] sm:text-base"
           >
             {product.name}
           </Link>
-          <p className="mt-1 max-h-10 overflow-hidden text-xs leading-5 text-[var(--muted)]">
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--muted)]">
             {product.description || "Свежая поставка с ежедневным обновлением."}
           </p>
           <ProductBadges product={product} compact />
 
-          <div className="mt-auto space-y-2 pt-3">
-            <span className="block text-xs font-semibold text-[var(--accent-strong)]">
+          <div className="mt-auto space-y-2 pt-2.5">
+            <span className="block text-[11px] font-semibold text-[var(--accent-strong)]">
               {availabilityLabel}
             </span>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="rounded-full bg-[var(--accent)] px-3 py-2 text-sm font-bold text-white shadow-[0_12px_24px_rgba(47,143,79,0.2)]">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 rounded-full bg-[#eef7e8] px-3 py-2 text-sm font-black text-[var(--accent-strong)] ring-1 ring-[rgba(47,143,79,0.10)]">
                 {formatCurrency(product.price)}
-                <span className="ml-1 text-[10px] font-semibold text-white/75">
+                <span className="ml-1 text-[10px] font-semibold text-[var(--muted)]">
                   за {unitLabels[product.unit] ?? product.unit}
                 </span>
               </div>
