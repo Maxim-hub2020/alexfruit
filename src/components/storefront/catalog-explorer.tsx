@@ -77,10 +77,12 @@ function isPromotedProduct(product: CatalogProduct) {
 
 export function CatalogExplorer({
   categories,
+  compactHome = false,
   initialCategory,
   products,
 }: {
   categories: Array<{ id: string; name: string; slug: string; imageUrl?: string | null }>;
+  compactHome?: boolean;
   initialCategory?: string | null;
   products: CatalogProduct[];
 }) {
@@ -149,59 +151,61 @@ export function CatalogExplorer({
   const promotedProductsCount = availabilityFilterCounts.promo;
 
   return (
-    <div className="lavka-storefront-shell">
-      <section className="lavka-market-head">
-        <div className="min-w-0">
-          <p className="inline-flex items-center gap-2 rounded-full bg-white/76 px-3 py-1.5 text-xs font-semibold text-[var(--accent-strong)] ring-1 ring-white/80">
-            <Truck size={14} />
-            Доставка по Ростову-на-Дону
-          </p>
-          <h1 className="mt-3 text-3xl font-black tracking-[-0.04em] sm:text-5xl">
-            Что положим в корзину?
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-            Свежие овощи, фрукты, ягоды и сезонные позиции в понятной витрине.
-          </p>
-        </div>
+    <div className={cn("lavka-storefront-shell", compactHome && "lavka-storefront-shell--home")}>
+      {!compactHome && (
+        <section className="lavka-market-head">
+          <div className="min-w-0">
+            <p className="inline-flex items-center gap-2 rounded-full bg-white/76 px-3 py-1.5 text-xs font-semibold text-[var(--accent-strong)] ring-1 ring-white/80">
+              <Truck size={14} />
+              Доставка по Ростову-на-Дону
+            </p>
+            <h1 className="mt-3 text-3xl font-black tracking-[-0.04em] sm:text-5xl">
+              Что положим в корзину?
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
+              Свежие овощи, фрукты, ягоды и сезонные позиции в понятной витрине.
+            </p>
+          </div>
 
-        <div className="lavka-market-head__stats">
-          <button
-            type="button"
-            onClick={() => {
-              setAvailabilityFilter("today");
-              setIsFilterOpen(false);
-            }}
-            className="lavka-stat-card bg-[#eff8e8]"
-          >
-            <span>{todayProductsCount}</span>
-            <small>можно сегодня</small>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAvailabilityFilter("preorder");
-              setIsFilterOpen(false);
-            }}
-            className="lavka-stat-card bg-[#fff4df]"
-          >
-            <span>{preorderProductsCount}</span>
-            <small>под заказ</small>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAvailabilityFilter("promo");
-              setIsFilterOpen(false);
-            }}
-            className="lavka-stat-card bg-[#eef5ff]"
-          >
-            <span>{promotedProductsCount}</span>
-            <small>хиты и акции</small>
-          </button>
-        </div>
-      </section>
+          <div className="lavka-market-head__stats">
+            <button
+              type="button"
+              onClick={() => {
+                setAvailabilityFilter("today");
+                setIsFilterOpen(false);
+              }}
+              className="lavka-stat-card bg-[#eff8e8]"
+            >
+              <span>{todayProductsCount}</span>
+              <small>можно сегодня</small>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAvailabilityFilter("preorder");
+                setIsFilterOpen(false);
+              }}
+              className="lavka-stat-card bg-[#fff4df]"
+            >
+              <span>{preorderProductsCount}</span>
+              <small>под заказ</small>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAvailabilityFilter("promo");
+                setIsFilterOpen(false);
+              }}
+              className="lavka-stat-card bg-[#eef5ff]"
+            >
+              <span>{promotedProductsCount}</span>
+              <small>хиты и акции</small>
+            </button>
+          </div>
+        </section>
+      )}
 
-      <section className="lavka-search-dock">
+      <section className={cn("lavka-search-dock", compactHome && "lavka-search-dock--first")}>
         <div className="flex gap-2">
           <label className="relative min-w-0 flex-1">
             <Search
@@ -323,17 +327,19 @@ export function CatalogExplorer({
         </div>
       </section>
 
-      <section className="mt-5 pb-24 md:pb-10">
-        <div className="mb-4 flex items-end justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-black tracking-[-0.04em] md:text-4xl">
-              {selectedCategory ? selectedCategory.name : "Все товары"}
-            </h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              {filteredProducts.length} позиций
-            </p>
+      <section className={cn("mt-5 pb-24 md:pb-10", compactHome && "mt-3")}>
+        {!compactHome && (
+          <div className="mb-4 flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-black tracking-[-0.04em] md:text-4xl">
+                {selectedCategory ? selectedCategory.name : "Все товары"}
+              </h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                {filteredProducts.length} позиций
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {filteredProducts.length > 0 ? (
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5">
