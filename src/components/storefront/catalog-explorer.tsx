@@ -6,11 +6,13 @@ import {
   BadgePercent,
   Carrot,
   CircleDot,
+  Flame,
   Leaf,
   PackageOpen,
   Search,
   SlidersHorizontal,
   Sparkles,
+  TrendingUp,
   Truck,
 } from "lucide-react";
 import { ProductCard } from "@/components/storefront/product-card";
@@ -41,6 +43,7 @@ type CatalogProduct = {
 };
 
 type AvailabilityFilter = "all" | "today" | "preorder" | "promo";
+type SpotlightFilter = "all" | "hit" | "popular" | "discount";
 
 const categoryIcons = {
   frukty: Apple,
@@ -75,6 +78,19 @@ function isPromotedProduct(product: CatalogProduct) {
   return product.isPromo || product.isHit || product.isNew;
 }
 
+function isPopularProduct(product: CatalogProduct) {
+  return product.isHit || product.isPromo || (product.reviewsCount ?? 0) > 0;
+}
+
+function matchesSpotlightFilter(product: CatalogProduct, filter: SpotlightFilter) {
+  return (
+    filter === "all" ||
+    (filter === "hit" && product.isHit) ||
+    (filter === "popular" && isPopularProduct(product)) ||
+    (filter === "discount" && product.isPromo)
+  );
+}
+
 export function CatalogExplorer({
   categories,
   compactHome = false,
@@ -95,6 +111,7 @@ export function CatalogExplorer({
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [availabilityFilter, setAvailabilityFilter] =
     useState<AvailabilityFilter>("all");
+  const [spotlightFilter, setSpotlightFilter] = useState<SpotlightFilter>("all");
   const deferredQuery = useDeferredValue(query);
 
   const activeCategorySlug = category;
@@ -123,6 +140,49 @@ export function CatalogExplorer({
     [products],
   );
 
+  const homePickTiles = useMemo(() => {
+    const hitProducts = products.filter((product) => product.isHit);
+    const popularProducts = products
+      .filter(isPopularProduct)
+      .sort((left, right) => {
+        const rightScore = Number(right.reviewsCount ?? 0) + (right.isHit ? 10 : 0);
+        const leftScore = Number(left.reviewsCount ?? 0) + (left.isHit ? 10 : 0);
+
+        return rightScore - leftScore;
+      });
+    const discountProducts = products.filter((product) => product.isPromo);
+
+    return [
+      {
+        value: "hit" as const,
+        title: "Хит",
+        description: "То, что чаще всего забирают первым",
+        count: hitProducts.length,
+        products: hitProducts,
+        icon: Flame,
+        className: "lavka-pick-tile--hero",
+      },
+      {
+        value: "popular" as const,
+        title: "Самое покупаемое",
+        description: "Проверенные позиции на каждый день",
+        count: popularProducts.length,
+        products: popularProducts,
+        icon: TrendingUp,
+        className: "lavka-pick-tile--tall",
+      },
+      {
+        value: "discount" as const,
+        title: "Скидки",
+        description: "Выгодные предложения и спеццены",
+        count: discountProducts.length,
+        products: discountProducts,
+        icon: BadgePercent,
+        className: "lavka-pick-tile--compact",
+      },
+    ];
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase();
 
@@ -139,9 +199,14 @@ export function CatalogExplorer({
         product.name.toLowerCase().includes(normalizedQuery) ||
         (product.description ?? "").toLowerCase().includes(normalizedQuery);
 
-      return matchesCategory && matchesAvailability && matchesQuery;
+      return (
+        matchesCategory &&
+        matchesAvailability &&
+        matchesQuery &&
+        matchesSpotlightFilter(product, spotlightFilter)
+      );
     });
-  }, [activeCategorySlug, availabilityFilter, deferredQuery, products]);
+  }, [activeCategorySlug, availabilityFilter, deferredQuery, products, spotlightFilter]);
 
   const activeFilterLabel =
     availabilityFilters.find((filter) => filter.value === availabilityFilter)?.label ??
@@ -172,6 +237,7 @@ export function CatalogExplorer({
               type="button"
               onClick={() => {
                 setAvailabilityFilter("today");
+                setSpotlightFilter("all");
                 setIsFilterOpen(false);
               }}
               className="lavka-stat-card bg-[#eff8e8]"
@@ -183,6 +249,7 @@ export function CatalogExplorer({
               type="button"
               onClick={() => {
                 setAvailabilityFilter("preorder");
+                setSpotlightFilter("all");
                 setIsFilterOpen(false);
               }}
               className="lavka-stat-card bg-[#fff4df]"
@@ -194,6 +261,7 @@ export function CatalogExplorer({
               type="button"
               onClick={() => {
                 setAvailabilityFilter("promo");
+                setSpotlightFilter("all");
                 setIsFilterOpen(false);
               }}
               className="lavka-stat-card bg-[#eef5ff]"
@@ -249,7 +317,10 @@ export function CatalogExplorer({
                   <button
                     key={filter.value}
                     type="button"
-                    onClick={() => setAvailabilityFilter(filter.value)}
+                    onClick={() => {
+                      setAvailabilityFilter(filter.value);
+                      setSpotlightFilter("all");
+                    }}
                     className={cn(
                       "rounded-full px-3 py-2 text-xs font-semibold transition ring-1",
                       isActive
@@ -267,11 +338,71 @@ export function CatalogExplorer({
         )}
       </section>
 
+      {compactHome && (
+        <section className="lavka-home-picks" aria-label="Подборки">
+          {homePickTiles.map((tile) => {
+            const Icon = tile.icon;
+            const tileProducts =
+              tile.products.length > 0 ? tile.products.slice(0, 3) : products.slice(0, 3);
+            const isActive = spotlightFilter === tile.value;
+
+            return (
+              <button
+                key={tile.value}
+                type="button"
+                onClick={() => {
+                  setSpotlightFilter(tile.value);
+                  setCategory(null);
+                  setIsFilterOpen(false);
+                }}
+                className={cn(
+                  "lavka-pick-tile",
+                  tile.className,
+                  isActive && "lavka-pick-tile--active",
+                )}
+              >
+                <span className="lavka-pick-tile__top">
+                  <span className="lavka-pick-tile__icon">
+                    <Icon size={16} />
+                  </span>
+                  <span>{tile.count > 0 ? `${tile.count} поз.` : "скоро"}</span>
+                </span>
+                <strong>{tile.title}</strong>
+                <small>{tile.description}</small>
+                <span className="lavka-pick-tile__images" aria-hidden="true">
+                  {tileProducts.map((product) => (
+                    <span
+                      key={`${tile.value}-${product.id}`}
+                      className="lavka-pick-tile__image"
+                    >
+                      {product.imageUrl ? (
+                        <CatalogImage
+                          src={product.imageUrl}
+                          alt=""
+                          fill
+                          sizes="72px"
+                          className="object-contain"
+                        />
+                      ) : (
+                        <span className="flex h-full items-center justify-center text-lg">🍎</span>
+                      )}
+                    </span>
+                  ))}
+                </span>
+              </button>
+            );
+          })}
+        </section>
+      )}
+
       <section className="lavka-category-strip">
         <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             type="button"
-            onClick={() => setCategory(null)}
+            onClick={() => {
+              setCategory(null);
+              setSpotlightFilter("all");
+            }}
             className={cn(
               "group inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ring-1",
               activeCategorySlug === null
@@ -296,7 +427,10 @@ export function CatalogExplorer({
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setCategory(item.slug)}
+                onClick={() => {
+                  setCategory(item.slug);
+                  setSpotlightFilter("all");
+                }}
                 className={cn(
                   "group inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ring-1",
                   isActive
