@@ -25,7 +25,6 @@ const NAV_STATE_KEY = "alexfrut-desktop-nav-index";
 
 const customerNavItems = [
   { key: "home", href: "/", label: "Главная", icon: Home },
-  { key: "catalog", href: "/catalog", label: "Каталог", icon: ShoppingBasket },
   { key: "orders", href: "/orders", label: "Заказы", icon: ClipboardList },
   { key: "cart", href: "/cart", label: "Корзина", icon: ShoppingCart },
   { key: "profile", href: "/profile", label: "Профиль", icon: UserRound },
