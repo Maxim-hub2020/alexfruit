@@ -36,10 +36,12 @@ export async function GET(request: Request) {
 
     new Uint8Array(pdfBody).set(pdfBytes);
 
+    const filename = `alexfrut-labels-${date}-${LABEL_PDF_PRESET.fileSuffix}.pdf`;
+
     return new Response(pdfBody, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="alexfrut-labels-${date}-${LABEL_PDF_PRESET.fileSuffix}.pdf"`,
+        "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
         "Cache-Control": "no-store",
       },
     });

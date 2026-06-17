@@ -313,12 +313,11 @@ export function AdminOrderDetails({
             {canPrintLabel ? (
               <Link
                 href={`/api/admin/orders/${order.id}/label`}
-                target="_blank"
-                rel="noreferrer"
+                download
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-4 text-sm font-semibold text-white"
               >
                 <FileText size={16} />
-                Этикетка CT221B 40×50
+                Скачать этикетку PDF
               </Link>
             ) : (
               <span className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white/70 px-4 text-sm font-semibold text-[var(--muted)] ring-1 ring-[var(--line)]">

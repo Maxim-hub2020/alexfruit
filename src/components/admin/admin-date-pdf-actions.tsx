@@ -28,11 +28,13 @@ function PdfActionLink({
   enabled,
   children,
   variant = "accent",
+  download = false,
 }: {
   href?: string;
   enabled: boolean;
   children: ReactNode;
   variant?: "accent" | "light";
+  download?: boolean;
 }) {
   if (!enabled || !href) {
     return (
@@ -48,7 +50,13 @@ function PdfActionLink({
       : "inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white px-5 text-sm font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--line)]";
 
   return (
-    <Link href={href} target="_blank" rel="noreferrer" className={className}>
+    <Link
+      href={href}
+      download={download}
+      target={download ? undefined : "_blank"}
+      rel={download ? undefined : "noreferrer"}
+      className={className}
+    >
       {children}
     </Link>
   );
@@ -114,9 +122,14 @@ export function AdminDatePdfActions({
             />
           </label>
 
-          <PdfActionLink href={labelsUrl} enabled={canGenerateLabels} variant="accent">
+          <PdfActionLink
+            href={labelsUrl}
+            enabled={canGenerateLabels}
+            variant="accent"
+            download
+          >
             <FileText size={16} />
-            Этикетки CT221B 40×50
+            Скачать этикетки PDF
           </PdfActionLink>
 
           <PdfActionLink href={assemblyUrl} enabled={canGenerate} variant="light">

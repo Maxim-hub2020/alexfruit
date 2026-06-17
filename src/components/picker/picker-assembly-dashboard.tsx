@@ -268,12 +268,11 @@ export function PickerAssemblyDashboard({
             </Link>
             <Link
               href={labelsUrl}
-              target="_blank"
-              rel="noreferrer"
+              download
               className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-4 text-sm font-semibold text-white"
             >
               <FileText size={16} />
-              Все этикетки CT221B
+              Скачать этикетки PDF
             </Link>
           </div>
         </div>
@@ -322,12 +321,11 @@ export function PickerAssemblyDashboard({
                 <div className="flex flex-wrap gap-2 xl:justify-end">
                   <Link
                     href={`/api/admin/orders/${order.id}/label`}
-                    target="_blank"
-                    rel="noreferrer"
+                    download
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--line)]"
                   >
                     <FileText size={16} />
-                    Этикетки заказа
+                    Скачать PDF
                   </Link>
                   <Button
                     className="gap-2"
@@ -412,11 +410,10 @@ export function PickerAssemblyDashboard({
                           </div>
                           <Link
                             href={`/api/admin/orders/${order.id}/label?participantId=${participant.id}`}
-                            target="_blank"
-                            rel="noreferrer"
+                            download
                             className="rounded-xl bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-white"
                           >
-                            Стикер
+                            PDF
                           </Link>
                         </div>
                         <div className="mt-3 space-y-1 text-sm text-[var(--muted)]">

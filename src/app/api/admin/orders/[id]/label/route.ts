@@ -31,10 +31,12 @@ export async function GET(
 
     new Uint8Array(pdfBody).set(pdfBytes);
 
+    const filename = `${order.orderNumber}-label-${LABEL_PDF_PRESET.fileSuffix}.pdf`;
+
     return new Response(pdfBody, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${order.orderNumber}-label-${LABEL_PDF_PRESET.fileSuffix}.pdf"`,
+        "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
         "Cache-Control": "no-store",
       },
     });
