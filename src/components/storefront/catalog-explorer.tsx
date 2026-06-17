@@ -185,10 +185,11 @@ export function CatalogExplorer({
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLowerCase();
+    const isSearching = normalizedQuery.length > 0;
 
     return products.filter((product) => {
       const matchesCategory =
-        !activeCategorySlug || product.category.slug === activeCategorySlug;
+        isSearching || !activeCategorySlug || product.category.slug === activeCategorySlug;
       const matchesAvailability =
         availabilityFilter === "all" ||
         (availabilityFilter === "today" && isAvailableToday(product)) ||
