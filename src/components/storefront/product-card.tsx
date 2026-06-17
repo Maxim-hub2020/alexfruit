@@ -104,7 +104,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
 
   if (variant === "catalog") {
     return (
-      <article className="group min-w-0 overflow-hidden rounded-[1.35rem] bg-white/82 ring-1 ring-[var(--line)] transition duration-300 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_18px_42px_rgba(61,93,74,0.10)]">
+      <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-[1.35rem] bg-white/82 ring-1 ring-[var(--line)] transition duration-300 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_18px_42px_rgba(61,93,74,0.10)]">
         <Link
           href={`/products/${product.id}`}
           className="relative block aspect-square overflow-hidden rounded-[1.2rem] bg-white"
@@ -123,7 +123,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
           )}
         </Link>
 
-        <div className="flex min-h-[10.75rem] flex-col px-2.5 pb-3 pt-2.5 sm:px-3">
+        <div className="flex min-h-[11.75rem] flex-1 flex-col px-2.5 pb-3 pt-2.5 sm:px-3">
           <Link
             href={`/products/${product.id}`}
             className="line-clamp-2 text-[0.92rem] font-bold leading-5 tracking-[-0.02em] transition hover:text-[var(--accent-strong)] sm:text-base"

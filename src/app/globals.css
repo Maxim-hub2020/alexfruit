@@ -364,6 +364,16 @@ button:disabled,
     inset 0 1px 0 rgba(255, 255, 255, 0.94);
 }
 
+.lavka-pick-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.86) 0%, rgba(255, 255, 255, 0.68) 48%, rgba(255, 255, 255, 0.24) 76%, transparent 100%);
+}
+
 .lavka-pick-tile:hover,
 .lavka-pick-tile--active {
   border-color: rgba(47, 143, 79, 0.22);
@@ -445,12 +455,15 @@ button:disabled,
 
 .lavka-pick-tile__images {
   position: absolute;
-  right: 0.5rem;
-  bottom: 0.35rem;
-  z-index: 1;
+  right: -0.15rem;
+  bottom: 0.05rem;
+  z-index: 0;
   display: flex;
   align-items: flex-end;
   pointer-events: none;
+  opacity: 0.58;
+  transform: scale(0.9);
+  transform-origin: right bottom;
 }
 
 .lavka-pick-tile__image {
@@ -463,9 +476,10 @@ button:disabled,
   border-radius: 1.2rem;
   background: rgba(255, 255, 255, 0.72);
   box-shadow:
-    0 12px 26px rgba(61, 93, 74, 0.12),
+    0 10px 22px rgba(61, 93, 74, 0.09),
     inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  opacity: 0.92;
+  opacity: 0.7;
+  filter: saturate(0.88);
 }
 
 .lavka-pick-tile__image:nth-child(1) {
@@ -473,12 +487,12 @@ button:disabled,
 }
 
 .lavka-pick-tile__image:nth-child(2) {
-  opacity: 0.86;
+  opacity: 0.66;
   transform: translateY(-0.2rem) rotate(-2deg);
 }
 
 .lavka-pick-tile__image:nth-child(3) {
-  opacity: 0.78;
+  opacity: 0.58;
   transform: translateY(-0.42rem) rotate(-8deg);
 }
 
