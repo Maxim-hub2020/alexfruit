@@ -7,6 +7,7 @@ import { AdminDatePdfActions } from "@/components/admin/admin-date-pdf-actions";
 import { AdminRouteRebalancePanel } from "@/components/admin/admin-route-rebalance-panel";
 import { YandexRoutePanel } from "@/components/admin/yandex-route-panel";
 import { MainShell } from "@/components/layout/main-shell";
+import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
 import { PhoneCallLink } from "@/components/ui/phone-call-link";
 import { StatusPill } from "@/components/ui/status-pill";
 import { requirePageUser } from "@/lib/auth";
@@ -115,14 +116,14 @@ export default async function AdminDeliveryPage({
                     Открыть адрес
                   </Link>
                   {canPrintOrderLabelStatus(order.status) ? (
-                    <Link
+                    <PdfDownloadButton
                       href={`/api/admin/orders/${order.id}/label`}
+                      filename={`alexfruit-label-${order.orderNumber}.pdf`}
                       className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white"
-                      download
                     >
                       <FileText size={16} />
                       Скачать этикетку PDF
-                    </Link>
+                    </PdfDownloadButton>
                   ) : (
                     <span className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/70 px-4 py-3 text-sm font-semibold text-[var(--muted)] ring-1 ring-[var(--line)]">
                       <FileText size={16} />

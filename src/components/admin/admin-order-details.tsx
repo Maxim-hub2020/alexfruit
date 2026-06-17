@@ -15,6 +15,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { PhoneCallLink } from "@/components/ui/phone-call-link";
+import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { canPrintOrderLabelStatus } from "@/lib/constants";
 import { cn, formatCurrency, formatDateLabel } from "@/lib/utils";
@@ -311,14 +312,14 @@ export function AdminOrderDetails({
 
           <div className="mt-4 grid gap-3">
             {canPrintLabel ? (
-              <Link
+              <PdfDownloadButton
                 href={`/api/admin/orders/${order.id}/label`}
-                download
+                filename={`alexfruit-label-${order.orderNumber}.pdf`}
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-4 text-sm font-semibold text-white"
               >
                 <FileText size={16} />
                 Скачать этикетку PDF
-              </Link>
+              </PdfDownloadButton>
             ) : (
               <span className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-white/70 px-4 text-sm font-semibold text-[var(--muted)] ring-1 ring-[var(--line)]">
                 <FileText size={16} />

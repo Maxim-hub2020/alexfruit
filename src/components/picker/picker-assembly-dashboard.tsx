@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { AlertTriangle, FileText, PackageCheck, Phone, Scale, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { unitLabels } from "@/lib/constants";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -266,14 +267,14 @@ export function PickerAssemblyDashboard({
               <FileText size={16} />
               PDF сборки
             </Link>
-            <Link
+            <PdfDownloadButton
               href={labelsUrl}
-              download
+              filename={`alexfruit-labels-${date}.pdf`}
               className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-4 text-sm font-semibold text-white"
             >
               <FileText size={16} />
               Скачать этикетки PDF
-            </Link>
+            </PdfDownloadButton>
           </div>
         </div>
 
@@ -319,14 +320,14 @@ export function PickerAssemblyDashboard({
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 xl:justify-end">
-                  <Link
+                  <PdfDownloadButton
                     href={`/api/admin/orders/${order.id}/label`}
-                    download
+                    filename={`alexfruit-label-${order.orderNumber}.pdf`}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--line)]"
                   >
                     <FileText size={16} />
                     Скачать PDF
-                  </Link>
+                  </PdfDownloadButton>
                   <Button
                     className="gap-2"
                     onClick={() => finishOrder(order)}
@@ -408,13 +409,13 @@ export function PickerAssemblyDashboard({
                               {participant.phone ?? "телефон не указан"}
                             </p>
                           </div>
-                          <Link
+                          <PdfDownloadButton
                             href={`/api/admin/orders/${order.id}/label?participantId=${participant.id}`}
-                            download
+                            filename={`alexfruit-label-${order.orderNumber}-${participant.id}.pdf`}
                             className="rounded-xl bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-white"
                           >
                             PDF
-                          </Link>
+                          </PdfDownloadButton>
                         </div>
                         <div className="mt-3 space-y-1 text-sm text-[var(--muted)]">
                           {participant.items.map((item) => (

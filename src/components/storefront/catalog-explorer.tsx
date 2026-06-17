@@ -133,6 +133,11 @@ export function CatalogExplorer({
     return counts;
   }, [products]);
 
+  const visibleCategories = useMemo(
+    () => categories.filter((item) => (categoryProductCounts.get(item.slug) ?? 0) > 0),
+    [categories, categoryProductCounts],
+  );
+
   const availabilityFilterCounts = useMemo(
     () => ({
       all: products.length,
@@ -400,6 +405,9 @@ export function CatalogExplorer({
       )}
 
       <section className="lavka-category-strip">
+        <div className="lavka-category-strip__heading">
+          <h2>Категории</h2>
+        </div>
         <div className="lavka-category-strip__rail">
           <button
             type="button"
@@ -410,21 +418,18 @@ export function CatalogExplorer({
             }}
             className={cn(
               "lavka-category-chip",
+              "lavka-category-chip--all",
               activeCategorySlug === null && "lavka-category-chip--active",
             )}
           >
             <span className="lavka-category-chip__icon">
-              <PackageOpen size={15} />
+              <PackageOpen size={28} />
             </span>
             <span className="lavka-category-chip__label">Все</span>
-            <span className="lavka-category-chip__count">
-              {products.length}
-            </span>
           </button>
-          {categories.map((item) => {
+          {visibleCategories.map((item) => {
             const Icon = categoryIcons[item.slug as keyof typeof categoryIcons] ?? CircleDot;
             const isActive = activeCategorySlug === item.slug;
-            const productsCount = categoryProductCounts.get(item.slug) ?? 0;
 
             return (
               <button
@@ -441,12 +446,19 @@ export function CatalogExplorer({
                 )}
               >
                 <span className="lavka-category-chip__icon">
-                  <Icon size={15} />
+                  {item.imageUrl ? (
+                    <CatalogImage
+                      src={item.imageUrl}
+                      alt=""
+                      fill
+                      sizes="76px"
+                      className="object-contain p-1.5"
+                    />
+                  ) : (
+                    <Icon size={28} />
+                  )}
                 </span>
                 <span className="lavka-category-chip__label">{item.name}</span>
-                <span className="lavka-category-chip__count">
-                  {productsCount}
-                </span>
               </button>
             );
           })}
