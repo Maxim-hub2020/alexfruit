@@ -4,14 +4,17 @@ import { useDeferredValue, useMemo, useState } from "react";
 import {
   Apple,
   BadgePercent,
-  Carrot,
+  Bean,
+  Broccoli,
+  Cherry,
+  Citrus,
   CircleDot,
   Flame,
-  Leaf,
+  Grape,
   PackageOpen,
   Search,
   SlidersHorizontal,
-  Sparkles,
+  Sprout,
   TrendingUp,
   Truck,
 } from "lucide-react";
@@ -47,14 +50,14 @@ type SpotlightFilter = "all" | "hit" | "popular" | "discount";
 
 const categoryIcons = {
   frukty: Apple,
-  ovoschi: Carrot,
+  ovoschi: Broccoli,
   kartofel: CircleDot,
-  zelen: Leaf,
-  yagody: CircleDot,
+  zelen: Sprout,
+  yagody: Cherry,
   griby: PackageOpen,
-  orehi: CircleDot,
-  suhofrukty: Sparkles,
-  ekzotika: Sparkles,
+  orehi: Bean,
+  suhofrukty: Grape,
+  ekzotika: Citrus,
   nabory: PackageOpen,
   aktsii: BadgePercent,
 } as const;
@@ -397,25 +400,24 @@ export function CatalogExplorer({
       )}
 
       <section className="lavka-category-strip">
-        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="lavka-category-strip__rail">
           <button
             type="button"
+            aria-pressed={activeCategorySlug === null}
             onClick={() => {
               setCategory(null);
               setSpotlightFilter("all");
             }}
             className={cn(
-              "group inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ring-1",
-              activeCategorySlug === null
-                ? "bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-[var(--accent-soft)] shadow-sm"
-                : "bg-white/64 text-[var(--muted)] ring-transparent hover:bg-white hover:text-[var(--foreground)]",
+              "lavka-category-chip",
+              activeCategorySlug === null && "lavka-category-chip--active",
             )}
           >
-            <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-[var(--accent-strong)]">
+            <span className="lavka-category-chip__icon">
               <PackageOpen size={15} />
             </span>
-            <span className="whitespace-nowrap">Все товары</span>
-            <span className="rounded-full bg-white/64 px-1.5 py-0.5 text-[10px] text-[var(--muted)]">
+            <span className="lavka-category-chip__label">Все</span>
+            <span className="lavka-category-chip__count">
               {products.length}
             </span>
           </button>
@@ -428,32 +430,21 @@ export function CatalogExplorer({
               <button
                 key={item.id}
                 type="button"
+                aria-pressed={isActive}
                 onClick={() => {
                   setCategory(item.slug);
                   setSpotlightFilter("all");
                 }}
                 className={cn(
-                  "group inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ring-1",
-                  isActive
-                    ? "bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-[var(--accent-soft)] shadow-sm"
-                    : "bg-white/64 text-[var(--muted)] ring-transparent hover:bg-white hover:text-[var(--foreground)]",
+                  "lavka-category-chip",
+                  isActive && "lavka-category-chip--active",
                 )}
               >
-                <span className="relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-[var(--accent-strong)]">
-                  {item.imageUrl ? (
-                    <CatalogImage
-                      src={item.imageUrl}
-                      alt=""
-                      fill
-                      className="object-contain p-1"
-                      sizes="28px"
-                    />
-                  ) : (
-                    <Icon size={15} />
-                  )}
+                <span className="lavka-category-chip__icon">
+                  <Icon size={15} />
                 </span>
-                <span className="whitespace-nowrap">{item.name}</span>
-                <span className="rounded-full bg-white/64 px-1.5 py-0.5 text-[10px] text-[var(--muted)]">
+                <span className="lavka-category-chip__label">{item.name}</span>
+                <span className="lavka-category-chip__count">
                   {productsCount}
                 </span>
               </button>
