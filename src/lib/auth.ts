@@ -6,6 +6,7 @@ import { MessengerAuthStatus, Role } from "@/generated/prisma";
 import { ApiError } from "@/lib/api";
 import { AUTH_COOKIE_NAME } from "@/lib/constants";
 import { prisma } from "@/lib/db";
+import { normalizeRussianPhone } from "@/lib/phone";
 import {
   customerProfileSchema,
   loginSchema,
@@ -46,19 +47,7 @@ export async function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
 }
 
-export function normalizeRussianPhone(value: string) {
-  const digits = value.replace(/\D/g, "");
-
-  if (digits.length === 10) {
-    return `+7${digits}`;
-  }
-
-  if (digits.length === 11 && (digits.startsWith("7") || digits.startsWith("8"))) {
-    return `+7${digits.slice(1)}`;
-  }
-
-  return value.trim();
-}
+export { normalizeRussianPhone } from "@/lib/phone";
 
 function createDefaultCustomerName(phone: string) {
   return `Клиент ${phone.slice(-4)}`;
