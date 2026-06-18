@@ -92,7 +92,7 @@ export function AdminCourierManager({ couriers }: { couriers: CourierRecord[] })
   async function deleteCourier(courier: CourierRecord) {
     if (
       !globalThis.confirm(
-        `Удалить курьера "${courier.name}" из активной системы? История доставок будет сохранена для аналитики.`,
+        `Полностью удалить курьера "${courier.name}" из системы? Телефон освободится, а активные заказы будут перераспределены.`,
       )
     ) {
       return;
@@ -117,9 +117,7 @@ export function AdminCourierManager({ couriers }: { couriers: CourierRecord[] })
 
     setFeedback({
       type: "success",
-      message: result.archived
-        ? "Курьер удалён из активной системы, история доставок сохранена."
-        : "Курьер полностью удалён из системы.",
+      message: "Курьер полностью удалён из системы.",
     });
     refreshCouriers();
   }

@@ -36,6 +36,18 @@ function orderAmount(order: {
   return toMoney(order.finalTotal ?? order.preliminaryTotal);
 }
 
+async function deleteStaffUser(tx: Prisma.TransactionClient, user: { id: string; phone?: string | null }) {
+  await tx.messengerAuthChallenge.deleteMany({
+    where: {
+      OR: [{ userId: user.id }, ...(user.phone ? [{ phone: user.phone }] : [])],
+    },
+  });
+
+  await tx.user.delete({
+    where: { id: user.id },
+  });
+}
+
 function buildDeliveryHistorySearch(query?: string | null): Prisma.OrderWhereInput | undefined {
   const normalizedQuery = query?.trim();
 
@@ -168,9 +180,7 @@ export async function removePickerFromSystem(userId: string) {
     throw new ApiError("Сборщик не найден", 404);
   }
 
-  await prisma.user.delete({
-    where: { id: userId },
-  });
+  await prisma.$transaction((tx) => deleteStaffUser(tx, picker));
 
   return { ok: true };
 }
@@ -204,55 +214,15 @@ export async function removeCourierFromSystem(userId: string) {
     ...new Set(activeAssignments.map((order) => format(order.deliveryDate, "yyyy-MM-dd"))),
   ];
 
-  const [ordersCount, tasksCount] = await Promise.all([
-    prisma.order.count({ where: { courierId: userId } }),
-    prisma.deliveryTask.count({ where: { courierId: userId } }),
-  ]);
+  await prisma.$transaction((tx) => deleteStaffUser(tx, courier));
 
-  if (ordersCount > 0 || tasksCount > 0) {
-    await prisma.$transaction(async (tx) => {
-      if (activeOrderIds.length > 0) {
-        await tx.deliveryTask.deleteMany({
-          where: {
-            orderId: { in: activeOrderIds },
-          },
-        });
+  await Promise.all(affectedRouteDates.map((date) => applyCourierRedistribution(date)));
 
-        await tx.order.updateMany({
-          where: {
-            id: { in: activeOrderIds },
-          },
-          data: { courierId: null },
-        });
-      }
-
-      if (courier.courierProfile) {
-        await tx.courier.update({
-          where: { userId },
-          data: { isActive: false },
-        });
-      }
-
-      await tx.user.update({
-        where: { id: userId },
-        data: { role: Role.CUSTOMER },
-      });
-    });
-
-    await Promise.all(affectedRouteDates.map((date) => applyCourierRedistribution(date)));
-
-    return {
-      ok: true,
-      archived: true,
-      redistributedOrders: activeOrderIds.length,
-    };
-  }
-
-  await prisma.user.delete({
-    where: { id: userId },
-  });
-
-  return { ok: true, deleted: true };
+  return {
+    ok: true,
+    deleted: true,
+    redistributedOrders: activeOrderIds.length,
+  };
 }
 
 export async function getAdminCourierBoard() {
