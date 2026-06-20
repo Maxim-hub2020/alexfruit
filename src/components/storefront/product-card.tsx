@@ -139,7 +139,7 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
             <span className="block text-[11px] font-semibold text-[var(--accent-strong)]">
               {availabilityLabel}
             </span>
-            <div className="flex min-h-[5.25rem] items-end justify-between gap-2">
+            <div className="flex min-h-[4.5rem] flex-wrap items-end justify-between gap-2">
               <div className="shrink-0 whitespace-nowrap rounded-full bg-[#eef7e8] px-3 py-2 text-[13px] font-black text-[var(--accent-strong)] ring-1 ring-[rgba(47,143,79,0.10)] sm:text-sm">
                 {formatCurrency(product.price)}
                 <span className="ml-1 text-[10px] font-semibold text-[var(--muted)]">

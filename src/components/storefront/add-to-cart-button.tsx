@@ -123,7 +123,10 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
     return (
       <div
         ref={compactControlsRef}
-        className="relative h-10 w-10 shrink-0 overflow-visible"
+        className={cn(
+          "relative h-16 shrink-0 overflow-visible transition-[width] duration-300 ease-out",
+          radialControlsOpen ? "w-[7.25rem]" : "w-10",
+        )}
         role="group"
         aria-label={`${props.name} в корзине`}
       >
@@ -144,8 +147,8 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
 
         <div
           className={cn(
-            "pointer-events-none absolute bottom-0 right-0 z-[3] h-20 w-32 transition duration-300",
-            radialControlsOpen ? "opacity-100" : "opacity-0",
+            "absolute bottom-0 right-0 z-[3] h-16 w-[7.25rem] transition duration-300 ease-out",
+            radialControlsOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
           )}
           aria-hidden={!radialControlsOpen}
         >
@@ -154,28 +157,32 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
             onClick={handleDecrease}
             tabIndex={radialControlsOpen ? 0 : -1}
             className={cn(
-              "pointer-events-auto absolute bottom-0 right-[5.7rem] inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-[var(--accent-strong)] shadow-[0_12px_28px_rgba(53,84,63,0.18)] ring-1 ring-[rgba(47,143,79,0.14)] transition-all duration-300 active:scale-95",
+              "absolute bottom-0 left-0 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-[var(--accent-strong)] shadow-[0_12px_28px_rgba(53,84,63,0.18)] ring-1 ring-[rgba(47,143,79,0.14)] transition-all duration-300 ease-out active:scale-95",
               radialControlsOpen
                 ? "translate-x-0 translate-y-0 scale-100"
-                : "translate-x-[5.7rem] translate-y-0 scale-75",
+                : "translate-x-[4.75rem] translate-y-0 scale-75",
             )}
             aria-label={`Уменьшить количество товара ${props.name}`}
           >
             <Minus size={15} />
           </button>
 
-          <span
+          <button
+            type="button"
+            onClick={() => setCompactExpanded(false)}
+            tabIndex={radialControlsOpen ? 0 : -1}
             className={cn(
-              "pointer-events-none absolute bottom-[2.15rem] right-[3.1rem] inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-[var(--accent)] px-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(47,143,79,0.28)] transition-all duration-300",
+              "absolute left-[2.4rem] top-0 inline-flex h-10 min-w-10 items-center justify-center rounded-full bg-[var(--accent)] px-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(47,143,79,0.28)] transition-all duration-300 ease-out active:scale-95",
               radialControlsOpen
                 ? "translate-x-0 translate-y-0 scale-100"
-                : "translate-x-[3.1rem] translate-y-[2.15rem] scale-75",
+                : "translate-x-[2.35rem] translate-y-[1.5rem] scale-75",
               justAdded && "animate-[cart-pop_420ms_ease-out]",
             )}
             aria-live="polite"
+            aria-label={`Свернуть выбор количества товара ${props.name}`}
           >
             {quantity}
-          </span>
+          </button>
 
           <button
             type="button"
@@ -183,7 +190,7 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
             disabled={reachedLimit}
             tabIndex={radialControlsOpen ? 0 : -1}
             className={cn(
-              "pointer-events-auto absolute bottom-0 right-0 inline-flex h-10 w-10 items-center justify-center rounded-[1rem] bg-[var(--accent)] text-white shadow-[0_14px_26px_rgba(47,143,79,0.24)] transition-all duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45",
+              "absolute bottom-0 right-0 inline-flex h-10 w-10 items-center justify-center rounded-[1rem] bg-[var(--accent)] text-white shadow-[0_14px_26px_rgba(47,143,79,0.24)] transition-all duration-300 ease-out active:scale-95 disabled:cursor-not-allowed disabled:opacity-45",
               radialControlsOpen
                 ? "translate-x-0 translate-y-0 scale-100"
                 : "translate-x-0 translate-y-0 scale-75",
