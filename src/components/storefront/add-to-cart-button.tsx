@@ -82,12 +82,61 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
     updateQuantity(props.productId, quantity - 1);
   }
 
+  if (quantity > 0 && isCompact) {
+    return (
+      <div
+        className={cn(
+          "relative flex h-[5.25rem] w-10 shrink-0 flex-col items-center justify-between overflow-hidden rounded-[1.15rem] bg-[var(--accent)] p-1 text-white shadow-[0_14px_26px_rgba(47,143,79,0.24)] transition-[transform,box-shadow] duration-300",
+          justAdded && "shadow-[0_18px_34px_rgba(35,105,58,0.32)]",
+        )}
+        role="group"
+        aria-label={`${props.name} в корзине`}
+      >
+        <span
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none absolute inset-0 rounded-[inherit] bg-white/15 opacity-0",
+            justAdded && "animate-[cart-glow_650ms_ease-out]",
+          )}
+        />
+
+        <button
+          type="button"
+          onClick={handleIncrease}
+          disabled={reachedLimit}
+          className="relative z-[1] inline-flex h-6 w-full items-center justify-center rounded-xl bg-white/14 transition hover:bg-white/22 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+          aria-label={`Увеличить количество товара ${props.name}`}
+        >
+          <Plus size={13} />
+        </button>
+
+        <span
+          className={cn(
+            "relative z-[1] text-sm font-black leading-none tabular-nums",
+            justAdded && "animate-[cart-pop_420ms_ease-out]",
+          )}
+          aria-live="polite"
+        >
+          {quantity}
+        </span>
+
+        <button
+          type="button"
+          onClick={handleDecrease}
+          className="relative z-[1] inline-flex h-6 w-full items-center justify-center rounded-xl bg-white/14 transition hover:bg-white/22 active:scale-95"
+          aria-label={`Уменьшить количество товара ${props.name}`}
+        >
+          <Minus size={13} />
+        </button>
+      </div>
+    );
+  }
+
   if (quantity > 0) {
     return (
       <div
         className={cn(
           "relative flex min-h-11 items-center gap-2 overflow-hidden rounded-2xl bg-[var(--accent)] px-2 text-white shadow-[0_16px_30px_rgba(47,143,79,0.26)] transition-[transform,box-shadow] duration-300",
-          isCompact && "min-h-9 min-w-[6.25rem] gap-1.5 rounded-[0.9rem] px-1.5 shadow-[0_12px_24px_rgba(47,143,79,0.2)]",
           justAdded && "shadow-[0_20px_38px_rgba(35,105,58,0.32)]",
         )}
         role="group"

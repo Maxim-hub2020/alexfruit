@@ -2209,7 +2209,16 @@ export async function getPickerAssemblyOrders(filters: { date?: string | null } 
     include: {
       user: true,
       address: true,
-      items: true,
+      items: {
+        include: {
+          product: {
+            include: {
+              category: true,
+            },
+          },
+        },
+        orderBy: [{ productName: "asc" }],
+      },
       deliveryTimeSlot: true,
       sharedCart: {
         include: {

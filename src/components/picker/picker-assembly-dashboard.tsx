@@ -2,9 +2,21 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, FileText, PackageCheck, Phone, Scale, UserRound } from "lucide-react";
+import { useDeferredValue, useMemo, useState, useTransition } from "react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  FileText,
+  MapPin,
+  PackageCheck,
+  Phone,
+  Scale,
+  Search,
+  UserRound,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CatalogImage } from "@/components/ui/catalog-image";
 import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { unitLabels } from "@/lib/constants";
@@ -42,6 +54,14 @@ type PickerOrder = {
     isPreorder?: boolean;
     finalSum?: number | string | null;
     preliminarySum: number | string;
+    product?: {
+      imageUrl?: string | null;
+      category?: {
+        name: string;
+        slug: string;
+        sortOrder?: number | null;
+      } | null;
+    } | null;
   }>;
   sharedCart?: {
     items?: Array<{
@@ -65,13 +85,188 @@ type Feedback = {
   message: string;
 };
 
+type SummaryFilter = "all" | "available" | "missing";
+
+type ProductSummary = {
+  key: string;
+  productName: string;
+  categoryName: string;
+  categorySlug: string;
+  categorySortOrder: number;
+  imageUrl?: string | null;
+  unit: string;
+  orderedQuantity: number;
+  actualQuantity: number;
+  ordersCount: number;
+  orderIds: string[];
+  isPreorder: boolean;
+};
+
+type ProductSummaryStatus = "available" | "low" | "missing";
+
+type ProductSummaryGroup = {
+  key: string;
+  name: string;
+  sortOrder: number;
+  items: ProductSummary[];
+};
+
 function quantityToInput(value: number | string | null | undefined, fallback: number | string) {
   return String(Number(value ?? fallback));
 }
 
+function toNumber(value: number | string | null | undefined) {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
 function parseQuantity(value: string) {
   const numeric = Number(value.trim().replace(",", "."));
-  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
+}
+
+function formatQuantity(value: number, unit: string) {
+  const rounded = Number.isInteger(value) ? value : Number(value.toFixed(2));
+  return `${rounded} ${unitLabels[unit] ?? unit}`;
+}
+
+function getProductFallbackIcon(productName: string) {
+  const normalized = productName.toLowerCase();
+
+  if (/(клубник|малин|ежевик|голубик|ягод|череш|вишн)/.test(normalized)) {
+    return "🍒";
+  }
+
+  if (/(помидор|томат|перец|огур|баклажан|капуст|овощ)/.test(normalized)) {
+    return "🥬";
+  }
+
+  if (/(картоф|морков|свекл|лук|чеснок)/.test(normalized)) {
+    return "🥔";
+  }
+
+  if (/(арбуз|дын|яблок|груш|слив|нектар|фрукт)/.test(normalized)) {
+    return "🍎";
+  }
+
+  return "🥗";
+}
+
+function getProductSummaryStatus(summary: ProductSummary): ProductSummaryStatus {
+  if (summary.actualQuantity <= 0) {
+    return "missing";
+  }
+
+  if (summary.actualQuantity < summary.orderedQuantity) {
+    return "low";
+  }
+
+  return "available";
+}
+
+function productStatusLabel(summary: ProductSummary) {
+  const status = getProductSummaryStatus(summary);
+
+  if (status === "missing") {
+    return "Отсутствует";
+  }
+
+  if (status === "low") {
+    return `Осталось ${formatQuantity(summary.actualQuantity, summary.unit)}`;
+  }
+
+  return "В наличии";
+}
+
+function productStatusClass(summary: ProductSummary) {
+  const status = getProductSummaryStatus(summary);
+
+  if (status === "missing") {
+    return "bg-rose-50 text-rose-700 ring-rose-100";
+  }
+
+  if (status === "low") {
+    return "bg-amber-50 text-amber-800 ring-amber-100";
+  }
+
+  return "bg-emerald-50 text-emerald-700 ring-emerald-100";
+}
+
+function zoneLetter(index: number) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  return alphabet[index] ?? `${index + 1}`;
+}
+
+function buildProductSummary(orders: PickerOrder[], quantities: Record<string, string>) {
+  const summaryMap = new Map<string, ProductSummary>();
+
+  for (const order of orders) {
+    for (const item of order.items) {
+      const key = item.productId ?? `name:${item.productName.toLowerCase()}`;
+      const orderedQuantity = toNumber(item.orderedQuantity);
+      const actualQuantity =
+        parseQuantity(quantities[item.id] ?? "") ??
+        toNumber(item.actualQuantity ?? item.orderedQuantity);
+      const category = item.product?.category;
+      const current =
+        summaryMap.get(key) ??
+        {
+          key,
+          productName: item.productName,
+          categoryName: category?.name ?? "Без категории",
+          categorySlug: category?.slug ?? "uncategorized",
+          categorySortOrder: category?.sortOrder ?? 999,
+          imageUrl: item.product?.imageUrl ?? null,
+          unit: item.unit,
+          orderedQuantity: 0,
+          actualQuantity: 0,
+          ordersCount: 0,
+          orderIds: [],
+          isPreorder: false,
+        };
+
+      current.orderedQuantity += orderedQuantity;
+      current.actualQuantity += actualQuantity;
+      current.isPreorder = current.isPreorder || Boolean(item.isPreorder);
+
+      if (!current.orderIds.includes(order.id)) {
+        current.orderIds.push(order.id);
+        current.ordersCount += 1;
+      }
+
+      summaryMap.set(key, current);
+    }
+  }
+
+  return [...summaryMap.values()].sort((a, b) =>
+    a.categorySortOrder === b.categorySortOrder
+      ? a.productName.localeCompare(b.productName, "ru")
+      : a.categorySortOrder - b.categorySortOrder,
+  );
+}
+
+function groupProductSummary(items: ProductSummary[]) {
+  const groupMap = new Map<string, ProductSummaryGroup>();
+
+  for (const item of items) {
+    const current =
+      groupMap.get(item.categorySlug) ??
+      {
+        key: item.categorySlug,
+        name: item.categoryName,
+        sortOrder: item.categorySortOrder,
+        items: [],
+      };
+
+    current.items.push(item);
+    groupMap.set(item.categorySlug, current);
+  }
+
+  return [...groupMap.values()].sort((a, b) =>
+    a.sortOrder === b.sortOrder
+      ? a.name.localeCompare(b.name, "ru")
+      : a.sortOrder - b.sortOrder,
+  );
 }
 
 function addressLabel(order: PickerOrder) {
@@ -132,18 +327,65 @@ export function PickerAssemblyDashboard({
   );
   const [busyKey, setBusyKey] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>("all");
+  const [summaryQuery, setSummaryQuery] = useState("");
+  const deferredSummaryQuery = useDeferredValue(summaryQuery);
   const [, startTransition] = useTransition();
   const assemblyUrl = `/api/admin/orders/assembly-pdf?date=${encodeURIComponent(date)}`;
   const labelsUrl = `/api/admin/orders/labels?date=${encodeURIComponent(date)}`;
+  const productSummary = useMemo(
+    () => buildProductSummary(orders, quantities),
+    [orders, quantities],
+  );
+  const normalizedSummaryQuery = deferredSummaryQuery.trim().toLowerCase();
+  const filteredSummary = useMemo(
+    () =>
+      productSummary.filter((summary) => {
+        const status = getProductSummaryStatus(summary);
+        const matchesFilter =
+          summaryFilter === "all" ||
+          (summaryFilter === "available" && status !== "missing") ||
+          (summaryFilter === "missing" && status === "missing");
+        const matchesQuery =
+          normalizedSummaryQuery.length === 0 ||
+          summary.productName.toLowerCase().includes(normalizedSummaryQuery) ||
+          summary.categoryName.toLowerCase().includes(normalizedSummaryQuery);
+
+        return matchesFilter && matchesQuery;
+      }),
+    [normalizedSummaryQuery, productSummary, summaryFilter],
+  );
+  const summaryGroups = useMemo(() => groupProductSummary(filteredSummary), [filteredSummary]);
   const stats = useMemo(() => {
     const itemsCount = orders.reduce((sum, order) => sum + order.items.length, 0);
     const preorderCount = orders.reduce(
       (sum, order) => sum + order.items.filter((item) => item.isPreorder).length,
       0,
     );
+    const totalKg = productSummary.reduce(
+      (sum, item) => (item.unit === "KG" ? sum + item.orderedQuantity : sum),
+      0,
+    );
+    const availableCount = productSummary.filter(
+      (item) => getProductSummaryStatus(item) !== "missing",
+    ).length;
+    const missingCount = productSummary.filter(
+      (item) => getProductSummaryStatus(item) === "missing",
+    ).length;
+    const assembledOrdersCount = orders.filter((order) => order.status === "ASSEMBLED").length;
+    const progressPercent =
+      orders.length > 0 ? Math.round((assembledOrdersCount / orders.length) * 100) : 0;
 
-    return { itemsCount, preorderCount };
-  }, [orders]);
+    return {
+      itemsCount,
+      preorderCount,
+      productsCount: productSummary.length,
+      totalKg,
+      availableCount,
+      missingCount,
+      progressPercent,
+    };
+  }, [orders, productSummary]);
 
   function refresh() {
     startTransition(() => {
@@ -290,6 +532,158 @@ export function PickerAssemblyDashboard({
             {feedback.message}
           </div>
         ) : null}
+
+        <div className="mt-5 overflow-hidden rounded-[1.7rem] bg-white/82 ring-1 ring-[var(--line)]">
+          <div className="grid gap-3 border-b border-[var(--line)] p-3 md:grid-cols-[1fr_auto] md:items-center">
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: "all" as const, label: "Все зоны", count: stats.productsCount },
+                { value: "available" as const, label: "Только в наличии", count: stats.availableCount },
+                { value: "missing" as const, label: "Отсутствуют", count: stats.missingCount },
+              ].map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setSummaryFilter(filter.value)}
+                  className={cn(
+                    "inline-flex h-10 items-center gap-2 rounded-full px-4 text-xs font-semibold ring-1 transition",
+                    summaryFilter === filter.value
+                      ? "bg-[var(--accent-soft)] text-[var(--accent-strong)] ring-[rgba(47,143,79,0.18)]"
+                      : "bg-white text-[var(--muted)] ring-[var(--line)] hover:text-[var(--foreground)]",
+                  )}
+                >
+                  {filter.label}
+                  <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-[var(--accent-strong)]">
+                    {filter.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <label className="relative block min-w-0 md:w-72">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)]"
+              />
+              <input
+                value={summaryQuery}
+                onChange={(event) => setSummaryQuery(event.target.value)}
+                placeholder="Поиск по товару"
+                className="h-10 w-full rounded-full bg-white pl-11 pr-4 text-sm outline-none ring-1 ring-[var(--line)] transition focus:ring-[var(--accent)]"
+              />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-2 gap-px bg-[var(--line)] sm:grid-cols-4">
+            <div className="bg-white/90 p-4">
+              <p className="text-2xl font-bold">{stats.productsCount}</p>
+              <p className="text-xs text-[var(--muted)]">Товар</p>
+            </div>
+            <div className="bg-white/90 p-4">
+              <p className="text-2xl font-bold">{formatQuantity(stats.totalKg, "KG")}</p>
+              <p className="text-xs text-[var(--muted)]">Всего к сборке</p>
+            </div>
+            <div className="bg-white/90 p-4">
+              <p className="text-2xl font-bold">{orders.length}</p>
+              <p className="text-xs text-[var(--muted)]">Заказов</p>
+            </div>
+            <div className="bg-white/90 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-[var(--muted)]">Прогресс сборки</p>
+                <p className="text-sm font-bold text-[var(--accent-strong)]">
+                  {stats.progressPercent}%
+                </p>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#eef4ea]">
+                <div
+                  className="h-full rounded-full bg-[var(--accent)] transition-all duration-500"
+                  style={{ width: `${stats.progressPercent}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="divide-y divide-[var(--line)]">
+            {summaryGroups.map((group, groupIndex) => {
+              const totalGroupKg = group.items.reduce(
+                (sum, item) => (item.unit === "KG" ? sum + item.orderedQuantity : sum),
+                0,
+              );
+
+              return (
+                <section key={group.key}>
+                  <header className="flex items-center justify-between gap-3 bg-[#f7fbf4] px-3 py-2 text-xs font-semibold text-[var(--accent-strong)] sm:px-4">
+                    <span className="inline-flex items-center gap-2">
+                      <MapPin size={14} />
+                      Зона {zoneLetter(groupIndex)} · {group.name}
+                    </span>
+                    <span className="text-[var(--muted)]">
+                      {group.items.length} товара
+                      {totalGroupKg > 0 ? ` · ${formatQuantity(totalGroupKg, "KG")}` : ""}
+                    </span>
+                  </header>
+
+                  <div className="divide-y divide-[var(--line)]">
+                    {group.items.map((summary) => (
+                      <div
+                        key={summary.key}
+                        className="flex items-center gap-3 px-3 py-2.5 transition hover:bg-[#fbfdf8] sm:px-4"
+                      >
+                        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-2xl bg-[#f2f7ed] ring-1 ring-[var(--line)]">
+                          {summary.imageUrl ? (
+                            <CatalogImage
+                              src={summary.imageUrl}
+                              alt={summary.productName}
+                              fill
+                              className="object-contain p-1"
+                              sizes="40px"
+                            />
+                          ) : (
+                            <span className="flex h-full w-full items-center justify-center text-lg">
+                              {getProductFallbackIcon(summary.productName)}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold">{summary.productName}</p>
+                          <p className="mt-0.5 text-xs text-[var(--muted)]">
+                            {formatQuantity(summary.orderedQuantity, summary.unit)} ·{" "}
+                            {summary.ordersCount} заказ(а)
+                          </p>
+                        </div>
+
+                        <div className="hidden min-w-16 text-right text-sm font-bold sm:block">
+                          {formatQuantity(summary.orderedQuantity, summary.unit)}
+                        </div>
+
+                        <span
+                          className={cn(
+                            "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1",
+                            productStatusClass(summary),
+                          )}
+                        >
+                          {getProductSummaryStatus(summary) === "available" ? (
+                            <CheckCircle2 size={12} />
+                          ) : null}
+                          {productStatusLabel(summary)}
+                        </span>
+
+                        <ChevronRight size={16} className="hidden text-[var(--muted)] sm:block" />
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+
+            {summaryGroups.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-[var(--muted)]">
+                По выбранному фильтру товары не найдены.
+              </div>
+            ) : null}
+          </div>
+        </div>
       </section>
 
       <div className="grid gap-5">
