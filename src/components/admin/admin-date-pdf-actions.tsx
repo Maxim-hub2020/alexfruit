@@ -89,6 +89,10 @@ export function AdminDatePdfActions({
   const canGenerate = ordersCount > 0 && (!requireDate || hasDate);
   const printableLabelsCount = labelsCount ?? ordersCount;
   const canGenerateLabels = printableLabelsCount > 0 && (!requireDate || hasDate);
+  const hasLabelsAction = labelsUrl !== undefined;
+  const hasAssemblyAction = assemblyUrl !== undefined;
+  const hasDeliveryAction = deliveryUrl !== undefined;
+  const hasProcurementAction = procurementUrl !== undefined;
 
   function changeDate(nextDate: string) {
     const nextUrl = nextDate
@@ -127,38 +131,46 @@ export function AdminDatePdfActions({
             />
           </label>
 
-          <PdfActionLink
-            href={labelsUrl}
-            enabled={canGenerateLabels}
-            variant="accent"
-            download
-            downloadFilename={`alexfruit-labels-${selectedDate || "orders"}.pdf`}
-          >
-            <FileText size={16} />
-            Скачать этикетки PDF
-          </PdfActionLink>
+          {hasLabelsAction ? (
+            <PdfActionLink
+              href={labelsUrl}
+              enabled={canGenerateLabels}
+              variant="accent"
+              download
+              downloadFilename={`alexfruit-labels-${selectedDate || "orders"}.pdf`}
+            >
+              <FileText size={16} />
+              Скачать этикетки PDF
+            </PdfActionLink>
+          ) : null}
 
-          <PdfActionLink href={assemblyUrl} enabled={canGenerate} variant="light">
-            <PackageCheck size={16} />
-            PDF для сборщика
-          </PdfActionLink>
+          {hasAssemblyAction ? (
+            <PdfActionLink href={assemblyUrl} enabled={canGenerate} variant="light">
+              <PackageCheck size={16} />
+              PDF для сборщика
+            </PdfActionLink>
+          ) : null}
 
-          <PdfActionLink href={deliveryUrl} enabled={canGenerate} variant="light">
-            <Truck size={16} />
-            PDF для доставщика
-          </PdfActionLink>
+          {hasDeliveryAction ? (
+            <PdfActionLink href={deliveryUrl} enabled={canGenerate} variant="light">
+              <Truck size={16} />
+              PDF для доставщика
+            </PdfActionLink>
+          ) : null}
 
-          <PdfActionLink href={procurementUrl} enabled={canGenerate} variant="light">
-            <ShoppingBasket size={16} />
-            PDF для закупки
-          </PdfActionLink>
+          {hasProcurementAction ? (
+            <PdfActionLink href={procurementUrl} enabled={canGenerate} variant="light">
+              <ShoppingBasket size={16} />
+              PDF для закупки
+            </PdfActionLink>
+          ) : null}
 
           {!canGenerate && (
             <span className="text-xs leading-relaxed text-[var(--muted)] sm:basis-full lg:text-right">
               {hasDate ? emptyText : "Сначала выберите дату доставки."}
             </span>
           )}
-          {canGenerate && !canGenerateLabels && (
+          {hasLabelsAction && canGenerate && !canGenerateLabels && (
             <span className="text-xs leading-relaxed text-[var(--muted)] sm:basis-full lg:text-right">
               {labelsEmptyText}
             </span>
