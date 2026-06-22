@@ -9,6 +9,7 @@ type DeliveryRouteOrder = {
   id: string;
   orderNumber: string;
   status: string;
+  deliveryDate: Date | string;
   courier?: { name: string } | null;
   address: {
     city: string;
@@ -215,6 +216,14 @@ function formatEta(minutes: number) {
   return rest > 0 ? `${hours} ч ${rest} мин` : `${hours} ч`;
 }
 
+function formatDeliveryDate(value: Date | string) {
+  return new Date(value).toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
 function getSlotSummary(points: RoutePoint[]) {
   const counts = new Map<string, number>();
 
@@ -253,8 +262,9 @@ export function YandexRoutePanel({
   date,
 }: {
   orders: DeliveryRouteOrder[];
-  date: string;
+  date?: string;
 }) {
+  const isDateScoped = Boolean(date);
   const routePoints = orders.map(getRoutePoint);
   const pointsWithCoordinates = routePoints.filter(
     (point) => point.latitude !== null && point.longitude !== null,
@@ -275,6 +285,7 @@ export function YandexRoutePanel({
   );
   const mapUrl = buildYandexMapWidgetUrl(routePoints);
   const fullRouteUrl = buildYandexRouteUrl(routePoints);
+  const title = isDateScoped ? `Карта заказов на ${date}` : "Карта заказов по всем датам";
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
@@ -284,17 +295,24 @@ export function YandexRoutePanel({
             <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">
               Яндекс.Карты
             </p>
-            <h2 className="mt-1 text-2xl font-semibold">Карта заказов на {date}</h2>
+            <h2 className="mt-1 text-2xl font-semibold">{title}</h2>
           </div>
-          <Link
-            href={fullRouteUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-[var(--accent)] px-4 text-sm font-semibold text-white"
-          >
-            <Navigation size={16} />
-            Открыть маршрут
-          </Link>
+          {isDateScoped ? (
+            <Link
+              href={fullRouteUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-[var(--accent)] px-4 text-sm font-semibold text-white"
+            >
+              <Navigation size={16} />
+              Открыть маршрут
+            </Link>
+          ) : (
+            <span className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-white/80 px-4 text-sm font-semibold text-[var(--muted)] ring-1 ring-[var(--line)]">
+              <Navigation size={16} />
+              Выберите дату для маршрута
+            </span>
+          )}
         </div>
 
         <iframe
@@ -407,14 +425,20 @@ export function YandexRoutePanel({
                         : ""}
                     </p>
                   </div>
-                  <Link
-                    href={buildYandexRouteUrl(group.points)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--line)]"
-                  >
-                    Маршрут
-                  </Link>
+                  {isDateScoped ? (
+                    <Link
+                      href={buildYandexRouteUrl(group.points)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--line)]"
+                    >
+                      Маршрут
+                    </Link>
+                  ) : (
+                    <span className="rounded-2xl bg-white/70 px-4 py-3 text-sm font-semibold text-[var(--muted)] ring-1 ring-[var(--line)]">
+                      Нужна дата
+                    </span>
+                  )}
                 </div>
 
                 <div className="mt-4 space-y-3">
@@ -429,6 +453,11 @@ export function YandexRoutePanel({
                         </span>
                         <p className="font-semibold">{routeCost.point.order.orderNumber}</p>
                         <StatusPill status={routeCost.point.order.status} />
+                        {!isDateScoped ? (
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--muted)] ring-1 ring-[var(--line)]">
+                            {formatDeliveryDate(routeCost.point.order.deliveryDate)}
+                          </span>
+                        ) : null}
                         <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-semibold text-[var(--foreground)]">
                           {formatCurrency(routeCost.price)}
                         </span>

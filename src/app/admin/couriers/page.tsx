@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import { Role } from "@/generated/prisma";
 import { AdminCourierLocations } from "@/components/admin/admin-courier-locations";
 import { AdminCourierHistorySearch } from "@/components/admin/admin-courier-history-search";
@@ -11,7 +10,11 @@ import { MainShell } from "@/components/layout/main-shell";
 import { getAdminCourierBoard, getAdminPickers, searchCourierDeliveryHistory } from "@/lib/admin";
 import { requirePageUser } from "@/lib/auth";
 import { getAdminCourierLocations } from "@/lib/courier-locations";
-import { getDeliveryBoard, getUnassignedOrdersCount } from "@/lib/orders";
+import {
+  getDeliveryBoard,
+  getDeliveryOrderDateKeys,
+  getUnassignedOrdersCount,
+} from "@/lib/orders";
 import { toClientValue } from "@/lib/serialize";
 
 export const dynamic = "force-dynamic";
@@ -23,22 +26,32 @@ export default async function AdminCouriersPage({
 }) {
   const user = await requirePageUser([Role.ADMIN]);
   const params = await searchParams;
-  const selectedDate =
-    typeof params.date === "string" ? params.date : format(new Date(), "yyyy-MM-dd");
+  const selectedDate = typeof params.date === "string" ? params.date : "";
   const filters = {
     address: typeof params.address === "string" ? params.address : "",
     date: selectedDate,
     courierId: typeof params.courierId === "string" ? params.courierId : "",
   };
-  const [couriers, pickers, courierHistory, deliveryOrders, courierLocations, unassignedOrdersCount] = await Promise.all([
+  const [
+    couriers,
+    pickers,
+    courierHistory,
+    deliveryOrders,
+    courierLocations,
+    unassignedOrdersCount,
+    deliveryDateKeys,
+  ] = await Promise.all([
     getAdminCourierBoard(),
     getAdminPickers(),
     searchCourierDeliveryHistory(filters),
-    getDeliveryBoard({ date: selectedDate }),
+    getDeliveryBoard({ date: selectedDate || null }),
     getAdminCourierLocations(),
-    getUnassignedOrdersCount(selectedDate),
+    getUnassignedOrdersCount(selectedDate || null),
+    getDeliveryOrderDateKeys(),
   ]);
-  const deliveryPdfUrl = `/api/admin/orders/delivery-pdf?date=${encodeURIComponent(selectedDate)}`;
+  const deliveryPdfUrl = selectedDate
+    ? `/api/admin/orders/delivery-pdf?date=${encodeURIComponent(selectedDate)}`
+    : undefined;
 
   return (
     <MainShell active="admin-couriers" user={user}>
@@ -63,15 +76,32 @@ export default async function AdminCouriersPage({
           ordersCount={deliveryOrders.length}
           eyebrow="Дата маршрутов"
           title="Маршруты и документы доставки"
-          description="Выберите дату доставки: маршруты, карта и PDF для доставщика перестроятся под выбранный день."
+          description="Без выбранной даты показаны все активные заказы. Выберите день, чтобы построить маршрут, PDF и перераспределение."
           deliveryUrl={deliveryPdfUrl}
           emptyText="Нет заказов для маршрутов на выбранную дату."
+          allowEmptyDate
+          markedDates={deliveryDateKeys}
         />
 
-        <AdminRouteRebalancePanel
-          date={selectedDate}
-          unassignedCount={unassignedOrdersCount}
-        />
+        {selectedDate ? (
+          <AdminRouteRebalancePanel
+            date={selectedDate}
+            unassignedCount={unassignedOrdersCount}
+          />
+        ) : (
+          <div className="glass-panel rounded-[2.2rem] p-5">
+            <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">
+              Автораспределение
+            </p>
+            <h2 className="mt-1 text-2xl font-semibold">
+              Выберите дату для перераспределения маршрутов
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">
+              Сейчас показаны заказы по всем датам. Чтобы система корректно собрала
+              компактные маршруты, сначала выберите конкретный день в календаре выше.
+            </p>
+          </div>
+        )}
 
         <YandexRoutePanel orders={deliveryOrders} date={selectedDate} />
         <AdminCourierLocations couriers={courierLocations} />

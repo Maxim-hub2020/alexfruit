@@ -3,9 +3,18 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useTransition } from "react";
-import { CalendarDays, FileText, PackageCheck, ShoppingBasket, Truck } from "lucide-react";
+import { useState, useTransition } from "react";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  PackageCheck,
+  ShoppingBasket,
+  Truck,
+} from "lucide-react";
 import { PdfDownloadButton } from "@/components/ui/pdf-download-button";
+import { cn } from "@/lib/utils";
 
 type AdminDatePdfActionsProps = {
   basePath: string;
@@ -22,7 +31,52 @@ type AdminDatePdfActionsProps = {
   emptyText?: string;
   labelsEmptyText?: string;
   requireDate?: boolean;
+  allowEmptyDate?: boolean;
+  markedDates?: string[];
 };
+
+const WEEK_DAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
+function parseDateKey(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return new Date();
+  }
+
+  return new Date(year, month - 1, day);
+}
+
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getMonthCells(monthDate: Date) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const daysCount = new Date(year, month + 1, 0).getDate();
+  const firstWeekDay = new Date(year, month, 1).getDay();
+  const leadingEmptyCells = (firstWeekDay + 6) % 7;
+  const cells: Array<Date | null> = Array.from({ length: leadingEmptyCells }, () => null);
+
+  for (let day = 1; day <= daysCount; day += 1) {
+    cells.push(new Date(year, month, day));
+  }
+
+  return cells;
+}
+
+function formatCalendarDate(dateKey: string) {
+  return parseDateKey(dateKey).toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
 
 function PdfActionLink({
   href,
@@ -82,10 +136,17 @@ export function AdminDatePdfActions({
   emptyText = "Нет заказов на выбранную дату",
   labelsEmptyText = "Этикетки доступны только для подтверждённых заказов.",
   requireDate = true,
+  allowEmptyDate = false,
+  markedDates = [],
 }: AdminDatePdfActionsProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [visibleMonth, setVisibleMonth] = useState(() =>
+    selectedDate ? parseDateKey(selectedDate) : new Date(),
+  );
   const hasDate = Boolean(selectedDate);
+  const markedDateSet = new Set(markedDates);
   const canGenerate = ordersCount > 0 && (!requireDate || hasDate);
   const printableLabelsCount = labelsCount ?? ordersCount;
   const canGenerateLabels = printableLabelsCount > 0 && (!requireDate || hasDate);
@@ -99,10 +160,27 @@ export function AdminDatePdfActions({
       ? `${basePath}?date=${encodeURIComponent(nextDate)}`
       : basePath;
 
+    if (nextDate) {
+      setVisibleMonth(parseDateKey(nextDate));
+    }
+    setIsCalendarOpen(false);
+
     startTransition(() => {
       router.push(nextUrl);
     });
   }
+
+  function shiftMonth(delta: number) {
+    setVisibleMonth(
+      (current) => new Date(current.getFullYear(), current.getMonth() + delta, 1),
+    );
+  }
+
+  const monthCells = getMonthCells(visibleMonth);
+  const monthLabel = visibleMonth.toLocaleDateString("ru-RU", {
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div className="glass-panel rounded-[2rem] p-5">
@@ -118,18 +196,89 @@ export function AdminDatePdfActions({
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
-          <label className="relative">
-            <CalendarDays
-              size={16}
-              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)]"
-            />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(event) => changeDate(event.target.value)}
-              className="h-12 rounded-2xl bg-white pl-10 pr-4 outline-none ring-1 ring-[var(--line)]"
-            />
-          </label>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsCalendarOpen((current) => !current)}
+              className="inline-flex h-12 min-w-[13rem] items-center gap-2 rounded-2xl bg-white px-4 text-left text-sm font-semibold outline-none ring-1 ring-[var(--line)] transition hover:bg-[var(--surface-muted)]"
+              aria-expanded={isCalendarOpen}
+            >
+              <CalendarDays size={16} className="text-[var(--muted)]" />
+              <span>{hasDate ? formatCalendarDate(selectedDate) : "Все даты"}</span>
+            </button>
+
+            {isCalendarOpen ? (
+              <div className="absolute right-0 top-14 z-40 w-[20rem] rounded-[1.6rem] bg-white p-4 shadow-[0_22px_70px_rgba(37,57,45,0.18)] ring-1 ring-[var(--line)]">
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => shiftMonth(-1)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--foreground)]"
+                    aria-label="Предыдущий месяц"
+                  >
+                    <ChevronLeft size={17} />
+                  </button>
+                  <p className="text-sm font-semibold capitalize">{monthLabel}</p>
+                  <button
+                    type="button"
+                    onClick={() => shiftMonth(1)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--foreground)]"
+                    aria-label="Следующий месяц"
+                  >
+                    <ChevronRight size={17} />
+                  </button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
+                  {WEEK_DAYS.map((day) => (
+                    <span key={day}>{day}</span>
+                  ))}
+                </div>
+
+                <div className="mt-2 grid grid-cols-7 gap-1">
+                  {monthCells.map((cell, index) => {
+                    if (!cell) {
+                      return <span key={`empty-${index}`} className="h-9" />;
+                    }
+
+                    const dateKey = toDateKey(cell);
+                    const isSelected = dateKey === selectedDate;
+                    const hasOrders = markedDateSet.has(dateKey);
+
+                    return (
+                      <button
+                        key={dateKey}
+                        type="button"
+                        onClick={() => changeDate(dateKey)}
+                        className={cn(
+                          "relative inline-flex h-9 items-center justify-center rounded-full text-sm font-semibold transition hover:bg-[var(--accent-soft)]",
+                          hasOrders && "ring-2 ring-[var(--accent)] ring-offset-1 ring-offset-white",
+                          isSelected && "bg-[var(--accent)] text-white ring-[var(--accent)]",
+                        )}
+                        aria-label={
+                          hasOrders
+                            ? `${formatCalendarDate(dateKey)}, есть заказы`
+                            : formatCalendarDate(dateKey)
+                        }
+                      >
+                        {cell.getDate()}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {allowEmptyDate ? (
+                  <button
+                    type="button"
+                    onClick={() => changeDate("")}
+                    className="mt-4 h-10 w-full rounded-2xl bg-[var(--surface-muted)] text-sm font-semibold text-[var(--accent-strong)]"
+                  >
+                    Показать все даты
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
 
           {hasLabelsAction ? (
             <PdfActionLink

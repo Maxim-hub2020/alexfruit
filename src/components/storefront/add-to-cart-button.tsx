@@ -22,8 +22,6 @@ type AddToCartButtonProps = {
 export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonProps) {
   const { items, addItem, updateQuantity } = useCart();
   const [justAdded, setJustAdded] = useState(false);
-  const [compactExpanded, setCompactExpanded] = useState(false);
-  const compactControlsRef = useRef<HTMLDivElement | null>(null);
   const resetTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
   const quantity = items.find((item) => item.productId === props.productId)?.quantity ?? 0;
   const isCompact = variant === "compact";
@@ -33,7 +31,6 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
       : Math.max(0, props.maxQuantity);
   const reachedLimit = !props.isPreorder && maxQuantity !== null && quantity >= maxQuantity;
   const isDisabled = Boolean(props.disabled);
-  const radialControlsOpen = compactExpanded && isCompact && quantity > 0;
 
   useEffect(() => {
     return () => {
@@ -42,24 +39,6 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (!radialControlsOpen) {
-      return;
-    }
-
-    function handlePointerDown(event: PointerEvent) {
-      if (!compactControlsRef.current?.contains(event.target as Node)) {
-        setCompactExpanded(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-    };
-  }, [radialControlsOpen]);
 
   function triggerAddedState() {
     setJustAdded(true);
@@ -92,18 +71,6 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
 
   function handleCompactAdd() {
     handleAdd();
-
-    if (!isDisabled && !reachedLimit) {
-      setCompactExpanded(true);
-    }
-  }
-
-  function handleCompactToggle() {
-    if (isDisabled) {
-      return;
-    }
-
-    setCompactExpanded((current) => !current);
   }
 
   function handleIncrease() {
@@ -122,84 +89,38 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
   if (quantity > 0 && isCompact) {
     return (
       <div
-        ref={compactControlsRef}
         className={cn(
-          "relative h-16 shrink-0 overflow-visible transition-[width] duration-300 ease-out",
-          radialControlsOpen ? "w-[7.25rem]" : "w-10",
+          "inline-flex h-10 shrink-0 items-center gap-1 rounded-[1rem] bg-[var(--accent)] p-1 text-white shadow-[0_14px_26px_rgba(47,143,79,0.24)] transition-[transform,box-shadow] duration-300",
+          justAdded && "animate-[cart-pop_420ms_ease-out] shadow-[0_18px_34px_rgba(35,105,58,0.32)]",
         )}
         role="group"
         aria-label={`${props.name} в корзине`}
       >
         <button
           type="button"
-          onClick={handleCompactToggle}
-          className={cn(
-            "absolute bottom-0 right-0 z-[2] inline-flex h-10 w-10 items-center justify-center rounded-[1rem] bg-[var(--accent)] text-sm font-black text-white shadow-[0_14px_26px_rgba(47,143,79,0.24)] transition-all duration-300 active:scale-95",
-            radialControlsOpen && "pointer-events-none scale-90 opacity-0",
-            justAdded && "animate-[cart-pop_420ms_ease-out] shadow-[0_18px_34px_rgba(35,105,58,0.32)]",
-          )}
-          tabIndex={radialControlsOpen ? -1 : 0}
-          aria-label={`Изменить количество товара ${props.name}`}
-          aria-expanded={radialControlsOpen}
+          onClick={handleDecrease}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/16 transition hover:bg-white/24 active:scale-95"
+          aria-label={`Уменьшить количество товара ${props.name}`}
         >
-          {quantity}
+          <Minus size={14} />
         </button>
 
-        <div
-          className={cn(
-            "absolute bottom-0 right-0 z-[3] h-16 w-[7.25rem] transition duration-300 ease-out",
-            radialControlsOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
-          )}
-          aria-hidden={!radialControlsOpen}
+        <span
+          className="min-w-6 text-center text-sm font-black tabular-nums"
+          aria-live="polite"
         >
-          <button
-            type="button"
-            onClick={handleDecrease}
-            tabIndex={radialControlsOpen ? 0 : -1}
-            className={cn(
-              "absolute bottom-0 left-0 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-[var(--accent-strong)] shadow-[0_12px_28px_rgba(53,84,63,0.18)] ring-1 ring-[rgba(47,143,79,0.14)] transition-all duration-300 ease-out active:scale-95",
-              radialControlsOpen
-                ? "translate-x-0 translate-y-0 scale-100"
-                : "translate-x-[4.75rem] translate-y-0 scale-75",
-            )}
-            aria-label={`Уменьшить количество товара ${props.name}`}
-          >
-            <Minus size={15} />
-          </button>
+          {quantity}
+        </span>
 
-          <button
-            type="button"
-            onClick={() => setCompactExpanded(false)}
-            tabIndex={radialControlsOpen ? 0 : -1}
-            className={cn(
-              "absolute left-[2.4rem] top-0 inline-flex h-10 min-w-10 items-center justify-center rounded-full bg-[var(--accent)] px-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(47,143,79,0.28)] transition-all duration-300 ease-out active:scale-95",
-              radialControlsOpen
-                ? "translate-x-0 translate-y-0 scale-100"
-                : "translate-x-[2.35rem] translate-y-[1.5rem] scale-75",
-              justAdded && "animate-[cart-pop_420ms_ease-out]",
-            )}
-            aria-live="polite"
-            aria-label={`Свернуть выбор количества товара ${props.name}`}
-          >
-            {quantity}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleIncrease}
-            disabled={reachedLimit}
-            tabIndex={radialControlsOpen ? 0 : -1}
-            className={cn(
-              "absolute bottom-0 right-0 inline-flex h-10 w-10 items-center justify-center rounded-[1rem] bg-[var(--accent)] text-white shadow-[0_14px_26px_rgba(47,143,79,0.24)] transition-all duration-300 ease-out active:scale-95 disabled:cursor-not-allowed disabled:opacity-45",
-              radialControlsOpen
-                ? "translate-x-0 translate-y-0 scale-100"
-                : "translate-x-0 translate-y-0 scale-75",
-            )}
-            aria-label={`Увеличить количество товара ${props.name}`}
-          >
-            <Plus size={16} />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleIncrease}
+          disabled={reachedLimit}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-[0.8rem] bg-white/16 transition hover:bg-white/24 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+          aria-label={`Увеличить количество товара ${props.name}`}
+        >
+          <Plus size={15} />
+        </button>
       </div>
     );
   }
@@ -274,7 +195,7 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
 
   if (isCompact) {
     return (
-      <div ref={compactControlsRef} className="relative h-10 w-10 shrink-0">
+      <div className="relative h-10 w-10 shrink-0">
         <button
           type="button"
           onClick={handleCompactAdd}

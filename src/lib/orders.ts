@@ -3127,6 +3127,25 @@ export async function getUnassignedOrdersCount(date?: string | null) {
   });
 }
 
+export async function getDeliveryOrderDateKeys() {
+  const rows = await prisma.order.findMany({
+    where: {
+      status: {
+        in: routeAssignableOrderStatuses,
+      },
+    },
+    select: {
+      deliveryDate: true,
+    },
+    distinct: ["deliveryDate"],
+    orderBy: {
+      deliveryDate: "asc",
+    },
+  });
+
+  return rows.map((row) => format(row.deliveryDate, "yyyy-MM-dd"));
+}
+
 export async function getDeliveryBoard(filters: {
   date?: string | null;
   courierId?: string | null;
@@ -3149,7 +3168,11 @@ export async function getDeliveryBoard(filters: {
       deliveryTimeSlot: true,
       deliveryTask: true,
     },
-    orderBy: [{ deliveryTimeSlot: { startTime: "asc" } }, { createdAt: "asc" }],
+    orderBy: [
+      { deliveryDate: "asc" },
+      { deliveryTimeSlot: { startTime: "asc" } },
+      { createdAt: "asc" },
+    ],
   });
 }
 
