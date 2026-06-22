@@ -183,7 +183,7 @@ export function AdminDatePdfActions({
   });
 
   return (
-    <div className="glass-panel rounded-[2rem] p-5">
+    <div className="glass-panel relative z-[60] overflow-visible rounded-[2rem] p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm uppercase tracking-[0.18em] text-[var(--muted)]">
@@ -196,7 +196,7 @@ export function AdminDatePdfActions({
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
-          <div className="relative">
+          <div className="relative z-[80]">
             <button
               type="button"
               onClick={() => setIsCalendarOpen((current) => !current)}
@@ -208,7 +208,7 @@ export function AdminDatePdfActions({
             </button>
 
             {isCalendarOpen ? (
-              <div className="absolute right-0 top-14 z-40 w-[20rem] rounded-[1.6rem] bg-white p-4 shadow-[0_22px_70px_rgba(37,57,45,0.18)] ring-1 ring-[var(--line)]">
+              <div className="absolute right-0 top-14 z-[120] w-[20rem] rounded-[1.6rem] bg-white p-4 shadow-[0_22px_70px_rgba(37,57,45,0.18)] ring-1 ring-[var(--line)]">
                 <div className="flex items-center justify-between gap-3">
                   <button
                     type="button"

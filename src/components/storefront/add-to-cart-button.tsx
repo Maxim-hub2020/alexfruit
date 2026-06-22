@@ -90,7 +90,7 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
     return (
       <div
         className={cn(
-          "inline-flex h-10 shrink-0 items-center gap-1 rounded-[1rem] bg-[var(--accent)] p-1 text-white shadow-[0_14px_26px_rgba(47,143,79,0.24)] transition-[transform,box-shadow] duration-300",
+          "inline-flex h-[7.4rem] w-10 shrink-0 flex-col-reverse items-center justify-center gap-1 rounded-[1rem] bg-[var(--accent)] p-1 text-white shadow-[0_14px_26px_rgba(47,143,79,0.24)] transition-[transform,box-shadow] duration-300",
           justAdded && "animate-[cart-pop_420ms_ease-out] shadow-[0_18px_34px_rgba(35,105,58,0.32)]",
         )}
         role="group"
@@ -106,7 +106,7 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
         </button>
 
         <span
-          className="min-w-6 text-center text-sm font-black tabular-nums"
+          className="flex min-h-6 min-w-8 items-center justify-center text-sm font-black tabular-nums"
           aria-live="polite"
         >
           {quantity}
