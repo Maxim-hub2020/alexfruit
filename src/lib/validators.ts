@@ -175,6 +175,10 @@ export const orderStatusSchema = z.object({
   adminComment: z.string().trim().optional().or(z.literal("")),
 });
 
+export const bulkOrderStatusSchema = orderStatusSchema.extend({
+  orderIds: z.array(z.string().trim().min(1)).min(1).max(500),
+});
+
 export const orderEditSchema = orderBaseObjectSchema.omit({ sharedCartToken: true }).extend({
   items: z.array(orderLineSchema).min(1),
   status: z.nativeEnum(OrderStatus).optional(),

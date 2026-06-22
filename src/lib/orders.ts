@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import {
   DeliveryTaskStatus,
   NotificationType,
+  type Order,
   OrderStatus,
   Prisma,
   ProblemType,
@@ -43,6 +44,7 @@ import { addReviewSummaryToProducts } from "@/lib/reviews";
 import { dateStringToDbDate } from "@/lib/utils";
 import {
   assignCourierSchema,
+  bulkOrderStatusSchema,
   createOrderSchema,
   courierProblemSchema,
   courierTaskStatusSchema,
@@ -2419,6 +2421,98 @@ export async function updateOrderStatusByAdmin(orderId: string, input: unknown) 
   }
 
   return order;
+}
+
+export async function updateOrderStatusesByAdmin(input: unknown) {
+  const data = bulkOrderStatusSchema.parse(input);
+  const orderIds = [...new Set(data.orderIds)];
+
+  const existingOrders = await prisma.order.findMany({
+    where: { id: { in: orderIds } },
+    include: { items: true },
+  });
+
+  if (existingOrders.length !== orderIds.length) {
+    throw new ApiError("Один или несколько заказов не найдены", 404);
+  }
+
+  const updatedOrders = await prisma.$transaction(async (tx) => {
+    const updated: Order[] = [];
+
+    for (const existing of existingOrders) {
+      if (existing.status === data.status) {
+        continue;
+      }
+
+      if (
+        data.status === OrderStatus.CANCELLED &&
+        existing.status !== OrderStatus.CANCELLED &&
+        existing.status !== OrderStatus.DELIVERED
+      ) {
+        await releaseDailyInventoryForLines(
+          tx,
+          getInventoryDateFromOrder(existing),
+          orderToInventoryLines(existing),
+        );
+      }
+
+      if (
+        data.status === OrderStatus.DELIVERED &&
+        existing.status !== OrderStatus.DELIVERED &&
+        existing.status !== OrderStatus.CANCELLED
+      ) {
+        await completeDailyInventoryForLines(
+          tx,
+          getInventoryDateFromOrder(existing),
+          orderToInventoryLines(existing),
+        );
+      }
+
+      updated.push(
+        await tx.order.update({
+          where: { id: existing.id },
+          data: {
+            status: data.status,
+            adminComment:
+              data.adminComment === undefined ? undefined : data.adminComment || null,
+          },
+        }),
+      );
+    }
+
+    return updated;
+  }, ORDER_TRANSACTION_OPTIONS);
+
+  const notificationTypeMap: Partial<Record<OrderStatus, NotificationType>> = {
+    [OrderStatus.CONFIRMED]: NotificationType.ORDER_CONFIRMED,
+    [OrderStatus.ASSEMBLED]: NotificationType.ORDER_ASSEMBLED,
+    [OrderStatus.HANDED_TO_COURIER]: NotificationType.ORDER_HANDED_TO_COURIER,
+    [OrderStatus.COURIER_ON_THE_WAY]: NotificationType.COURIER_ON_THE_WAY,
+    [OrderStatus.DELIVERED]: NotificationType.ORDER_DELIVERED,
+    [OrderStatus.CANCELLED]: NotificationType.ORDER_CANCELLED,
+  };
+  const type = notificationTypeMap[data.status];
+
+  if (type) {
+    await Promise.all(
+      updatedOrders.map((order) =>
+        createNotification({
+          userId: order.userId,
+          orderId: order.id,
+          type,
+          title: orderStatusTitles[data.status] ?? "Статус обновлён",
+          message: `Статус заказа ${order.orderNumber} изменён на "${
+            orderStatusMeta[data.status]?.label ?? data.status
+          }".`,
+        }),
+      ),
+    );
+  }
+
+  return {
+    count: updatedOrders.length,
+    orders: updatedOrders,
+  };
 }
 
 export async function updateOrderItemsByAdmin(orderId: string, input: unknown) {

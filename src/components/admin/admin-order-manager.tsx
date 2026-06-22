@@ -7,17 +7,32 @@ import { useMemo, useState, useTransition } from "react";
 import {
   ArrowRight,
   ArrowUp,
+  CheckSquare,
   Clock3,
   Columns3,
   LayoutList,
+  ListChecks,
   MapPin,
   Package,
+  Square,
   Truck,
 } from "lucide-react";
 import { StatusPill } from "@/components/ui/status-pill";
 import { cn, formatCurrency, getOrderStatusLabel } from "@/lib/utils";
 
 const flowStatuses = ["ASSEMBLING", "ASSEMBLED", "HANDED_TO_COURIER"] as const;
+
+const bulkStatusOptions = [
+  "ASSEMBLING",
+  "ASSEMBLED",
+  "HANDED_TO_COURIER",
+  "COURIER_ON_THE_WAY",
+  "DELIVERED",
+  "DELIVERY_ISSUE",
+  "CANCELLED",
+] as const;
+
+type BulkStatus = (typeof bulkStatusOptions)[number];
 
 const kanbanLanes = [
   {
@@ -104,33 +119,57 @@ function OrderMiniCard({
   dense = false,
   draggable = false,
   isDragging = false,
+  selectable = false,
+  selected = false,
   onDragStart,
   onDragEnd,
+  onToggleSelected,
 }: {
   order: AdminOrder;
   dense?: boolean;
   draggable?: boolean;
   isDragging?: boolean;
+  selectable?: boolean;
+  selected?: boolean;
   onDragStart?: (event: DragEvent<HTMLAnchorElement>) => void;
   onDragEnd?: () => void;
+  onToggleSelected?: () => void;
 }) {
   const preorderCount = order.items.filter((item) => item.isPreorder).length;
 
   return (
-    <Link
-      href={`/admin/orders/${order.id}`}
-      draggable={draggable}
-      aria-grabbed={isDragging}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      className={cn(
-        "group block rounded-[1.6rem] bg-white/92 p-4 shadow-sm ring-1 ring-[var(--line)] transition hover:-translate-y-0.5 hover:shadow-xl",
-        draggable && "cursor-grab active:cursor-grabbing",
-        isDragging && "opacity-55",
-        dense ? "space-y-3" : "space-y-4",
-        !order.courier && "bg-amber-50/90 ring-amber-200",
-      )}
-    >
+    <div className="relative">
+      {selectable ? (
+        <button
+          type="button"
+          aria-pressed={selected}
+          aria-label={`${selected ? "Убрать из выбора" : "Выбрать"} заказ ${order.orderNumber}`}
+          onClick={onToggleSelected}
+          className={cn(
+            "absolute left-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/95 text-[var(--muted)] shadow-sm ring-1 ring-[var(--line)] transition hover:text-[var(--accent-strong)]",
+            selected && "bg-[var(--accent)] text-white ring-[var(--accent)] hover:text-white",
+          )}
+        >
+          {selected ? <CheckSquare size={18} /> : <Square size={18} />}
+        </button>
+      ) : null}
+
+      <Link
+        href={`/admin/orders/${order.id}`}
+        draggable={draggable}
+        aria-grabbed={isDragging}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        className={cn(
+          "group block rounded-[1.6rem] bg-white/92 p-4 shadow-sm ring-1 ring-[var(--line)] transition hover:-translate-y-0.5 hover:shadow-xl",
+          selectable && "pl-16",
+          selected && "bg-[var(--accent-soft)]/65 ring-2 ring-[var(--accent)]",
+          draggable && "cursor-grab active:cursor-grabbing",
+          isDragging && "opacity-55",
+          dense ? "space-y-3" : "space-y-4",
+          !order.courier && "bg-amber-50/90 ring-amber-200",
+        )}
+      >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-lg font-semibold">{order.orderNumber}</p>
@@ -201,7 +240,8 @@ function OrderMiniCard({
           className="text-[var(--accent-strong)] transition group-hover:translate-x-1"
         />
       </div>
-    </Link>
+      </Link>
+    </div>
   );
 }
 
@@ -250,6 +290,10 @@ export function AdminOrderManager({ orders }: { orders: AdminOrder[] }) {
   const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
   const [draggedOrderId, setDraggedOrderId] = useState<string | null>(null);
   const [activeLaneKey, setActiveLaneKey] = useState<string | null>(null);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(() => new Set());
+  const [bulkStatus, setBulkStatus] = useState<BulkStatus>("ASSEMBLED");
+  const [bulkMessage, setBulkMessage] = useState("");
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [error, setError] = useState("");
   const [, startTransition] = useTransition();
 
@@ -268,6 +312,161 @@ export function AdminOrderManager({ orders }: { orders: AdminOrder[] }) {
       orders: localOrders.filter((order) => lane.statuses.includes(order.status as never)),
     }));
   }, [localOrders]);
+  const selectedOrders = useMemo(
+    () => localOrders.filter((order) => selectedOrderIds.has(order.id)),
+    [localOrders, selectedOrderIds],
+  );
+  const selectedCount = selectedOrders.length;
+  const allOrdersSelected = localOrders.length > 0 && selectedCount === localOrders.length;
+
+  function toggleOrderSelection(orderId: string) {
+    setError("");
+    setBulkMessage("");
+    setSelectedOrderIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(orderId)) {
+        next.delete(orderId);
+      } else {
+        next.add(orderId);
+      }
+
+      return next;
+    });
+  }
+
+  function toggleAllOrders() {
+    setError("");
+    setBulkMessage("");
+    setSelectedOrderIds(() => {
+      if (allOrdersSelected) {
+        return new Set();
+      }
+
+      return new Set(localOrders.map((order) => order.id));
+    });
+  }
+
+  function toggleLaneOrders(orderIds: string[]) {
+    setError("");
+    setBulkMessage("");
+    setSelectedOrderIds((current) => {
+      const next = new Set(current);
+      const hasEveryLaneOrder = orderIds.length > 0 && orderIds.every((id) => next.has(id));
+
+      for (const orderId of orderIds) {
+        if (hasEveryLaneOrder) {
+          next.delete(orderId);
+        } else {
+          next.add(orderId);
+        }
+      }
+
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedOrderIds(new Set());
+  }
+
+  async function moveSelectedOrdersToStatus(status: BulkStatus) {
+    setError("");
+    setBulkMessage("");
+
+    if (selectedOrders.length === 0) {
+      setError("Выберите хотя бы один заказ для массового изменения.");
+      return;
+    }
+
+    const ordersToMove = selectedOrders.filter((order) => order.status !== status);
+
+    if (ordersToMove.length === 0) {
+      setBulkMessage("Выбранные заказы уже находятся в этом статусе.");
+      return;
+    }
+
+    if (status === "HANDED_TO_COURIER") {
+      const withoutCourier = ordersToMove.filter((order) => !order.courier);
+
+      if (withoutCourier.length > 0) {
+        setError(
+          `Нельзя передать в доставку ${withoutCourier.length} заказ(ов): сначала назначьте курьера.`,
+        );
+        return;
+      }
+    }
+
+    const previousStatuses = new Map(ordersToMove.map((order) => [order.id, order.status]));
+    const originalStatuses = new Map(orders.map((order) => [order.id, order.status]));
+    setIsBulkUpdating(true);
+    setStatusOverrides((current) => {
+      const next = { ...current };
+
+      for (const order of ordersToMove) {
+        next[order.id] = status;
+      }
+
+      return next;
+    });
+
+    try {
+      const response = await fetch("/api/admin/orders/bulk-status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderIds: ordersToMove.map((order) => order.id),
+          status,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setStatusOverrides((current) => {
+          const next = { ...current };
+
+          for (const [orderId, previousStatus] of previousStatuses) {
+            if (originalStatuses.get(orderId) === previousStatus) {
+              delete next[orderId];
+            } else {
+              next[orderId] = previousStatus;
+            }
+          }
+
+          return next;
+        });
+        setError(payload?.error ?? "Не удалось массово изменить статус заказов.");
+        return;
+      }
+
+      const payload = await response.json().catch(() => null);
+      clearSelection();
+      setBulkMessage(
+        `Статус обновлён для ${payload?.count ?? ordersToMove.length} заказ(ов).`,
+      );
+
+      startTransition(() => {
+        router.refresh();
+      });
+    } catch {
+      setStatusOverrides((current) => {
+        const next = { ...current };
+
+        for (const [orderId, previousStatus] of previousStatuses) {
+          if (originalStatuses.get(orderId) === previousStatus) {
+            delete next[orderId];
+          } else {
+            next[orderId] = previousStatus;
+          }
+        }
+
+        return next;
+      });
+      setError("Сетевая ошибка: не удалось массово изменить статус заказов.");
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  }
 
   function startKanbanDrag(event: DragEvent<HTMLAnchorElement>, orderId: string) {
     event.dataTransfer.effectAllowed = "move";
@@ -380,62 +579,144 @@ export function AdminOrderManager({ orders }: { orders: AdminOrder[] }) {
         </div>
       </div>
 
+      <div className="glass-panel flex flex-col gap-3 rounded-[1.8rem] p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent-strong)]">
+            <ListChecks size={20} />
+          </span>
+          <div>
+            <p className="font-semibold">Массовое изменение статуса</p>
+            <p className="text-sm text-[var(--muted)]">
+              Выбрано {selectedCount} из {localOrders.length} заказов. Изменение уйдёт одним запросом.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={toggleAllOrders}
+            className="inline-flex h-11 items-center justify-center rounded-2xl bg-white px-4 text-sm font-semibold text-[var(--accent-strong)] ring-1 ring-[var(--line)] transition hover:bg-[var(--surface-muted)]"
+          >
+            {allOrdersSelected ? "Снять выбор" : "Выбрать все"}
+          </button>
+          {selectedCount > 0 ? (
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="inline-flex h-11 items-center justify-center rounded-2xl bg-white px-4 text-sm font-semibold text-[var(--muted)] ring-1 ring-[var(--line)] transition hover:bg-[var(--surface-muted)]"
+            >
+              Очистить
+            </button>
+          ) : null}
+          <select
+            value={bulkStatus}
+            onChange={(event) => setBulkStatus(event.target.value as BulkStatus)}
+            className="h-11 rounded-2xl bg-white px-4 text-sm font-semibold outline-none ring-1 ring-[var(--line)]"
+          >
+            {bulkStatusOptions.map((status) => (
+              <option key={status} value={status}>
+                {getOrderStatusLabel(status)}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => void moveSelectedOrdersToStatus(bulkStatus)}
+            disabled={selectedCount === 0 || isBulkUpdating}
+            className="inline-flex h-11 items-center justify-center rounded-2xl bg-[var(--accent)] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            {isBulkUpdating ? "Переносим..." : "Перенести выбранные"}
+          </button>
+        </div>
+      </div>
+
       {error ? (
         <div className="rounded-[1.5rem] bg-rose-50 p-4 text-sm text-rose-900 ring-1 ring-rose-100">
           {error}
         </div>
       ) : null}
 
+      {bulkMessage ? (
+        <div className="rounded-[1.5rem] bg-emerald-50 p-4 text-sm text-emerald-900 ring-1 ring-emerald-100">
+          {bulkMessage}
+        </div>
+      ) : null}
+
       {viewMode === "kanban" ? (
         <div className="grid gap-4 xl:grid-cols-3">
-          {ordersByLane.map((lane) => (
-            <section
-              key={lane.key}
-              onDragOver={(event) => allowKanbanDrop(event, lane.key)}
-              onDragLeave={() => setActiveLaneKey(null)}
-              onDrop={(event) => dropKanbanOrder(event, lane.targetStatus)}
-              className={cn(
-                "min-h-44 rounded-[2rem] bg-gradient-to-br p-4 ring-1 transition",
-                lane.accent,
-                activeLaneKey === lane.key && "scale-[1.01] ring-2 ring-[var(--accent)]",
-              )}
-            >
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-xl font-semibold">{lane.label}</h3>
-                  <p className="text-sm text-[var(--muted)]">{lane.hint}</p>
-                </div>
-                <span className="inline-flex h-10 min-w-10 items-center justify-center rounded-full bg-white px-3 text-sm font-bold shadow-sm">
-                  {lane.orders.length}
-                </span>
-              </div>
+          {ordersByLane.map((lane) => {
+            const laneOrderIds = lane.orders.map((order) => order.id);
+            const isLaneSelected =
+              laneOrderIds.length > 0 && laneOrderIds.every((id) => selectedOrderIds.has(id));
 
-              <div className="space-y-3">
-                {lane.orders.map((order) => (
-                  <OrderMiniCard
-                    key={order.id}
-                    order={order}
-                    dense
-                    draggable
-                    isDragging={draggedOrderId === order.id}
-                    onDragStart={(event) => startKanbanDrag(event, order.id)}
-                    onDragEnd={endKanbanDrag}
-                  />
-                ))}
-                {lane.orders.length === 0 ? (
-                  <div className="rounded-[1.5rem] bg-white/60 p-5 text-center text-sm text-[var(--muted)]">
-                    Перетащите сюда заказ
+            return (
+              <section
+                key={lane.key}
+                onDragOver={(event) => allowKanbanDrop(event, lane.key)}
+                onDragLeave={() => setActiveLaneKey(null)}
+                onDrop={(event) => dropKanbanOrder(event, lane.targetStatus)}
+                className={cn(
+                  "min-h-44 rounded-[2rem] bg-gradient-to-br p-4 ring-1 transition",
+                  lane.accent,
+                  activeLaneKey === lane.key && "scale-[1.01] ring-2 ring-[var(--accent)]",
+                )}
+              >
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-semibold">{lane.label}</h3>
+                    <p className="text-sm text-[var(--muted)]">{lane.hint}</p>
+                    {laneOrderIds.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleLaneOrders(laneOrderIds)}
+                        className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/85 px-3 py-1.5 text-xs font-semibold text-[var(--accent-strong)] shadow-sm ring-1 ring-[var(--line)] transition hover:bg-white"
+                      >
+                        {isLaneSelected ? <CheckSquare size={14} /> : <Square size={14} />}
+                        {isLaneSelected ? "Снять колонку" : "Выбрать колонку"}
+                      </button>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-            </section>
-          ))}
+                  <span className="inline-flex h-10 min-w-10 items-center justify-center rounded-full bg-white px-3 text-sm font-bold shadow-sm">
+                    {lane.orders.length}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {lane.orders.map((order) => (
+                    <OrderMiniCard
+                      key={order.id}
+                      order={order}
+                      dense
+                      draggable
+                      selectable
+                      selected={selectedOrderIds.has(order.id)}
+                      isDragging={draggedOrderId === order.id}
+                      onToggleSelected={() => toggleOrderSelection(order.id)}
+                      onDragStart={(event) => startKanbanDrag(event, order.id)}
+                      onDragEnd={endKanbanDrag}
+                    />
+                  ))}
+                  {lane.orders.length === 0 ? (
+                    <div className="rounded-[1.5rem] bg-white/60 p-5 text-center text-sm text-[var(--muted)]">
+                      Перетащите сюда заказ
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+            );
+          })}
         </div>
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
           {localOrders.map((order) => (
             <div key={order.id} className="space-y-3">
-              <OrderMiniCard order={order} />
+              <OrderMiniCard
+                order={order}
+                selectable
+                selected={selectedOrderIds.has(order.id)}
+                onToggleSelected={() => toggleOrderSelection(order.id)}
+              />
               <OrderStageProgress status={order.status} />
             </div>
           ))}
