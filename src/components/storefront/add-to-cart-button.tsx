@@ -22,7 +22,9 @@ type AddToCartButtonProps = {
 export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonProps) {
   const { items, addItem, updateQuantity } = useCart();
   const [justAdded, setJustAdded] = useState(false);
+  const [isCompactExpanded, setIsCompactExpanded] = useState(false);
   const resetTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+  const compactControlsRef = useRef<HTMLDivElement | null>(null);
   const quantity = items.find((item) => item.productId === props.productId)?.quantity ?? 0;
   const isCompact = variant === "compact";
   const maxQuantity =
@@ -39,6 +41,28 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!isCompact || !isCompactExpanded) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+
+      if (target instanceof Node && compactControlsRef.current?.contains(target)) {
+        return;
+      }
+
+      setIsCompactExpanded(false);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [isCompact, isCompactExpanded]);
 
   function triggerAddedState() {
     setJustAdded(true);
@@ -70,7 +94,12 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
   }
 
   function handleCompactAdd() {
+    if (isDisabled || reachedLimit) {
+      return;
+    }
+
     handleAdd();
+    setIsCompactExpanded(true);
   }
 
   function handleIncrease() {
@@ -80,43 +109,78 @@ export function AddToCartButton({ variant = "full", ...props }: AddToCartButtonP
 
     updateQuantity(props.productId, quantity + 1);
     triggerAddedState();
+
+    if (isCompact) {
+      setIsCompactExpanded(true);
+    }
   }
 
   function handleDecrease() {
     updateQuantity(props.productId, quantity - 1);
+
+    if (isCompact && quantity <= 1) {
+      setIsCompactExpanded(false);
+    }
   }
 
   if (quantity > 0 && isCompact) {
     return (
       <div
+        ref={compactControlsRef}
         className={cn(
-          "inline-flex h-[7.4rem] w-10 shrink-0 flex-col-reverse items-center justify-center gap-1 rounded-[1rem] bg-[var(--accent)] p-1 text-white shadow-[0_14px_26px_rgba(47,143,79,0.24)] transition-[transform,box-shadow] duration-300",
+          "relative inline-flex w-10 shrink-0 items-end justify-end transition-[height,transform,box-shadow] duration-300 ease-out",
+          isCompactExpanded ? "h-[7.4rem]" : "h-10",
           justAdded && "animate-[cart-pop_420ms_ease-out] shadow-[0_18px_34px_rgba(35,105,58,0.32)]",
         )}
         role="group"
         aria-label={`${props.name} в корзине`}
       >
+        <div
+          className={cn(
+            "absolute bottom-0 right-0 w-10 overflow-hidden rounded-[1rem] bg-[var(--accent)] p-1 text-white shadow-[0_14px_26px_rgba(47,143,79,0.24)] transition-[height,box-shadow,transform] duration-300 ease-out",
+            isCompactExpanded
+              ? "h-[7.4rem] shadow-[0_18px_34px_rgba(35,105,58,0.32)]"
+              : "h-10",
+          )}
+        />
+
         <button
           type="button"
           onClick={handleDecrease}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/16 transition hover:bg-white/24 active:scale-95"
+          className={cn(
+            "absolute bottom-1 left-1 z-[1] inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/16 transition-[opacity,transform,background-color] duration-300 hover:bg-white/24 active:scale-95",
+            isCompactExpanded
+              ? "translate-y-0 scale-100 opacity-100"
+              : "pointer-events-none translate-y-2 scale-75 opacity-0",
+          )}
           aria-label={`Уменьшить количество товара ${props.name}`}
         >
           <Minus size={14} />
         </button>
 
-        <span
-          className="flex min-h-6 min-w-8 items-center justify-center text-sm font-black tabular-nums"
+        <button
+          type="button"
+          onClick={() => setIsCompactExpanded(true)}
+          className={cn(
+            "absolute left-1 z-[2] inline-flex h-8 w-8 items-center justify-center rounded-full text-sm font-black tabular-nums transition-[top,background-color,transform] duration-300 hover:bg-white/12 active:scale-95",
+            isCompactExpanded ? "top-[2.7rem] bg-white/10" : "top-1 bg-transparent",
+          )}
           aria-live="polite"
+          aria-expanded={isCompactExpanded}
         >
           {quantity}
-        </span>
+        </button>
 
         <button
           type="button"
           onClick={handleIncrease}
           disabled={reachedLimit}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-[0.8rem] bg-white/16 transition hover:bg-white/24 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45"
+          className={cn(
+            "absolute left-1 top-1 z-[1] inline-flex h-8 w-8 items-center justify-center rounded-[0.8rem] bg-white/16 transition-[opacity,transform,background-color] duration-300 hover:bg-white/24 active:scale-95 disabled:cursor-not-allowed disabled:opacity-45",
+            isCompactExpanded
+              ? "translate-y-0 scale-100 opacity-100"
+              : "pointer-events-none -translate-y-2 scale-75 opacity-0",
+          )}
           aria-label={`Увеличить количество товара ${props.name}`}
         >
           <Plus size={15} />
