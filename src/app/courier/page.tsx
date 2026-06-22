@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 const courierTabs = ["history", "route", "today", "archive"] as const;
-const courierDays = ["today", "tomorrow"] as const;
+const courierDays = ["yesterday", "today", "tomorrow"] as const;
 
 type CourierTab = (typeof courierTabs)[number];
 type CourierDay = (typeof courierDays)[number];
@@ -28,6 +28,13 @@ const dayMeta: Record<
     emptyRoute: string;
   }
 > = {
+  yesterday: {
+    label: "Вчера",
+    titlePart: "за вчера и старше",
+    emptyOrders:
+      "Просроченных активных доставок нет. Старые незавершённые заказы появятся здесь.",
+    emptyRoute: "Просроченных активных точек маршрута нет.",
+  },
   today: {
     label: "Сегодня",
     titlePart: "на сегодня",
@@ -80,9 +87,33 @@ function getCourierDay(value: string | string[] | undefined): CourierDay {
 
 function getDateKey(day: CourierDay) {
   const baseDate = new Date();
-  const deliveryDate = day === "tomorrow" ? addDays(baseDate, 1) : baseDate;
+  const deliveryDate =
+    day === "tomorrow"
+      ? addDays(baseDate, 1)
+      : day === "yesterday"
+        ? addDays(baseDate, -1)
+        : baseDate;
 
   return format(deliveryDate, "yyyy-MM-dd");
+}
+
+function getCourierDayContext(day: CourierDay) {
+  const todayKey = format(new Date(), "yyyy-MM-dd");
+  const dateKey = getDateKey(day);
+
+  if (day === "yesterday") {
+    return {
+      dateKey,
+      taskFilters: { beforeDate: todayKey },
+      routePdfUrl: `/api/courier/route-pdf?beforeDate=${todayKey}`,
+    };
+  }
+
+  return {
+    dateKey,
+    taskFilters: { date: dateKey },
+    routePdfUrl: `/api/courier/route-pdf?date=${dateKey}`,
+  };
 }
 
 function getPageMeta(tab: CourierTab, day: CourierDay) {
@@ -151,12 +182,12 @@ export default async function CourierPage({
   const params = await searchParams;
   const activeTab = getCourierTab(params.tab);
   const activeDay = getCourierDay(params.day);
-  const selectedDateKey = getDateKey(activeDay);
+  const selectedDayContext = getCourierDayContext(activeDay);
   const historyQuery = typeof params.history === "string" ? params.history : "";
   const archiveQuery = typeof params.archive === "string" ? params.archive : "";
   const historySearchQuery = activeTab === "archive" ? archiveQuery : historyQuery;
   const [activeTasks, historyTasks] = await Promise.all([
-    getCourierActiveTasks(user.id, { date: selectedDateKey }),
+    getCourierActiveTasks(user.id, selectedDayContext.taskFilters),
     getCourierDeliveryHistory(user.id, { query: historySearchQuery }),
   ]);
   const meta = getPageMeta(activeTab, activeDay);
@@ -186,7 +217,7 @@ export default async function CourierPage({
           <>
             <CourierDayRoute
               tasks={activeTasks}
-              routePdfUrl={`/api/courier/route-pdf?date=${selectedDateKey}`}
+              routePdfUrl={selectedDayContext.routePdfUrl}
             />
             {activeTasks.length === 0 && (
               <div className="glass-panel rounded-[2rem] p-8 text-center text-[var(--muted)]">

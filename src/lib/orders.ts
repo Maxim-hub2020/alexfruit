@@ -3187,16 +3187,23 @@ export async function getOrdersForLabels(filters: { date: string }) {
 }
 
 export async function getOrdersForStaffPdf(filters: {
-  date: string;
+  date?: string;
+  beforeDate?: string | null;
   courierId?: string | null;
+  statuses?: OrderStatus[] | null;
 }) {
+  const deliveryDate = filters.beforeDate
+    ? { lt: dateStringToDbDate(filters.beforeDate) }
+    : dateStringToDbDate(filters.date ?? format(new Date(), "yyyy-MM-dd"));
+  const status = filters.statuses?.length
+    ? { in: filters.statuses }
+    : { not: OrderStatus.CANCELLED };
+
   return prisma.order.findMany({
     where: {
-      deliveryDate: dateStringToDbDate(filters.date),
+      deliveryDate,
       courierId: filters.courierId || undefined,
-      status: {
-        not: OrderStatus.CANCELLED,
-      },
+      status,
     },
     include: {
       user: true,
@@ -3222,7 +3229,11 @@ export async function getOrdersForStaffPdf(filters: {
         },
       },
     },
-    orderBy: [{ deliveryTimeSlot: { startTime: "asc" } }, { createdAt: "asc" }],
+    orderBy: [
+      { deliveryDate: "asc" },
+      { deliveryTimeSlot: { startTime: "asc" } },
+      { createdAt: "asc" },
+    ],
   });
 }
 
@@ -3358,8 +3369,14 @@ function buildCourierHistorySearch(query?: string | null): Prisma.OrderWhereInpu
 
 export async function getCourierActiveTasks(
   userId: string,
-  filters: { date?: string | null } = {},
+  filters: { date?: string | null; beforeDate?: string | null } = {},
 ) {
+  const deliveryDate = filters.beforeDate
+    ? { lt: dateStringToDbDate(filters.beforeDate) }
+    : filters.date
+      ? dateStringToDbDate(filters.date)
+      : undefined;
+
   return prisma.deliveryTask.findMany({
     where: {
       courierId: userId,
@@ -3368,7 +3385,7 @@ export async function getCourierActiveTasks(
       },
       order: {
         is: {
-          deliveryDate: filters.date ? dateStringToDbDate(filters.date) : undefined,
+          deliveryDate,
           status: {
             in: [
               OrderStatus.HANDED_TO_COURIER,

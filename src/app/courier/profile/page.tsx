@@ -71,10 +71,17 @@ export default async function CourierProfilePage() {
               </p>
               <h2 className="mt-2 text-3xl font-semibold">Заказы курьера</h2>
               <p className="mt-2 text-[var(--muted)]">
-                Откройте заказы на сегодня или заранее посмотрите завтрашний маршрут.
+                Откройте просроченные, сегодняшние или завтрашние доставки.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
+              <Link
+                href="/courier?tab=today&day=yesterday"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-5 text-sm font-semibold text-[var(--foreground)] ring-1 ring-[var(--line)]"
+              >
+                <CalendarDays size={17} />
+                Заказы вчера
+              </Link>
               <Link
                 href="/courier?tab=today&day=today"
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-5 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(47,143,79,0.22)]"
