@@ -55,6 +55,8 @@ type MaxUpdate = {
   recipient?: MaxMessage["recipient"];
 };
 
+const MAX_API_BASE = "https://platform-api2.max.ru";
+
 function getMaxToken() {
   return process.env.MAX_BOT_TOKEN?.trim();
 }
@@ -149,7 +151,19 @@ export async function handleTelegramWebhook(
 }
 
 function getMaxApiBase() {
-  return (process.env.MAX_BOT_API_BASE || "https://platform-api.max.ru").replace(/\/$/, "");
+  const configuredBase = process.env.MAX_BOT_API_BASE?.trim() || MAX_API_BASE;
+
+  try {
+    const url = new URL(configuredBase);
+
+    if (url.hostname === "platform-api.max.ru") {
+      url.hostname = "platform-api2.max.ru";
+    }
+
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return configuredBase.replace(/\/$/, "");
+  }
 }
 
 async function sendMaxMessage(

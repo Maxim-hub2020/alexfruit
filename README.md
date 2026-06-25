@@ -49,7 +49,7 @@ TELEGRAM_WEBHOOK_SECRET=
 MAX_BOT_TOKEN=
 MAX_BOT_USERNAME=
 MAX_BOT_DEEP_LINK_BASE=
-MAX_BOT_API_BASE=https://platform-api.max.ru
+MAX_BOT_API_BASE=https://platform-api2.max.ru
 MAX_WEBHOOK_SECRET=
 STORAGE_ACCESS_KEY=
 STORAGE_SECRET_KEY=
@@ -84,6 +84,8 @@ RATE_LIMIT_MAX_BUCKETS=5000
 - Max: `https://alexfruit.ru/api/integrations/max/webhook`, включите события `bot_started` и `message_created`; секрет проверяется через `X-Max-Bot-Api-Secret`.
 
 Для Max `MAX_BOT_DEEP_LINK_BASE` можно оставить пустым, если указан `MAX_BOT_USERNAME`: ссылка будет собираться как `https://max.ru/<username>?start=<token>`.
+
+Для Max используйте `MAX_BOT_API_BASE=https://platform-api2.max.ru`. Если в старом `.env` остался `platform-api.max.ru`, приложение автоматически заменит его на новый endpoint, но сервер всё равно лучше обновить явно. После перехода Max также требует доверять корневому сертификату Минцифры в окружении, где выполняется Node.js.
 
 ## Защита от частых запросов
 
